@@ -538,6 +538,51 @@ describe('extension loader lifecycle source', () => {
     expect(remote.closeCalls).toBeGreaterThan(0);
   });
 
+  it('keeps one remote socket for Cloud connect, status and disconnect after an extension hot import', async () => {
+    const { toasts } = await loadExtension({
+      withWebSocket: true,
+      prompt: () => 'EDA-ABCDEF12',
+    });
+    const firstRuntime = (globalThis as any).__easyedaMcpProBridgeRuntime_v8__;
+    vi.resetModules();
+    const reloaded = await import('../src/index.js');
+    expect((globalThis as any).__easyedaMcpProBridgeRuntime_v8__).toBe(firstRuntime);
+
+    await reloaded.connectHostedCloud();
+    const remote = latestRemoteSocket();
+    remote.open();
+    await flushMicrotasks();
+    reloaded.showRemoteRelayStatus();
+    expect(toasts.at(-1)).toContain('Remote Relay: hosted/');
+    expect(toasts.at(-1)).not.toContain('disabled/disconnected');
+
+    reloaded.disconnectRemoteRelay();
+    expect(remote.closeCalls).toBeGreaterThan(0);
+  });
+
+  it('cancels a pending Cloud pairing when Disconnect is used after a hot import', async () => {
+    const callbacks: Array<(answer: unknown) => void> = [];
+    await loadExtension({
+      withWebSocket: true,
+      dialog: {
+        showInputDialog: (_before, _after, _title, _type, _value, _options, callback) => {
+          if (callback) callbacks.push(callback);
+        },
+      },
+    });
+    vi.resetModules();
+    const reloaded = await import('../src/index.js');
+
+    const pending = reloaded.connectHostedCloud();
+    expect(callbacks).toHaveLength(1);
+    reloaded.disconnectRemoteRelay();
+    callbacks[0]?.('EDA-ABCDEF12');
+    await pending;
+    expect(
+      HarnessSocket.instances.filter((socket) => socket.url.startsWith('wss://')),
+    ).toHaveLength(0);
+  });
+
   it('pairs through EasyEDA native input and SYS_WebSocket without browser prompt/WebSocket', async () => {
     const sent: Array<Record<string, unknown>> = [];
     let socketId = '';

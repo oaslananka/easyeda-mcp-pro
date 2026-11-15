@@ -775,7 +775,9 @@ async function promptConnectionValue(message: string, initialValue = ''): Promis
   }
 }
 
-async function connectHostedCloudInternal(): Promise<void> {
+async function connectHostedCloudInternal(
+  connectRelay: typeof connectRemoteRelayInternal = connectRemoteRelayInternal,
+): Promise<void> {
   const generation = ++connectionPromptGeneration;
   const pairingCode = await promptConnectionValue(
     'Open easyeda-mcp-pro.oaslananka.dev/cloud; paste EDA-XXXXXXXX.',
@@ -786,7 +788,7 @@ async function connectHostedCloudInternal(): Promise<void> {
     showToast('Enter a valid EDA-XXXXXXXX Cloud code.');
     return;
   }
-  connectRemoteRelayInternal('hosted', OFFICIAL_HOSTED_RELAY_URL, code);
+  connectRelay('hosted', OFFICIAL_HOSTED_RELAY_URL, code);
 }
 
 async function connectCustomRemoteInternal(): Promise<void> {
@@ -1718,8 +1720,13 @@ function getPersistentRuntime(): PersistentRuntime {
   const globalScope = globalThis as any;
   const existing = globalScope[PERSISTENT_RUNTIME_KEY] as PersistentRuntime | undefined;
   if (existing) {
-    // Preserve the hot-reload runtime while upgrading its optional Cloud menu.
-    existing.connectHostedCloud = connectHostedCloudInternal;
+    // Keep the old module's pairing prompt and connection owner together. A new
+    // module has a separate cancellation generation and remote socket state:
+    // replacing only Connect Cloud would bypass its own Disconnect/Status.
+    if (typeof existing.connectHostedCloud !== 'function') {
+      // A pre-Cloud runtime can delegate new pairing to its existing relay owner.
+      existing.connectHostedCloud = () => connectHostedCloudInternal(existing.connectRemoteRelay);
+    }
     return existing;
   }
 
