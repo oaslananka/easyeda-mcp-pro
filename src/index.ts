@@ -16,6 +16,7 @@ import { createServer } from './server/factory.js';
 import { createHttpTransport } from './server/transports/http.js';
 import { RemoteGateway } from './remote/gateway.js';
 import { createHostedCloudRuntime } from './cloud/runtime.js';
+import { createHostedUsageAuditLog } from './cloud/usage.js';
 import { assertSupportedNodeRuntime } from './runtime/policy.js';
 
 async function main() {
@@ -65,7 +66,11 @@ async function main() {
   const config = loadEnvConfig();
   const hostedCloud = await createHostedCloudRuntime(config);
   const remoteGateway =
-    config.MCP_BRIDGE_BACKEND === 'remote_relay' ? new RemoteGateway() : undefined;
+    config.MCP_BRIDGE_BACKEND === 'remote_relay'
+      ? new RemoteGateway(
+          hostedCloud ? { audit: createHostedUsageAuditLog(hostedCloud.usage) } : {},
+        )
+      : undefined;
   const instance = await createServer(config, {
     remoteGateway,
     hostedOAuthResource: hostedCloud ? config.OAUTH_AUDIENCE : undefined,
@@ -76,6 +81,7 @@ async function main() {
       gateway: remoteGateway,
       serverFactory: instance.createSessionServer,
       hostedAuth: hostedCloud?.auth,
+      hostedUsage: hostedCloud?.usage,
     });
     instance.httpTransport = httpTransport;
     await httpTransport.start();

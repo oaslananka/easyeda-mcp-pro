@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { getMigrations } from 'better-auth/db/migration';
 import type { EnvConfig } from '../config/env.js';
 import { createHostedAuth, type HostedAuth, type HostedAuthSettings } from './hosted-auth.js';
+import { HostedUsageStore } from './usage.js';
 
 export interface HostedCloudSettings extends Omit<HostedAuthSettings, 'database'> {
   databasePath: string;
@@ -11,6 +12,7 @@ export interface HostedCloudSettings extends Omit<HostedAuthSettings, 'database'
 
 export interface HostedCloudRuntime {
   auth: HostedAuth;
+  usage: HostedUsageStore;
   close: () => void;
 }
 
@@ -129,7 +131,8 @@ export async function createHostedCloudRuntime(
     const migrations = await getMigrations(auth.options);
     await migrations.runMigrations();
     auth.installGrantProtection();
-    return { auth, close: () => database.close() };
+    const usage = new HostedUsageStore(database);
+    return { auth, usage, close: () => database.close() };
   } catch (error) {
     database.close();
     throw error;

@@ -1,4 +1,5 @@
 import * as http from 'node:http';
+import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 import { createServer as createNetServer } from 'node:net';
 import { runInNewContext } from 'node:vm';
@@ -6,6 +7,8 @@ import { describe, expect, it } from 'vitest';
 import { EnvSchema } from '../../../src/config/env.js';
 import type { HostedAuth } from '../../../src/cloud/hosted-auth.js';
 import { RemoteGateway } from '../../../src/remote/gateway.js';
+import { RemoteAuditLog } from '../../../src/remote/observability.js';
+import { HostedUsageStore } from '../../../src/cloud/usage.js';
 import { REMOTE_RELAY_PROTOCOL_VERSION } from '../../../src/remote/protocol.js';
 import { createHttpTransport } from '../../../src/server/transports/http.js';
 import { CLOUD_CSS, CLOUD_JS } from '../../../src/cloud/portal-assets.js';
@@ -36,7 +39,7 @@ function fakeProvider(origin: string): HostedAuth {
 }
 
 async function withPortal(
-  callback: (base: string, gateway: RemoteGateway) => Promise<void>,
+  callback: (base: string, gateway: RemoteGateway, usage: HostedUsageStore) => Promise<void>,
 ): Promise<void> {
   const unused = createNetServer();
   await new Promise<void>((resolve) => unused.listen(0, '127.0.0.1', resolve));
@@ -55,16 +58,93 @@ async function withPortal(
     OAUTH_AUDIENCE: `${origin}/mcp`,
     OAUTH_JWKS_URI: `${origin}/api/auth/jwks`,
   });
-  const gateway = new RemoteGateway();
-  const transport = createHttpTransport(config, { gateway, hostedAuth: fakeProvider(origin) });
+  const database = new DatabaseSync(':memory:');
+  const usage = new HostedUsageStore(database);
+  const gateway = new RemoteGateway({
+    audit: new RemoteAuditLog(200, (event) => {
+      usage.record(event);
+    }),
+  });
+  const transport = createHttpTransport(config, {
+    gateway,
+    hostedAuth: fakeProvider(origin),
+    hostedUsage: usage,
+  });
   const server = http.createServer(transport.app);
   await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
   try {
-    await callback(origin, gateway);
+    await callback(origin, gateway, usage);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    database.close();
   }
 }
+
+describe('Hosted owner tool-call usage', () => {
+  it('requires the real signed-in owner and excludes other owners and blocked calls', async () => {
+    await withPortal(async (base, gateway) => {
+      const ownerA = { userId: 'owner-a', mode: 'hosted' as const };
+      gateway.audit.record({ ...ownerA, event: 'remote.tool.requested', toolName: 'read' });
+      gateway.audit.record({ ...ownerA, event: 'remote.identity.rejected', status: 'rejected' });
+      gateway.audit.record({
+        ...ownerA,
+        event: 'remote.tool.completed',
+        toolName: 'easyeda_pcb_components',
+        status: 'ok',
+        durationMs: 42,
+        observedAt: '2026-11-15T18:00:00.000Z',
+      });
+      gateway.audit.record({
+        ...ownerA,
+        event: 'remote.tool.failed',
+        toolName: 'easyeda_schematic_components',
+        status: 'error',
+        durationMs: 70,
+        observedAt: '2026-11-15T18:00:01.000Z',
+      });
+      gateway.audit.record({
+        userId: 'owner-b',
+        mode: 'hosted',
+        event: 'remote.tool.completed',
+        status: 'ok',
+      });
+      gateway.audit.record({
+        userId: 'owner-a',
+        mode: 'self_hosted',
+        event: 'remote.tool.completed',
+        status: 'ok',
+      });
+
+      const check = (cookie?: string) =>
+        fetch(`${base}/cloud/api/usage`, {
+          headers: cookie ? { cookie } : {},
+        });
+      const unauthorized = await check();
+      expect(unauthorized.status).toBe(401);
+      expect(unauthorized.headers.get('cache-control')).toBe('no-store');
+
+      const a = await check('session=owner-a');
+      expect(a.status).toBe(200);
+      expect(a.headers.get('cache-control')).toBe('no-store');
+      expect(await a.json()).toEqual({
+        total: 2,
+        succeeded: 1,
+        failed: 1,
+        lastCallAt: '2026-11-15T18:00:01.000Z',
+      });
+      const b = await check('session=owner-b');
+      expect(await b.json()).toEqual({
+        total: 1,
+        succeeded: 1,
+        failed: 0,
+        lastCallAt: expect.any(String),
+      });
+
+      const dashboard = await fetch(`${base}/cloud`, { headers: { cookie: 'session=owner-a' } });
+      expect(await dashboard.text()).toContain('id="usage-total"');
+    });
+  });
+});
 
 describe('Hosted Cloud browser recovery', () => {
   async function runWorkspace(
@@ -122,6 +202,38 @@ describe('Hosted Cloud browser recovery', () => {
     await new Promise<void>((resolve) => setImmediate(resolve));
     return { redirects, notice: elements.get('notice') as { textContent: string }, elements };
   }
+
+  it('renders persistent owner call totals and refreshes them without reloading', async () => {
+    let usage = { total: 4, succeeded: 3, failed: 1, lastCallAt: '2026-11-15T18:00:00Z' };
+    let requests = 0;
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me') {
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Fixture Owner' } }) };
+      }
+      if (url === '/cloud/api/extensions') {
+        return { ok: true, status: 200, json: async () => ({ sessions: [], selection: null }) };
+      }
+      if (url === '/cloud/api/clients') {
+        return { ok: true, status: 200, json: async () => ({ clients: [] }) };
+      }
+      if (url === '/cloud/api/usage') {
+        requests += 1;
+        return { ok: true, status: 200, json: async () => usage };
+      }
+      throw new Error('Unexpected test request');
+    });
+    expect(requests).toBe(1);
+    expect(result.elements.get('usage-total').textContent).toBe('4');
+    expect(result.elements.get('usage-success').textContent).toBe('3');
+    expect(result.elements.get('usage-failed').textContent).toBe('1');
+
+    usage = { total: 5, succeeded: 4, failed: 1, lastCallAt: '2026-11-15T18:05:00Z' };
+    await result.elements.get('refresh-usage').dispatch('click');
+    expect(requests).toBe(2);
+    expect(result.elements.get('usage-total').textContent).toBe('5');
+    expect(result.elements.get('usage-hint').textContent).toContain('Last completed call');
+    expect(result.redirects).toEqual([]);
+  });
 
   it('shows a recovery path for a blocked Cloud/Access fetch instead of redirecting to sign-in', async () => {
     const result = await runWorkspace(async () => {

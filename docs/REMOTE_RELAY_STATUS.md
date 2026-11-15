@@ -320,17 +320,29 @@ and earlier credential-exposure disposition. Keep **PR #1057 Draft**,
 
 ## Implemented and continuously tested
 
-| Capability                                                                                            | Evidence level                                                  | Current state |
-| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------- |
-| Versioned relay message schemas                                                                       | Unit and deterministic property tests                           | Implemented   |
-| Pairing codes and user/session binding                                                                | Unit and fake-extension integration tests                       | Implemented   |
-| Session router and one-extension-session serialization                                                | Concurrency and integration tests                               | Implemented   |
-| Streamable HTTP client session isolation                                                              | HTTP MCP integration tests                                      | Implemented   |
-| OAuth protected-resource metadata and scope normalization                                             | HTTP transport tests                                            | Implemented   |
-| Read-tool routing through a paired fake extension                                                     | Streamable HTTP integration test                                | Implemented   |
-| Write/export/destructive approval request, retry, rejection, timeout, mismatch, and replay protection | Registry, gateway, extension-client, and HTTP integration tests | Implemented   |
-| Extension outbound relay client, heartbeat, and reconnect/backoff                                     | Extension unit tests                                            | Implemented   |
-| Audit events with redaction boundaries                                                                | Gateway and observability tests                                 | Implemented   |
+| Capability                                                                                            | Evidence level                                                  | Current state                              |
+| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------ |
+| Versioned relay message schemas                                                                       | Unit and deterministic property tests                           | Implemented                                |
+| Pairing codes and user/session binding                                                                | Unit and fake-extension integration tests                       | Implemented                                |
+| Session router and one-extension-session serialization                                                | Concurrency and integration tests                               | Implemented                                |
+| Streamable HTTP client session isolation                                                              | HTTP MCP integration tests                                      | Implemented                                |
+| OAuth protected-resource metadata and scope normalization                                             | HTTP transport tests                                            | Implemented                                |
+| Read-tool routing through a paired fake extension                                                     | Streamable HTTP integration test                                | Implemented                                |
+| Write/export/destructive approval request, retry, rejection, timeout, mismatch, and replay protection | Registry, gateway, extension-client, and HTTP integration tests | Implemented                                |
+| Extension outbound relay client, heartbeat, and reconnect/backoff                                     | Extension unit tests                                            | Implemented                                |
+| Owner-scoped persistent completed-call usage dashboard and sanitized terminal outcome log             | SQLite, authenticated portal, browser fixture and relay tests   | Implemented; live Cloud acceptance pending |
+| Audit events with redaction boundaries                                                                | Gateway and observability tests                                 | Implemented                                |
+
+The Cloud preview also maintains a persistent **per-owner MCP usage counter** in the existing
+`hosted-cloud.sqlite` database. The account workspace shows total, successful and failed
+**completed native-relay tool calls** and allows manual refresh; one sanitized terminal
+line reports each outcome and elapsed time. The counter does not count denied OAuth,
+unpaired, insufficient-scope or approval-pending calls, and it does not store design
+content, raw tool arguments, account tokens, project names or individual call history.
+Native-tool errors/timeouts are counted as failed; a timeout does **not** prove
+that an attempted write left EasyEDA unchanged. The first-party account-isolation,
+persistence, dashboard and simulated relay tests pass, but the new usage display has
+**not** yet undergone actual Hosted owner browser acceptance. It is not a billing meter.
 
 The fake-extension tests prove protocol and policy behavior without claiming compatibility with an untested EasyEDA desktop runtime.
 

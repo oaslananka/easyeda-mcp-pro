@@ -24,6 +24,7 @@ import { RemoteGateway } from '../../remote/gateway.js';
 import { mountHostedAuth } from '../../cloud/http-adapter.js';
 import { mountHostedPortal } from '../../cloud/portal.js';
 import type { HostedAuth } from '../../cloud/hosted-auth.js';
+import type { HostedUsageStore } from '../../cloud/usage.js';
 
 export interface HttpTransportInstance {
   app: Express;
@@ -39,6 +40,7 @@ export interface HttpTransportOptions {
   serverFactory?: () => McpServer;
   /** Optional first-party OAuth; Local mode never creates or mounts it. */
   hostedAuth?: HostedAuth;
+  hostedUsage?: HostedUsageStore;
 }
 
 interface McpHttpSession {
@@ -622,7 +624,7 @@ export function createHttpTransport(
   if (options.hostedAuth) mountHostedAuth(app, options.hostedAuth);
 
   app.use(express.json({ limit: '1mb' }));
-  if (options.hostedAuth) mountHostedPortal(app, options.hostedAuth, gateway);
+  if (options.hostedAuth) mountHostedPortal(app, options.hostedAuth, gateway, options.hostedUsage);
   app.use(parseRemoteJsonBody);
   app.use(validateMcpProtocolVersion(config));
 

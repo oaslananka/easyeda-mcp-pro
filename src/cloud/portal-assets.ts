@@ -28,7 +28,7 @@ footer{padding:29px 0 38px;display:flex;align-items:center;justify-content:space
 .workspace-grid{display:grid;grid-template-columns:minmax(0,1.22fr) minmax(320px,.78fr);align-items:start;gap:22px}.panel{padding:27px;max-width:none}.panel h2{font-size:19px;letter-spacing:-.035em;margin:0;line-height:1.35}.section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.section-kicker{margin:0 0 6px;color:#83c9ec;letter-spacing:.15em;font-size:10px;font-weight:800}.section-description{color:#a9b9cf;font-size:13px;line-height:1.65;margin:12px 0 22px}.count{display:inline-flex;vertical-align:middle;margin-left:7px;padding:3px 8px;border:1px solid #45627e;border-radius:7px;color:#b8d4f3;font-size:12px;font-weight:700}
 .device-list{display:grid;gap:12px}.empty{padding:28px 20px;background:#0c1625;border:1px dashed #39516a;border-radius:15px;color:#b3c4db;font-size:13px;line-height:1.6}.device-list .empty{min-height:138px;display:flex;align-items:center;justify-content:center;text-align:center}
 .session{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;background:#111e30;border:1px solid #344963;border-radius:15px;padding:18px}.session strong{font-size:13px;word-break:break-word}.session p{color:#9cafc8;font-size:12px;margin:6px 0}.session>div{min-width:0}.session-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.session .btn{min-height:37px;font-size:12px;padding:8px 12px}.status{display:inline-flex;gap:6px;align-items:center;font-size:11px;font-weight:720;padding:4px 10px;border:1px solid #315f55;border-radius:999px;background:#173b38;color:#8fe8cd}.status.off{border-color:#604655;background:#3b2c3b;color:#f4c4d3}
-.setup-steps{display:grid;gap:0;margin:18px 0}.setup-steps p{display:flex;align-items:center;gap:13px;border-bottom:1px solid #2a3e55;margin:0;padding:14px 0;font-size:12px;color:#b5c8df}.setup-steps strong{color:#e0ecfd;font-weight:700}.setup-steps p>span{border:1px solid #385773;background:#172d44;color:#aad7f4;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex-shrink:0;font-weight:800}.pair-button{width:100%;justify-content:space-between;padding:14px 17px;margin:7px 0 16px}.pairing-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}.code{display:inline-flex;align-items:center;justify-content:center;max-width:100%;letter-spacing:.12em;font-size:23px;font-weight:850;color:#dbefff;background:#091322;border:1px solid #3d5672;border-radius:10px;min-height:52px;padding:8px 15px;margin:0;user-select:all;word-break:break-all}.muted,.meta{color:#a7b7cb;font-size:12px}.pairing-panel .muted{line-height:1.65}.clients-panel{margin-top:22px}.clients-panel .empty{padding:18px}.account-actions{display:flex;justify-content:flex-end;margin-top:24px}
+.setup-steps{display:grid;gap:0;margin:18px 0}.setup-steps p{display:flex;align-items:center;gap:13px;border-bottom:1px solid #2a3e55;margin:0;padding:14px 0;font-size:12px;color:#b5c8df}.setup-steps strong{color:#e0ecfd;font-weight:700}.setup-steps p>span{border:1px solid #385773;background:#172d44;color:#aad7f4;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex-shrink:0;font-weight:800}.pair-button{width:100%;justify-content:space-between;padding:14px 17px;margin:7px 0 16px}.pairing-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}.code{display:inline-flex;align-items:center;justify-content:center;max-width:100%;letter-spacing:.12em;font-size:23px;font-weight:850;color:#dbefff;background:#091322;border:1px solid #3d5672;border-radius:10px;min-height:52px;padding:8px 15px;margin:0;user-select:all;word-break:break-all}.muted,.meta{color:#a7b7cb;font-size:12px}.pairing-panel .muted{line-height:1.65}.usage-panel{margin-top:22px}.usage-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.usage-stat{padding:18px;background:#0e1a2b;border:1px solid #334a65;border-radius:14px}.usage-stat strong{display:block;font-size:32px;line-height:1.1;letter-spacing:-.05em;color:#e6f5ff;font-variant-numeric:tabular-nums}.usage-stat span{display:block;color:#abc0d9;font-size:12px;margin-top:9px}.usage-panel .muted{margin:14px 0 0}.clients-panel{margin-top:22px}.clients-panel .empty{padding:18px}.account-actions{display:flex;justify-content:flex-end;margin-top:24px}
 .notice{background:#162a3e;border:1px solid #41607c;color:#cde3f9;border-radius:12px;padding:13px 16px;font-size:13px}.notice.error{background:#3b2638;border-color:#94576e;color:#ffdbec}
 .scopes{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;list-style:none;padding:0;margin:18px 0}.scopes li{border:1px solid #3b526c;border-radius:10px;padding:12px 14px;background:#19273b;font-size:13px}.scopes li strong,.scopes li small,.scopes li code{display:block}.scopes li strong{color:#eef5ff;font-size:13px}.scopes li small{color:#b6c8df;font-size:12px;line-height:1.55;margin-top:5px}.scopes li code{color:#9ab2d0;font-size:10px;overflow-wrap:anywhere;margin-top:10px}.segment{border-top:1px solid #33435a;margin-top:23px;padding-top:23px}
 [hidden]{display:none!important}
@@ -42,13 +42,14 @@ footer{padding:29px 0 38px;display:flex;align-items:center;justify-content:space
 .device-panel:before{background:linear-gradient(90deg,#69dabe,#56b7eb,transparent 85%)}
 .pairing-panel:before{background:linear-gradient(90deg,#818cfb,#bf91f6,transparent 85%)}
 .clients-panel:before{background:linear-gradient(90deg,#8cb8f4,#b1c1ed,transparent 85%)}
+.usage-panel:before{content:"";position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,#69bdf5,#92a8ed,transparent 85%)}
 .section-description{font-size:14px}
 .setup-steps p{font-size:13px}
 .session strong{font-size:14px}.session p{font-size:13px}
 .provider-button .provider-mark svg{display:block}
 .provider-button.secondary .provider-mark.google-mark{background:#f8fafc;color:#3978ec}
 @media(max-width:960px){.landing-grid{grid-template-columns:1fr;gap:32px;min-height:0}.landing-intro{max-width:690px}.auth-card{max-width:600px}.workspace-grid{grid-template-columns:1fr}.trust-strip{margin-top:40px}}
-@media(max-width:640px){.landing-intro .journey{display:none}.workspace-grid[data-empty="true"] .pairing-panel{grid-row:1}.workspace-grid[data-empty="true"] .device-panel{grid-row:2}.wrap{width:min(100% - 28px,1180px)}.nav{min-height:75px}.nav-right{gap:9px}.tag{display:none}.nav-link{font-size:12px}main{padding:35px 0 52px}.hero{font-size:clamp(35px,9vw,48px)}.subtitle{font-size:15px}.auth-card,.panel{padding:22px;border-radius:18px}.trust-strip{grid-template-columns:1fr;gap:10px}.workspace-head{flex-direction:column;align-items:stretch}.account-identity{width:100%}.section-heading{align-items:flex-start}.section-heading>.btn{flex-shrink:0}.session{flex-direction:column;align-items:stretch}.session button{width:100%}.session-actions{width:100%;flex-direction:column;align-items:stretch}.code{font-size:19px}footer{flex-direction:column;align-items:flex-start}}
+@media(max-width:640px){.landing-intro .journey{display:none}.workspace-grid[data-empty="true"] .pairing-panel{grid-row:1}.workspace-grid[data-empty="true"] .device-panel{grid-row:2}.wrap{width:min(100% - 28px,1180px)}.nav{min-height:75px}.nav-right{gap:9px}.tag{display:none}.nav-link{font-size:12px}main{padding:35px 0 52px}.hero{font-size:clamp(35px,9vw,48px)}.subtitle{font-size:15px}.auth-card,.panel{padding:22px;border-radius:18px}.trust-strip{grid-template-columns:1fr;gap:10px}.workspace-head{flex-direction:column;align-items:stretch}.account-identity{width:100%}.section-heading{align-items:flex-start}.section-heading>.btn{flex-shrink:0}.session{flex-direction:column;align-items:stretch}.session button{width:100%}.session-actions{width:100%;flex-direction:column;align-items:stretch}.code{font-size:19px}.usage-grid{grid-template-columns:1fr 1fr 1fr;gap:7px}.usage-stat{padding:12px}.usage-stat strong{font-size:25px}.usage-stat span{font-size:10px}footer{flex-direction:column;align-items:flex-start}}
 @media(max-width:400px){
   main{padding-top:24px}
   .eyebrow{margin-bottom:12px}
@@ -206,6 +207,25 @@ export const CLOUD_JS = String.raw`
       data.sessions.forEach((session) => list.appendChild(addSession(session)));
       return data.sessions;
     };
+    const loadUsage = async () => {
+      try {
+        const data = await request('/cloud/api/usage');
+        if (!['total', 'succeeded', 'failed'].every((key) =>
+          Number.isSafeInteger(data?.[key]) && data[key] >= 0) ||
+          data.total !== data.succeeded + data.failed) {
+          throw new Error('Unexpected Cloud usage response.');
+        }
+        setText('usage-total', data.total.toLocaleString());
+        setText('usage-success', data.succeeded.toLocaleString());
+        setText('usage-failed', data.failed.toLocaleString());
+        const last = typeof data.lastCallAt === 'string' ? new Date(data.lastCallAt) : null;
+        setText('usage-hint', last && !Number.isNaN(last.getTime())
+          ? 'Last completed call: ' + last.toLocaleString()
+          : 'No tool calls have completed yet.');
+      } catch {
+        setText('usage-hint', 'Usage is unavailable. Select Refresh to retry.');
+      }
+    };
     const loadClients = async () => {
       const dest = get('clients');
       try {
@@ -242,7 +262,7 @@ export const CLOUD_JS = String.raw`
         const me = await request('/cloud/api/me');
         ownerSignedIn = true;
         setText('account-name',me.user.name || me.user.email || 'Your account');
-        const initialLoad = await Promise.allSettled([refreshExtensions(), loadClients()]);
+        const initialLoad = await Promise.allSettled([refreshExtensions(), loadClients(), loadUsage()]);
         if (initialLoad[0].status === 'rejected') fail(initialLoad[0].reason);
         if (initialLoad[1].status === 'rejected') fail(initialLoad[1].reason);
         const pair = get('generate-pairing');
@@ -332,6 +352,12 @@ export const CLOUD_JS = String.raw`
             await loadClients();
             setText('notice', 'MCP client permissions updated.');
           } catch (error) { fail(error); }
+          finally { button.disabled = false; }
+        });
+        get('refresh-usage').addEventListener('click', async () => {
+          const button = get('refresh-usage');
+          button.disabled = true;
+          try { await loadUsage(); }
           finally { button.disabled = false; }
         });
         get('refresh-extensions').addEventListener('click', async () => {

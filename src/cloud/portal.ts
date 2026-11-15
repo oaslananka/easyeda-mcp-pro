@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Express, Request, Response, RequestHandler } from 'express';
 import type { HostedAuth } from './hosted-auth.js';
+import type { HostedUsageStore } from './usage.js';
 import { CLOUD_CSS, CLOUD_JS } from './portal-assets.js';
 import type { RemoteGateway } from '../remote/gateway.js';
 
@@ -105,6 +106,16 @@ const account = (): string =>
 <button class="btn subtle small" id="copy-pairing" type="button" aria-describedby="pairing-hint" disabled hidden>Copy code</button></div>
 <p class="muted" id="pairing-hint">The code expires after 10 minutes. Pairing does not grant an MCP client access.</p>
 </section></div>
+<section class="panel usage-panel" aria-labelledby="usage-title">
+<div class="section-heading"><div><p class="section-kicker">YOUR ACTIVITY</p><h2 id="usage-title">MCP tool calls</h2></div>
+<button class="btn subtle small" id="refresh-usage" type="button">↻ Refresh</button></div>
+<p class="section-description">Calls completed through your paired EasyEDA device, including errors. Requests rejected before dispatch are not counted.</p>
+<div class="usage-grid">
+<div class="usage-stat"><strong id="usage-total" aria-live="polite">—</strong><span>Total calls</span></div>
+<div class="usage-stat"><strong id="usage-success" aria-live="polite">—</strong><span>Successful</span></div>
+<div class="usage-stat"><strong id="usage-failed" aria-live="polite">—</strong><span>Tool errors</span></div>
+</div><p class="muted" id="usage-hint" role="status" aria-live="polite">Checking your call history…</p>
+</section>
 <section class="panel clients-panel" aria-labelledby="clients-title">
 <div class="section-heading"><div><p class="section-kicker">PERMISSIONS</p><h2 id="clients-title">Authorized MCP clients</h2></div>
 <button class="btn subtle small" id="refresh-clients" type="button">↻ Refresh</button></div>
@@ -216,7 +227,12 @@ function originRequired(req: Request, res: Response, expected: string): boolean 
 }
 
 /** Cookie-authenticated browser portal; never reuses session cookies as MCP bearer credentials. */
-export function mountHostedPortal(app: Express, auth: HostedAuth, gateway: RemoteGateway): void {
+export function mountHostedPortal(
+  app: Express,
+  auth: HostedAuth,
+  gateway: RemoteGateway,
+  usage?: HostedUsageStore,
+): void {
   const requireSession = sessionRequired(auth);
   // Static browser assets stay accessible before the optional owner-only /cloud* preview gate.
   // Keep the legacy routes for compatibility with already-open Cloud pages.
@@ -296,6 +312,19 @@ export function mountHostedPortal(app: Express, auth: HostedAuth, gateway: Remot
       }
       res.setHeader('Cache-Control', 'no-store');
       res.json({ user });
+    }),
+  );
+  app.get(
+    '/cloud/api/usage',
+    asyncRoute(async (req, res) => {
+      const userId = await requireSession(req, res);
+      if (!userId) return;
+      res.setHeader('Cache-Control', 'no-store');
+      if (!usage) {
+        res.status(503).json({ code: 'USAGE_UNAVAILABLE', message: 'Usage is unavailable.' });
+        return;
+      }
+      res.json(usage.totals(userId));
     }),
   );
   app.get(
