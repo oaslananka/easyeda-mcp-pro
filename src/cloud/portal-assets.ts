@@ -226,7 +226,10 @@ export const CLOUD_JS = String.raw`
           }
           dest.appendChild(card);
         });
-      } catch { dest.replaceChildren(el('div','empty','Client authorizations could not be loaded. Retry the page.')); }
+      } catch (error) {
+        dest.replaceChildren(el('div','empty','Client authorizations could not be loaded. Select Refresh to retry.'));
+        throw error;
+      }
     };
     (async () => {
       let ownerSignedIn = false;
@@ -236,6 +239,7 @@ export const CLOUD_JS = String.raw`
         setText('account-name',me.user.name || me.user.email || 'Your account');
         const initialLoad = await Promise.allSettled([refreshExtensions(), loadClients()]);
         if (initialLoad[0].status === 'rejected') fail(initialLoad[0].reason);
+        if (initialLoad[1].status === 'rejected') fail(initialLoad[1].reason);
         const pair = get('generate-pairing');
         const copy = get('copy-pairing');
         let currentCode = '';
@@ -285,6 +289,15 @@ export const CLOUD_JS = String.raw`
             setText('notice','Pairing code created. Use it before it expires.');
           } catch(error) { fail(error); }
           finally { pair.disabled=false; }
+        });
+        get('refresh-clients').addEventListener('click', async () => {
+          const button = get('refresh-clients');
+          button.disabled = true;
+          try {
+            await loadClients();
+            setText('notice', 'MCP client permissions updated.');
+          } catch (error) { fail(error); }
+          finally { button.disabled = false; }
         });
         get('refresh-extensions').addEventListener('click', async () => {
           try { await refreshExtensions(); setText('notice', 'Device connections updated.'); }

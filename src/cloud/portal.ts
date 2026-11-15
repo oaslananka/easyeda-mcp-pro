@@ -106,7 +106,8 @@ const account = (): string =>
 <p class="muted" id="pairing-hint">The code expires after 10 minutes. Pairing does not grant an MCP client access.</p>
 </section></div>
 <section class="panel clients-panel" aria-labelledby="clients-title">
-<div class="section-heading"><div><p class="section-kicker">PERMISSIONS</p><h2 id="clients-title">Authorized MCP clients</h2></div></div>
+<div class="section-heading"><div><p class="section-kicker">PERMISSIONS</p><h2 id="clients-title">Authorized MCP clients</h2></div>
+<button class="btn subtle small" id="refresh-clients" type="button">↻ Refresh</button></div>
 <p class="section-description">Review the applications you've approved. Signing in doesn't authorize any MCP client automatically.</p>
 <div id="clients" aria-live="polite"><div class="empty">Checking authorizations…</div></div></section>
 <div class="account-actions"><button id="sign-out" class="btn subtle small" type="button">Sign out</button></div>`,

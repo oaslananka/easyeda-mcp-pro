@@ -160,6 +160,27 @@ describe('Hosted Cloud browser recovery', () => {
     expect(result.redirects).toEqual([]);
   });
 
+  it('lets a signed-in owner retry MCP client permissions without reloading the pairing page', async () => {
+    let clientRequests = 0;
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Fixture Owner' } }) };
+      if (url === '/cloud/api/extensions')
+        return { ok: true, status: 200, json: async () => ({ sessions: [], selection: null }) };
+      if (url === '/cloud/api/clients') {
+        clientRequests += 1;
+        if (clientRequests === 1) throw new TypeError('Failed to fetch');
+        return { ok: true, status: 200, json: async () => ({ clients: [] }) };
+      }
+      throw new Error('Unexpected test request');
+    });
+    expect(clientRequests).toBe(1);
+    await result.elements.get('refresh-clients').dispatch('click');
+    expect(clientRequests).toBe(2);
+    expect(result.notice.textContent).toBe('MCP client permissions updated.');
+    expect(result.redirects).toEqual([]);
+  });
+
   it('does not erase a valid owner session when only the device-list fetch fails', async () => {
     const result = await runWorkspace(async (url) => {
       if (url === '/cloud/api/me') {
@@ -194,7 +215,9 @@ describe('Hosted Cloud browser portal', () => {
         headers: { cookie: 'session=owner-a' },
       });
       expect(signedLanding.status).toBe(200);
-      expect(await signedLanding.text()).toContain('Your devices');
+      const signedHtml = await signedLanding.text();
+      expect(signedHtml).toContain('Your devices');
+      expect(signedHtml).toContain('id="refresh-clients"');
 
       const login = await fetch(`${base}/sign-in`);
       const html = await login.text();

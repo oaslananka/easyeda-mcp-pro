@@ -42,7 +42,7 @@ Before any Hosted Cloud build or public acceptance:
 1. Keep `CLOUD_AUTH_SECRET`, `CLOUD_GITHUB_CLIENT_SECRET`, and
    `CLOUD_GOOGLE_CLIENT_SECRET` **runtime-only, not build-time**. They are
    not required by the Dockerfile or build scripts. Preserve the existing
-   `{{vault.KEY}}` Doppler references instead of copying credential values.
+   <code>&#123;&#123;vault.KEY&#125;&#125;</code> Doppler references instead of copying credential values.
 2. Enable Coolify's **Use Build Secrets (BuildKit)** and
    **redact all environment values in deployment logs** options. Confirm
    sensitive values are not injected via Docker `--build-arg`.
