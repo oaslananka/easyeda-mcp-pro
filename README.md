@@ -8,9 +8,8 @@
 
 <p>
   <a href="https://www.npmjs.com/package/easyeda-mcp-pro"><img src="https://img.shields.io/npm/v/easyeda-mcp-pro.svg?logo=npm" alt="npm version" /></a>
-  <a href="https://www.npmjs.com/package/easyeda-mcp-pro"><img src="https://img.shields.io/npm/dt/easyeda-mcp-pro?logo=npm&amp;label=total%20downloads" alt="npm total downloads" /></a>
   <a href="https://www.npmjs.com/package/easyeda-mcp-pro"><img src="https://img.shields.io/node/v/easyeda-mcp-pro" alt="supported Node.js version" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/npm/l/easyeda-mcp-pro.svg" alt="MIT license" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--only-blue" alt="AGPL-3.0-only license" /></a>
 </p>
 
 <p>
@@ -20,8 +19,15 @@
   <a href="https://scorecard.dev/viewer/?uri=github.com/oaslananka/easyeda-mcp-pro"><img src="https://api.scorecard.dev/projects/github.com/oaslananka/easyeda-mcp-pro/badge" alt="OpenSSF Scorecard" /></a>
 </p>
 
-<p>
+<p align="center">
+  <a href="https://www.npmjs.com/package/easyeda-mcp-pro"><img src="https://img.shields.io/npm/dt/easyeda-mcp-pro?label=total%20downloads" alt="npm total downloads" /></a>
   <a href="https://gitgem.org/github/oaslananka/easyeda-mcp-pro"><img src="https://gitgem.org/api/badge/github/oaslananka/easyeda-mcp-pro.svg" alt="GitGem" /></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/sponsors/oaslananka"><img src="https://img.shields.io/badge/GitHub-Sponsors-ea4aaa?logo=githubsponsors" alt="GitHub Sponsors" /></a>
+  <a href="https://www.buymeacoffee.com/oaslananka"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-ffdd00?logo=buymeacoffee&amp;logoColor=black" alt="Buy Me a Coffee" /></a>
+  <a href="https://github.com/oaslananka/easyeda-mcp-pro"><img src="https://img.shields.io/github/stars/oaslananka/easyeda-mcp-pro?label=Stars&amp;color=8e65d3" alt="Stars" /></a>
 </p>
 
 </div>
@@ -32,7 +38,7 @@
 
 easyeda-mcp-pro keeps historical OpenSSF Best Practices evidence in [`docs/OPENSSF_BEST_PRACTICES.md`](docs/OPENSSF_BEST_PRACTICES.md) and its security assurance case in [`docs/SECURITY_ASSURANCE_CASE.md`](docs/SECURITY_ASSURANCE_CASE.md). The header badges link to current workflow-backed signals only: CI, generated docs deployment, the project security policy, and the OpenSSF Scorecard. Release integrity evidence (npm provenance, signed-release status) is tracked in [`docs/RELEASE_VERIFICATION.md`](docs/RELEASE_VERIFICATION.md). Coverage, Test Analytics, and extension bundle monitoring are documented in [`docs/CODECOV_ANALYTICS.md`](docs/CODECOV_ANALYTICS.md).
 
-**Licensing note:** current repository source is MIT-licensed. Commercial use is permitted under MIT; historical releases retain the license notices shipped with them.
+**Licensing note:** current project-authored source is licensed under [GNU AGPL v3.0](LICENSE), including commercial use subject to its terms.
 
 **More project references:** [OpenSSF evidence](docs/OPENSSF_BEST_PRACTICES.md) · [Security assurance](docs/SECURITY_ASSURANCE_CASE.md) · [Third-party notices](THIRD_PARTY_NOTICES.md) · [Vendor terms](docs/vendor-terms.md) · [Remote MCP modes](docs/REMOTE_MCP_MODES.md)
 
@@ -911,7 +917,7 @@ If this project helps you save time while working with EasyEDA Pro, BOM workflow
 
 ## License
 
-Current project-authored source is licensed under the [MIT License](LICENSE), including commercial use. No separate contributor license agreement is required. See [Licensing](LICENSING.md) and [Contributing](CONTRIBUTING.md).
+Current project-authored source is licensed under [GNU AGPL v3.0](LICENSE), including commercial use under its terms. No CLA or DCO sign-off is required. See [Licensing](LICENSING.md) and [Contributing](CONTRIBUTING.md).
 
 ---
 
