@@ -1,6 +1,6 @@
 {
   "name": "easyeda-mcp-pro",
-  "version": "1.15.5",
+  "version": "1.15.6",
   "mcpName": "io.github.oaslananka/easyeda-mcp-pro",
   "description": "MCP server for EasyEDA Pro: PCB inspection, BOM, exports, and hardware review.",
   "keywords": [
@@ -17,7 +17,7 @@
     "bom"
   ],
   "author": "oaslananka",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/oaslananka/easyeda-mcp-pro.git"

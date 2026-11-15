@@ -30,7 +30,7 @@ Recommended next manual entries:
 
 - Project website: GitHub repo URL
 - Repository URL: GitHub repo URL
-- License: MIT
+- License: AGPL-3.0-only
 - Contribution URL: `CONTRIBUTING.md`
 - License location: `LICENSE`
 - Basic documentation: `README.md` and docs site

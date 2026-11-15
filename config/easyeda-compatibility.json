@@ -1,8 +1,111 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-11-14",
+  "lastReviewed": "2026-11-15",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-15-304ef59-v1156-agpl-native-readonly",
+      "status": "live-validated",
+      "validatedAt": "2026-11-15T16:48:56Z",
+      "reviewBy": "2027-02-13",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-43-generic",
+        "nodeVersion": "24.22.3"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113",
+        "electronVersionProvenance": "Previously recorded vendor metadata from the same EasyEDA Pro 3.2.209 build; Electron version was not independently measured during this acceptance.",
+        "chromiumVersionProvenance": "Previously recorded vendor metadata for the installed EasyEDA Pro 3.2.209 build; Chromium version was not independently measured during this acceptance."
+      },
+      "server": {
+        "validationPackageVersion": "1.15.6",
+        "releaseContainingFixes": "1.15.6",
+        "commit": "304ef59138a0ce64897dd49ab8deea4aa76041df",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "503ab22beae6d8055bb59c67824004b66b529a06",
+            "src/bridge": "aac8648451155bf529b651b5515a6b32315540fa",
+            "src/remote": "2ef9ef5ff36fff8fa3aa2bd11ba68f80fda58394",
+            "src/server/transports": "e34c314617f6a6383743d8ade609f6b4745e9197",
+            "src/tools": "3cdba3a23cf8def733c44f2d8915645a72ca0f94",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.15.6",
+        "versionConfirmedBy": "native Extensions Manager after exact .eext import",
+        "packageLicense": "AGPL-3.0-only",
+        "packageSha256": "231dcff358e41375e24c320db75f5f4dd5ebabb78ee3fcf0c6d1838c643692b0",
+        "packageSizeBytes": 232013,
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "activeDispatcher": "baked",
+        "bridgeContractVersion": "1.0.0",
+        "loaderReportedVersion": "1.15.6",
+        "loaderVersionProvenance": "Version 1.15.6 displayed in native Extensions Manager during exact candidate live MCP pairing; separate loader introspection not independently captured.",
+        "methodRegistryHash": "f71f5e22b7fec5db",
+        "registryHashProvenance": "Exact server bridge registry Git tree equals independently validated 1.15.5 source; registry hash reused from that live record, not freshly measured in this session."
+      },
+      "fixture": {
+        "project": "Isolated copied disposable public Quick Start PCB and schematic",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "304ef59-native-extension",
+          "name": "Install and enable exact AGPL-3.0-only v1.15.6 package",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Native Extensions Manager displayed version 1.15.6, enabled, license AGPL-3.0-only; compiled package 232013 bytes matched SHA256, and the local MCP bridge connected.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-15-ubuntu-24-04-easyeda-3.2.209-v1.15.6-304ef59-agpl-native-readonly.json"
+          ]
+        },
+        {
+          "id": "304ef59-native-pcb",
+          "name": "Real native PCB document identity and 33 component read",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Exact candidate returned 33/33 PCB components with IDs and positions, document type 3, matching project-parent UUID, and no MCP error.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-15-ubuntu-24-04-easyeda-3.2.209-v1.15.6-304ef59-agpl-native-readonly.json"
+          ]
+        },
+        {
+          "id": "304ef59-native-schematic",
+          "name": "Real native schematic P1 document identity and 34 component read",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Exact candidate returned 34/34 schematic components, document type 1, matching project-parent UUID, and no MCP error.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-15-ubuntu-24-04-easyeda-3.2.209-v1.15.6-304ef59-agpl-native-readonly.json"
+          ]
+        },
+        {
+          "id": "304ef59-fixture-integrity",
+          "name": "Read-only disposable source and copy preserved",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Source and isolated copied Quick Start fixtures retained independently verified identical SHA256 before and after both MCP reads; no save, export, design write or production-project mutation.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-15-ubuntu-24-04-easyeda-3.2.209-v1.15.6-304ef59-agpl-native-readonly.json"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Only real Local native read-only PCB/schematic acceptance is verified; native persisted delete/save (#1059/#1060) and Cloud WRITE/export remain unverified and blocked.",
+        "No external ChatGPT/Claude OAuth application, second real owner, or production Cloud server was accepted in this validation; PR #1057 remains Draft and #850 HOLD.",
+        "Tested Ubuntu 24.04.5 EasyEDA Pro 3.2.209 only; no Windows/macOS editor-runtime acceptance.",
+        "Results do not constitute electrical/ERC, DRC, supplier or fabrication approval."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-14-3c47d37-v1155-cloud-native-readonly",
       "status": "live-validated",

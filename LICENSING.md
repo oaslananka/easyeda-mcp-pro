@@ -1,24 +1,38 @@
 # Licensing
 
-The current project-authored source code is available under the [MIT License](LICENSE).
-MIT permits commercial and noncommercial use, modification, distribution, and
-sublicensing subject to the license notice and disclaimer. No separate commercial
-license or contributor license agreement (CLA) is required.
+Project-authored source code in the current revision is licensed under the
+[GNU Affero General Public License v3.0 (AGPL-3.0-only)](LICENSE).
 
-## Earlier releases
+Copyright © 2026 Osman Aslan (GitHub: [oaslananka](https://github.com/oaslananka)).
+This notice does not replace or remove copyright held by contributors or third parties.
 
-Previously published releases preserve the license notices and terms distributed
-with those artifacts, including the older MIT-licensed releases and releases that
-were published under PolyForm Noncommercial 1.0.0. This change does not rewrite
-historical release artifacts or revoke previously granted rights.
-
-## Third-party material
-
-Third-party dependencies, services, trademarks, and other material remain subject
-to their respective license terms. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Commercial use is permitted under the GNU license, subject to its terms.
+Distributing covered software has source-sharing obligations. For software
+licensed under AGPL, modified versions used to serve users over a network
+also have source-offer obligations as described in the complete license text.
 
 ## Contributions
 
-Contributions are welcome directly through GitHub issues and pull requests.
-There is no CLA, contributor permission comment, registration, or DCO signature
-requirement. See [CONTRIBUTING.md](CONTRIBUTING.md) for technical guidance.
+Contributions can be proposed with ordinary GitHub pull requests. No separate
+contributor agreement (CLA), Developer Certificate of Origin (DCO) sign-off,
+or copyright assignment is required. Contributors keep copyright to their work
+and must have the rights needed to submit it under AGPL-3.0-only.
+
+## Previously released material
+
+Older revisions and previously distributed artifacts may have used MIT
+or other licenses. Their original notices and permissions remain applicable
+to those historical artifacts.
+
+## Third-party material
+
+Dependencies, vendored material, fixtures, and embedded third-party assets retain
+their own applicable notices and licenses. Refer to repository-specific third-party
+notices, attribution files, and dependency metadata.
+
+## Historical MIT notice
+
+Before the AGPL transition, project-authored source was distributed under MIT.
+Its complete prior notice is retained at [LICENSES/MIT.txt](LICENSES/MIT.txt).
+Previously granted MIT rights remain valid; the AGPL transition does not
+replace copyrights held by external contributors.
