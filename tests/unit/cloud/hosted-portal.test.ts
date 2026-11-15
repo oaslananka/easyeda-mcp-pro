@@ -23,8 +23,10 @@ function fakeProvider(origin: string): HostedAuth {
           : null,
     listClientConsents: async () => [],
     verifySignedQuery: async (query: string) =>
-      query ===
-      'client_id=valid&scope=easyeda.read&redirect_uri=https%3A%2F%2Fclient.example%2Fcallback&sig=valid',
+      [
+        'client_id=valid&scope=easyeda.read&redirect_uri=https%3A%2F%2Fclient.example%2Fcallback&sig=valid',
+        'client_id=valid&scope=easyeda.read%20easyeda.write%20easyeda.export%20easyeda.project_admin%20unknown%3Csvg%3E&redirect_uri=https%3A%2F%2Fclient.example%2Fcallback&sig=valid',
+      ].includes(query),
     getClient: async (_clientId: string, headers: Headers) =>
       headers.get('cookie') === 'session=owner-a'
         ? { name: '<script>alert(1)</script>', redirectUri: 'https://client.example/callback' }
@@ -265,7 +267,40 @@ describe('Hosted Cloud browser portal', () => {
       expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
       expect(html).not.toContain('<script>alert(1)</script>');
       expect(html).toContain('easyeda.read');
+      expect(html).toContain('Read your selected design');
+      expect(html).toContain('No editing is permitted by this scope.');
       expect(html).toContain('client.example');
+    });
+  });
+
+  it('explains write, export and high-risk grants without hiding their exact scope codes', async () => {
+    await withPortal(async (base) => {
+      const query =
+        'client_id=valid&scope=easyeda.read%20easyeda.write%20easyeda.export%20easyeda.project_admin%20unknown%3Csvg%3E&redirect_uri=https%3A%2F%2Fclient.example%2Fcallback&sig=valid';
+      const response = await fetch(base + '/consent?' + query, {
+        headers: { cookie: 'session=owner-a' },
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('Request design changes');
+      expect(html).toContain('Each write requires a separate approval in EasyEDA.');
+      expect(html).toContain('Export design files');
+      expect(html).toContain('Each export requires a separate approval in EasyEDA.');
+      expect(html).toContain('Request high-risk project actions');
+      expect(html).toContain(
+        'Destructive operations require stronger approval; unsupported actions remain blocked.',
+      );
+      for (const scope of [
+        'easyeda.read',
+        'easyeda.write',
+        'easyeda.export',
+        'easyeda.project_admin',
+      ])
+        expect(html).toContain('<code>' + scope + '</code>');
+      expect(html).toContain('Other requested permission');
+      expect(html).toContain('<code>unknown&lt;svg&gt;</code>');
+      expect(html).not.toContain('<code>unknown<svg></code>');
+      expect(html).toContain('data-consent="deny"');
     });
   });
 

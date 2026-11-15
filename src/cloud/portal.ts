@@ -114,8 +114,33 @@ const account = (): string =>
     'account',
   );
 
+const PERMISSION_DETAILS: Record<string, readonly [title: string, detail: string]> = {
+  'easyeda.read': ['Read your selected design', 'No editing is permitted by this scope.'],
+  'easyeda.write': [
+    'Request design changes',
+    'Each write requires a separate approval in EasyEDA.',
+  ],
+  'easyeda.export': ['Export design files', 'Each export requires a separate approval in EasyEDA.'],
+  'easyeda.project_admin': [
+    'Request high-risk project actions',
+    'Destructive operations require stronger approval; unsupported actions remain blocked.',
+  ],
+  openid: ['Verify your identity', 'Let this client identify your signed-in account.'],
+  profile: ['Basic profile information', 'Share basic information about your account.'],
+  email: ['Email address', 'Share your account email address with this client.'],
+  offline_access: ['Stay connected', 'Allow the client to renew access until you revoke it.'],
+};
+
 function consent(clientName: string, redirectHost: string, scopeList: string[]): string {
-  const permissions = scopeList.map((scope) => `<li>${escaped(scope)}</li>`).join('');
+  const permissions = scopeList
+    .map((scope) => {
+      const [title, detail] = PERMISSION_DETAILS[scope] ?? [
+        'Other requested permission',
+        'Review this permission code before approving.',
+      ];
+      return `<li><strong>${escaped(title)}</strong><small>${escaped(detail)}</small><code>${escaped(scope)}</code></li>`;
+    })
+    .join('');
   return page(
     'Approve client',
     `<p class="eyebrow">MCP client authorization</p><h1 class="hero">Choose what this AI client can access.</h1>
