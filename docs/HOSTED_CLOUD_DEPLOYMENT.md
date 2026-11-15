@@ -35,28 +35,30 @@ Use exactly the existing Doppler project **`easyeda-mcp-pro`** and its
 **`main`** config. The owner manages all runtime settings and four
 GitHub/Google OAuth credentials only in `main`; no other config is needed.
 Coolify's existing EasyEDA secret-manager integration uses a **read-only
-service token scoped to `easyeda-mcp-pro/main`**. All 16 production entries
+service token scoped to `easyeda-mcp-pro/main`**. All 18 production entries
 reference that config directly. Do not create another Doppler config or
 copy values into GitHub Actions or a second secret store.
 
-| Doppler key                  | Value / requirement                                       |
-| ---------------------------- | --------------------------------------------------------- |
-| `TRANSPORT`                  | `http`                                                    |
-| `HTTP_HOST`                  | `0.0.0.0` (container interface, never public direct port) |
-| `MCP_BRIDGE_BACKEND`         | `remote_relay`                                            |
-| `OAUTH_ENABLED`              | `true`                                                    |
-| `CLOUD_HOSTED_ENABLED`       | `true` **only at approved deployment**                    |
-| `CLOUD_HOSTED_ORIGIN`        | `https://easyeda-mcp-pro.oaslananka.dev`                  |
-| `ALLOWED_ORIGINS`            | `https://easyeda-mcp-pro.oaslananka.dev` (no wildcard)    |
-| `OAUTH_ISSUER`               | `https://easyeda-mcp-pro.oaslananka.dev/api/auth`         |
-| `OAUTH_AUDIENCE`             | `https://easyeda-mcp-pro.oaslananka.dev/mcp`              |
-| `OAUTH_JWKS_URI`             | `https://easyeda-mcp-pro.oaslananka.dev/api/auth/jwks`    |
-| `DATA_DIR`                   | `/app/data` (dedicated persistent Coolify volume)         |
-| `CLOUD_AUTH_SECRET`          | Unique random secret, **32 characters minimum**           |
-| `CLOUD_GITHUB_CLIENT_ID`     | GitHub OAuth application's client ID                      |
-| `CLOUD_GITHUB_CLIENT_SECRET` | GitHub OAuth application's private secret                 |
-| `CLOUD_GOOGLE_CLIENT_ID`     | Google OAuth web client's client ID                       |
-| `CLOUD_GOOGLE_CLIENT_SECRET` | Google OAuth web client's private secret                  |
+| Doppler key                  | Value / requirement                                        |
+| ---------------------------- | ---------------------------------------------------------- |
+| `TRANSPORT`                  | `http`                                                     |
+| `HTTP_HOST`                  | `0.0.0.0` (container interface, never public direct port)  |
+| `MCP_BRIDGE_BACKEND`         | `remote_relay`                                             |
+| `OAUTH_ENABLED`              | `true`                                                     |
+| `MCP_V2_EXPERIMENTAL`        | `true` (legacy + stateless HTTP on the same URL)           |
+| `MCP_APPS_ENABLED`           | `true` (read-only project review; headless tools retained) |
+| `CLOUD_HOSTED_ENABLED`       | `true` **only at approved deployment**                     |
+| `CLOUD_HOSTED_ORIGIN`        | `https://easyeda-mcp-pro.oaslananka.dev`                   |
+| `ALLOWED_ORIGINS`            | `https://easyeda-mcp-pro.oaslananka.dev` (no wildcard)     |
+| `OAUTH_ISSUER`               | `https://easyeda-mcp-pro.oaslananka.dev/api/auth`          |
+| `OAUTH_AUDIENCE`             | `https://easyeda-mcp-pro.oaslananka.dev/mcp`               |
+| `OAUTH_JWKS_URI`             | `https://easyeda-mcp-pro.oaslananka.dev/api/auth/jwks`     |
+| `DATA_DIR`                   | `/app/data` (dedicated persistent Coolify volume)          |
+| `CLOUD_AUTH_SECRET`          | Unique random secret, **32 characters minimum**            |
+| `CLOUD_GITHUB_CLIENT_ID`     | GitHub OAuth application's client ID                       |
+| `CLOUD_GITHUB_CLIENT_SECRET` | GitHub OAuth application's private secret                  |
+| `CLOUD_GOOGLE_CLIENT_ID`     | Google OAuth web client's client ID                        |
+| `CLOUD_GOOGLE_CLIENT_SECRET` | Google OAuth web client's private secret                   |
 
 Do **not** paste OAuth secrets into issues, code, logs or a GitHub Actions
 secret. Coolify resolves <code>&#123;&#123;vault.KEY&#125;&#125;</code> directly at deployment/restart;
@@ -68,6 +70,12 @@ Register these exact redirect URIs with the two identity providers:
 - Google: `https://easyeda-mcp-pro.oaslananka.dev/api/auth/callback/google`
 
 GitHub and Google sign-in credentials are **not** MCP client OAuth tokens.
+
+For hosted AI agents, enable `MCP_V2_EXPERIMENTAL=true` to accept both
+MCP `2025-11-25` and `2026-07-28`. This enables neither write permissions
+nor bypasses of OAuth/project selection. See
+[AI clients and MCPJam acceptance](guide/cloud-ai-connectors.md).
+
 MCP clients use this service's standard OAuth metadata/authorization flow.
 
 ## First activation for owner-only live acceptance
@@ -118,7 +126,7 @@ billable provider, auto-deploy or public release is required.
 1. Confirm Cloudflare's **authoritative nameservers** return a public DNS
    answer for the hostname and HTTPS/TLS reaches the correct Coolify proxy.
    Merely seeing a record in a dashboard does not prove propagation.
-2. In Coolify, refresh the linked Doppler key list. Ensure all 16 variables
+2. In Coolify, refresh the linked Doppler key list. Ensure all 18 variables
    are available through the **correct** service token/config and all production
    env entries reference <code>&#123;&#123;vault.KEY&#125;&#125;</code>. Missing secret keys must fail the
    deploy instead of falling back to hard-coded values.

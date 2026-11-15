@@ -685,7 +685,7 @@ The schematic write APIs use EasyEDA Pro extension APIs that EasyEDA currently m
 
 ### Deployment modes
 
-Beyond local stdio/HTTP, the server supports a hosted remote runtime (gateway, session router, and approval-scoped relay under `src/remote/`) for managed connector deployments such as Claude Web or ChatGPT app integrations, plus a self-hosted remote mode for user-managed endpoints. See [Remote MCP Modes](docs/REMOTE_MCP_MODES.md) for the full mode matrix and network/security boundaries of each.
+Beyond local stdio/HTTP, the server supports a hosted remote runtime (gateway, session router, and approval-scoped relay under `src/remote/`) for managed connector deployments such as Claude Web or ChatGPT app integrations, plus a self-hosted remote mode for user-managed endpoints. See [Remote MCP Modes](docs/REMOTE_MCP_MODES.md) for the full mode matrix and network/security boundaries of each. See [Hosted Cloud AI connector and MCPJam acceptance](docs/guide/cloud-ai-connectors.md) for ChatGPT, Claude and Gemini web setup; production Cloud is still gated.
 
 ### Bridge extension
 

@@ -335,7 +335,9 @@ export function createOriginValidator(config: EnvConfig, canonicalOrigin?: strin
     // This prevents an attacker from pointing a DNS name at our IP and bypassing
     // browser same-origin policy.
     if (!validateHostHeader(config, req.headers.host, canonicalOrigin)) {
-      res.status(400).json({
+      // Same forbidden outcome as invalid Origin: reject DNS rebinding at the
+      // HTTP boundary without constructing or dispatching an MCP session.
+      res.status(403).json({
         error: 'Invalid Host header',
         code: 'host_mismatch',
       });

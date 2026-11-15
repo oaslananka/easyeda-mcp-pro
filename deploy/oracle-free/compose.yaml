@@ -18,6 +18,10 @@ services:
       MCP_BRIDGE_BACKEND: remote_relay
       DATA_DIR: /app/data
       OAUTH_ENABLED: 'true'
+      # Serve modern stateless and legacy sessionful MCP over the same OAuth boundary.
+      MCP_V2_EXPERIMENTAL: 'true'
+      # Standards-based, read-only project review widget for MCP Apps hosts.
+      MCP_APPS_ENABLED: 'true'
       OAUTH_REQUIRED_SCOPES: easyeda.read
       HTTP_AUTH_DISABLED: 'false'
       ALLOWED_ORIGINS: ${EASYEDA_PUBLIC_ORIGIN:?Set canonical HTTPS domain}

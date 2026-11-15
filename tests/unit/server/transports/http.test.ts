@@ -421,7 +421,7 @@ describe('createOriginValidator', () => {
       headers: { host: 'evil.example.com:3000' },
     });
     middleware(req, res, next);
-    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({
       error: 'Invalid Host header',
       code: 'host_mismatch',
@@ -458,7 +458,7 @@ describe('createOriginValidator', () => {
       },
     });
     middleware(req, res, next);
-    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({
       error: 'Invalid Host header',
       code: 'host_mismatch',

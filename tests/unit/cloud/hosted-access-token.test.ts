@@ -83,7 +83,7 @@ describe('Hosted Cloud MCP token verification', () => {
       expect(unauthenticated.challenge).toContain(
         'https://easyeda-mcp-pro.oaslananka.dev/.well-known/oauth-protected-resource/mcp',
       );
-      expect((await requestWithHost('untrusted.example')).status).toBe(400);
+      expect((await requestWithHost('untrusted.example')).status).toBe(403);
 
       for (const [label, token] of [
         ['browser session JWT', await makeToken('JWT')],
