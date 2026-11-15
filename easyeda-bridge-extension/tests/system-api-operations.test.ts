@@ -52,6 +52,19 @@ describe('system API operations', () => {
     );
   });
 
+  it.each(['SCH_PrimitiveText.delete', 'sch_PrimitiveText.delete'])(
+    'refuses an unpersisted native text-delete API without dispatching it: %s',
+    async (path) => {
+      const dependencies = createDependencies();
+      const operations = createSystemApiOperations(dependencies);
+      await expect(operations.apiCall({ path, args: [['text-id']] })).rejects.toMatchObject({
+        code: 'UNSUPPORTED_RUNTIME',
+        suggestion: expect.stringMatching(/GUI.*Delete.*Ctrl\+S.*reopen/i),
+      });
+      expect(dependencies.callAllowedApi).not.toHaveBeenCalled();
+    },
+  );
+
   it('forwards an optional result depth', async () => {
     const dependencies = createDependencies();
     const operations = createSystemApiOperations(dependencies);

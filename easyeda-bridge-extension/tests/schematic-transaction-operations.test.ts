@@ -154,6 +154,26 @@ describe('schematic transaction operations', () => {
     expect(wireDelete).toHaveBeenCalledWith(['wire-1']);
   });
 
+  it('refuses beta schematic text deletion before any other mutation in a mixed batch', async () => {
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const textDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn(async (id) => (id === 'cmp-1' ? { primitiveId: id } : undefined)),
+        delete: componentDelete,
+      },
+      SCH_PrimitiveText: {
+        get: vi.fn(async (id) => (id === 'text-1' ? { primitiveId: id } : undefined)),
+        delete: textDelete,
+      },
+    });
+    await expect(operations.deletePrimitives(['cmp-1', 'text-1'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
+    });
+    expect(componentDelete).not.toHaveBeenCalled();
+    expect(textDelete).not.toHaveBeenCalled();
+  });
+
   it('rejects component recreation without a complete creation descriptor', async () => {
     const { operations } = createSubject();
 

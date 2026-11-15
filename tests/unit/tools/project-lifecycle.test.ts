@@ -105,6 +105,26 @@ describe('safe project lifecycle tools', () => {
     expect(tool.outputSchema.safeParse(output).success).toBe(true);
   });
 
+  it('preserves the native schematic persistence safeguard without pretending to close', async () => {
+    const tool = registry.get('easyeda_project_close')!;
+    call.mockResolvedValue({
+      success: false,
+      status: 'schematic_persistence_unverified',
+      projectId: 'p1',
+    });
+    const result = await tool.handler(context, {
+      projectId: 'p1',
+      mode: 'save',
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      status: 'schematic_persistence_unverified',
+      projectId: 'p1',
+    });
+    expect(tool.outputSchema.safeParse(result).success).toBe(true);
+  });
+
   it('never reports a successful open or close for a lost native reply', async () => {
     call.mockRejectedValue(new Error('private /home/user/confidential-board.eprj2'));
     for (const name of ['easyeda_project_open', 'easyeda_project_close']) {

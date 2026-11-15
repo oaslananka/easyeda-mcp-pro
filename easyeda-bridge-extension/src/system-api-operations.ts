@@ -224,9 +224,19 @@ export function createSystemApiOperations(
   dependencies: SystemApiOperationsDependencies,
 ): SystemApiOperations {
   return {
-    apiCall(params) {
+    async apiCall(params) {
+      const path = typeof params.path === 'string' ? params.path : '';
+      // The BETA text-delete API acknowledges a transient deletion that
+      // disappears on cold reopen (live EasyEDA Pro 3.2.209 evidence).
+      if (path.toLowerCase() === 'sch_primitivetext.delete') {
+        throw dependencies.createBridgeError(
+          'UNSUPPORTED_RUNTIME',
+          'Native schematic text deletion is not durably verified',
+          'In EasyEDA GUI, select text, Delete, Ctrl+S, then close and reopen to verify.',
+        );
+      }
       return dependencies.callAllowedApi(
-        typeof params.path === 'string' ? params.path : '',
+        path,
         Array.isArray(params.args) ? params.args : [],
         params.maxDepth as number | undefined,
         params.includeMethods === true,
