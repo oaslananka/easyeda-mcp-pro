@@ -161,7 +161,7 @@ The authoritative channel, soak, live-validation, emergency, and rollback requir
 
 Contributions are welcome through GitHub issues and pull requests without a
 contributor license agreement (CLA), special permission comment, external
-registration, or per-commit DCO sign-off. The project is licensed under MIT.
+registration, or per-commit DCO sign-off. Current contributions are under AGPL-3.0-only.
 Contributors retain their copyright and should submit only material they have
 the right to contribute, identifying third-party material and its license.
 

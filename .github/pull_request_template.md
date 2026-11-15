@@ -25,7 +25,7 @@
 
 No contributor license agreement, additional permission comment, registration,
 or per-commit DCO sign-off is required. Contributions are accepted under the
-project's MIT License. Preserve third-party attribution and license notices.
+project's AGPL-3.0-only license. Preserve third-party attribution and license notices.
 
 ## Validation
 

@@ -17,7 +17,7 @@
     "bom"
   ],
   "author": "oaslananka",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/oaslananka/easyeda-mcp-pro.git"
