@@ -686,6 +686,9 @@ describe('createHttpTransport — OAuth/JWKS validation', () => {
         headers: { Authorization: `Bearer ${missingScope}` },
       });
       expect(scopeResponse.status).toBe(403);
+      expect(scopeResponse.headers.get('www-authenticate')).toContain(
+        'error="insufficient_scope", scope="easyeda.read"',
+      );
       await expect(scopeResponse.json()).resolves.toMatchObject({
         code: 'insufficient_scope',
         requiredScopes: ['easyeda:read'],
@@ -929,6 +932,9 @@ describe('createHttpTransport — OAuth/JWKS validation', () => {
       expect(body.code).toBe('insufficient_scope');
       expect(body.requiredScopes).toEqual(['easyeda:read']);
       expect(body.missingScopes).toEqual(['easyeda:read']);
+      expect(res.headers.get('www-authenticate')).toContain(
+        'error="insufficient_scope", scope="easyeda.read"',
+      );
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }

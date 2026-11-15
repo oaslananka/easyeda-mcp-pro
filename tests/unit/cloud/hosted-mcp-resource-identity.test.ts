@@ -316,13 +316,13 @@ describe('Hosted Cloud resource-owner identity through real MCP HTTP', () => {
         }
 
         const noScope = await signedFor(owner.userId, 'openid');
-        expect(
-          (
-            await fetch(`${origin}/remote/sessions`, {
-              headers: { Authorization: `Bearer ${noScope}` },
-            })
-          ).status,
-        ).toBe(403);
+        const missingRead = await fetch(`${origin}/remote/sessions`, {
+          headers: { Authorization: `Bearer ${noScope}` },
+        });
+        expect(missingRead.status).toBe(403);
+        expect(missingRead.headers.get('www-authenticate')).toContain(
+          'error="insufficient_scope", scope="easyeda.read"',
+        );
 
         const sessionJwt = await signedFor(owner.userId, 'easyeda.read', 'JWT');
         expect(

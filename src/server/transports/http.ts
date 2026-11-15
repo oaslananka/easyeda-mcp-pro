@@ -12,7 +12,7 @@ import {
   isLegacyRequest,
 } from '@modelcontextprotocol/server';
 import type { McpServer, AuthInfo } from '@modelcontextprotocol/server';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 import { type EnvConfig } from '../../config/env.js';
 import { SERVER_VERSION } from '../../config/version.js';
 import { getLogger } from '../../utils/logger.js';
@@ -120,6 +120,107 @@ function hostedMcpPrincipal(req: Request): string | undefined {
     : undefined;
 }
 
+/** Keep issuer/audience/signature failures distinct from consent and scope failures. */
+function rejectJwtValidationError(
+  req: Request,
+  res: Response,
+  config: EnvConfig,
+  error: unknown,
+  canonicalOrigin?: string,
+): void {
+  const message = error instanceof Error ? error.message : String(error);
+  getLogger().warn({ err: message }, 'OAuth token validation failed');
+
+  // Preserve structured client errors without leaking token material.
+  if (/["']exp["']/.test(message) || /expired|timestamp/i.test(message)) {
+    tokenError(req, res, config, 'Token has expired', 'token_expired', canonicalOrigin);
+  } else if (/["']iss["']/.test(message) || /issuer/i.test(message)) {
+    tokenError(req, res, config, 'Invalid token issuer', 'invalid_issuer', canonicalOrigin);
+  } else if (/["']aud["']/.test(message) || /audience/i.test(message)) {
+    tokenError(req, res, config, 'Invalid token audience', 'invalid_audience', canonicalOrigin);
+  } else if (/signature|key|JWT|JWS|malformed|parse/i.test(message)) {
+    tokenError(req, res, config, 'Invalid token signature', 'invalid_signature', canonicalOrigin);
+  } else {
+    tokenError(
+      req,
+      res,
+      config,
+      'Token validation failed',
+      'token_validation_failed',
+      canonicalOrigin,
+    );
+  }
+}
+
+/** Enforce grant and scope policy after JWT signature, audience and type checks. */
+function completeVerifiedOAuthRequest(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  config: EnvConfig,
+  hostedAuth: HostedAuth | undefined,
+  payload: JWTPayload,
+  token: string,
+  requiredScopes: string[],
+  normalizedRequiredScopes: string[],
+): void {
+  const tokenScopes = extractTokenScopes(payload as Record<string, unknown>);
+  const currentGrant = hostedAuth?.checkAccessGrant({
+    ownerId: payload.sub ?? '',
+    clientId: String(payload.azp),
+    scopes: [...tokenScopes],
+    issuedAt: payload.iat ?? 0,
+    resource: config.OAUTH_AUDIENCE,
+  });
+  if (currentGrant === false) {
+    // A revoked grant cannot be refreshed by reusing its old bearer token.
+    // Treat it as invalid credentials so OAuth clients can relink.
+    setProtectedResourceChallenge(req, res, config, 'invalid_token', hostedAuth?.origin);
+    res.status(401).json({
+      code: 'consent_revoked',
+      error: 'The MCP client authorization is missing or was revoked. Reauthorize this client.',
+    });
+    return;
+  }
+  const normalizedTokenScopes = new Set([...tokenScopes].map(normalizeOAuthScope));
+  const missingScopes = requiredScopes.filter(
+    (_scope, idx) => !normalizedTokenScopes.has(normalizedRequiredScopes[idx] ?? ''),
+  );
+  if (missingScopes.length > 0) {
+    // RFC 6750 uses 403 for insufficient_scope with a discoverable
+    // WWW-Authenticate challenge, so MCP clients can request new scopes.
+    setProtectedResourceChallenge(
+      req,
+      res,
+      config,
+      'insufficient_scope',
+      hostedAuth?.origin,
+      normalizedRequiredScopes.join(' '),
+    );
+    res.status(403).json({
+      error: 'Token is missing required OAuth scope',
+      code: 'insufficient_scope',
+      requiredScopes,
+      missingScopes,
+    });
+    return;
+  }
+
+  const claims = payload as Record<string, unknown>;
+  const subject = typeof claims.sub === 'string' ? claims.sub : undefined;
+  const clientId =
+    typeof claims.client_id === 'string' ? claims.client_id : (subject ?? 'oauth-client');
+  (req as AuthenticatedExpressRequest).auth = {
+    token,
+    clientId,
+    scopes: [...tokenScopes],
+    expiresAt: typeof claims.exp === 'number' ? claims.exp : undefined,
+    extra: claims,
+  };
+  res.locals.claims = payload;
+  next();
+}
+
 function validateOAuthToken(config: EnvConfig, hostedAuth?: HostedAuth) {
   const hosted = Boolean(hostedAuth);
   const rejectToken = (req: Request, res: Response, message: string, code?: string): void =>
@@ -175,73 +276,20 @@ function validateOAuthToken(config: EnvConfig, hostedAuth?: HostedAuth) {
           return;
         }
 
-        const tokenScopes = extractTokenScopes(payload as Record<string, unknown>);
-        if (
-          hostedAuth &&
-          !hostedAuth.checkAccessGrant({
-            ownerId: payload.sub ?? '',
-            clientId: String(payload.azp),
-            scopes: [...tokenScopes],
-            issuedAt: payload.iat ?? 0,
-            resource: config.OAUTH_AUDIENCE,
-          })
-        ) {
-          res.status(403).json({
-            code: 'consent_revoked',
-            error:
-              'The MCP client authorization is missing or was revoked. Reauthorize this client.',
-          });
-          return;
-        }
-        const normalizedTokenScopes = new Set([...tokenScopes].map(normalizeOAuthScope));
-        const missingScopes = requiredScopes.filter(
-          (_scope, idx) => !normalizedTokenScopes.has(normalizedRequiredScopes[idx] ?? ''),
-        );
-        if (missingScopes.length > 0) {
-          res.status(403).json({
-            error: 'Token is missing required OAuth scope',
-            code: 'insufficient_scope',
-            requiredScopes,
-            missingScopes,
-          });
-          return;
-        }
-
-        const claims = payload as Record<string, unknown>;
-        const subject = typeof claims.sub === 'string' ? claims.sub : undefined;
-        const clientId =
-          typeof claims.client_id === 'string' ? claims.client_id : (subject ?? 'oauth-client');
-        (req as AuthenticatedExpressRequest).auth = {
+        completeVerifiedOAuthRequest(
+          req,
+          res,
+          next,
+          config,
+          hostedAuth,
+          payload,
           token,
-          clientId,
-          scopes: [...tokenScopes],
-          expiresAt: typeof claims.exp === 'number' ? claims.exp : undefined,
-          extra: claims,
-        };
-        res.locals.claims = payload;
-        next();
+          requiredScopes,
+          normalizedRequiredScopes,
+        );
       })
       .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        getLogger().warn({ err: msg }, 'OAuth token validation failed');
-
-        // Map jose errors to user-friendly messages
-        // jose error examples:
-        //   '"exp" claim timestamp check failed' → token_expired
-        //   '"iss" claim mismatch' → invalid_issuer
-        //   '"aud" claim mismatch' → invalid_audience
-        //   'signature verification failed' → invalid_signature
-        if (/["']exp["']/.test(msg) || /expired|timestamp/i.test(msg)) {
-          rejectToken(req, res, 'Token has expired', 'token_expired');
-        } else if (/["']iss["']/.test(msg) || /issuer/i.test(msg)) {
-          rejectToken(req, res, 'Invalid token issuer', 'invalid_issuer');
-        } else if (/["']aud["']/.test(msg) || /audience/i.test(msg)) {
-          rejectToken(req, res, 'Invalid token audience', 'invalid_audience');
-        } else if (/signature|key|JWT|JWS|malformed|parse/i.test(msg)) {
-          rejectToken(req, res, 'Invalid token signature', 'invalid_signature');
-        } else {
-          rejectToken(req, res, 'Token validation failed', 'token_validation_failed');
-        }
+        rejectJwtValidationError(req, res, config, err, hostedAuth?.origin);
       });
   };
 }

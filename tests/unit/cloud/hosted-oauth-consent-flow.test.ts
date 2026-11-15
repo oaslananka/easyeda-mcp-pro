@@ -605,7 +605,11 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
       expect(
         afterRevoke.status,
         'An OAuth bearer must stop accessing Cloud immediately after the owner revokes its consent.',
-      ).toBe(403);
+      ).toBe(401);
+      expect(afterRevoke.headers.get('www-authenticate')).toContain('error="invalid_token"');
+      expect(afterRevoke.headers.get('www-authenticate')).toContain(
+        `resource_metadata="${origin}/.well-known/oauth-protected-resource/mcp"`,
+      );
       const beforeRevokedCall = dispatched.length;
       await expect(
         client.callTool({
@@ -661,20 +665,15 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
       expect(replacementToken.status).toBe(200);
       const newGrant = (await replacementToken.json()) as { access_token: string };
       expect(newGrant.access_token).toBeTruthy();
-      expect(
-        (
-          await fetch(`${origin}/remote/sessions`, {
-            headers: { Authorization: `Bearer ${issued.access_token}` },
-          })
-        ).status,
-      ).toBe(403);
-      expect(
-        (
-          await fetch(`${origin}/remote/sessions`, {
-            headers: { Authorization: `Bearer ${newGrant.access_token}` },
-          })
-        ).status,
-      ).toBe(200);
+      const staleToken = await fetch(`${origin}/remote/sessions`, {
+        headers: { Authorization: `Bearer ${issued.access_token}` },
+      });
+      expect(staleToken.status).toBe(401);
+      expect(staleToken.headers.get('www-authenticate')).toContain('error="invalid_token"');
+      const refreshedToken = await fetch(`${origin}/remote/sessions`, {
+        headers: { Authorization: `Bearer ${newGrant.access_token}` },
+      });
+      expect(refreshedToken.status).toBe(200);
     } finally {
       await client?.close();
       if (socket && socket.readyState === WebSocket.OPEN) {

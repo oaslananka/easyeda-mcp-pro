@@ -65,9 +65,17 @@ export function setProtectedResourceChallenge(
   config: EnvConfig,
   code: string,
   canonicalOrigin?: string,
+  scope?: string,
 ): void {
   const scheme = ['Bear', 'er'].join('');
   const headerName = ['WWW', 'Authenticate'].join('-');
   const metadataUrl = getProtectedResourceMetadataUrl(req, config, canonicalOrigin);
-  res.setHeader(headerName, `${scheme} resource_metadata="${metadataUrl}", error="${code}"`);
+  // Configured scope tokens are server-owned; never echo arbitrary untrusted
+  // values into an HTTP header.
+  const safeScope =
+    scope && scope.split(' ').every((item) => /^[a-zA-Z0-9._:-]+$/.test(item)) ? scope : undefined;
+  res.setHeader(
+    headerName,
+    `${scheme} resource_metadata="${metadataUrl}", error="${code}"${safeScope ? `, scope="${safeScope}"` : ''}`,
+  );
 }
