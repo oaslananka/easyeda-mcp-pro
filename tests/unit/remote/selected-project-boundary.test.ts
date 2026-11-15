@@ -10,6 +10,48 @@ const owner: RemoteIdentity = { userId: 'owner-a', scopes: ['easyeda.read'] };
 const outsider: RemoteIdentity = { userId: 'owner-b', scopes: ['easyeda.read'] };
 
 describe('explicit hosted extension/project selection', () => {
+  it('never reports owner bridge readiness before native project selection or after an identity change', () => {
+    const gateway = new RemoteGateway();
+    gateway.requireExplicitProjectSelection();
+    const session = gateway.registerExtension({
+      connectionId: 'owner-native-disposable',
+      mode: 'hosted',
+      extensionVersion: '1.15.5',
+      activeProject: {
+        projectId: 'disposable-project',
+        documentId: 'focused-pcb',
+        documentType: 'pcb',
+        projectName: 'Disposable',
+      },
+      dispatch: async () => {
+        throw new Error('Diagnostics should never dispatch a native command.');
+      },
+    });
+    expect(gateway.hasRoutableSession(owner)).toBe(false);
+    expect(gateway.hasRoutableSession(outsider)).toBe(false);
+    const code = gateway.createPairingCode({ identity: owner, sessionId: session.sessionId });
+    expect(gateway.completePairing({ identity: owner, code, sessionId: session.sessionId })).toBe(
+      true,
+    );
+    expect(gateway.hasRoutableSession(owner)).toBe(false); // paired, but not selected
+    expect(gateway.selectPairedProject(owner, session.sessionId)).toBe(true);
+    expect(gateway.hasRoutableSession(owner)).toBe(true);
+    expect(gateway.hasRoutableSession(outsider)).toBe(false);
+    expect(gateway.hasRoutableSession(owner, 'sess_not_selected')).toBe(false);
+    expect(gateway.hasRoutableSession({ userId: owner.userId, scopes: [] })).toBe(false);
+
+    gateway.router.updateActiveProject(session.sessionId, {
+      projectId: 'disposable-project',
+      documentId: 'other-pcb',
+      documentType: 'pcb',
+    });
+    expect(gateway.hasRoutableSession(owner)).toBe(false);
+    expect(gateway.selectPairedProject(owner, session.sessionId)).toBe(true);
+    expect(gateway.hasRoutableSession(owner)).toBe(true);
+    expect(gateway.revokePairedExtension(owner, session.sessionId)).toBe(true);
+    expect(gateway.hasRoutableSession(owner)).toBe(false);
+  });
+
   it('requires an owner-selected project when multiple extensions are paired and fails closed after a project swap', async () => {
     const gateway = new RemoteGateway();
     const dispatched: string[] = [];

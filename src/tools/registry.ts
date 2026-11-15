@@ -478,7 +478,12 @@ async function contextForRemoteRelay(
       bridge: {
         ...context.bridge,
         get connected() {
-          return true;
+          // Ordinary tools still dispatch through the relay so its precise
+          // SESSION_UNPAIRED/PROJECT_INACTIVE errors survive. Diagnostics must
+          // not claim the editor is connected just because MCP OAuth succeeded.
+          return tool.group === 'diagnostics'
+            ? gateway.hasRoutableSession(identity, sessionId)
+            : true;
         },
         call: async <TParams, TResult>(
           method: string,

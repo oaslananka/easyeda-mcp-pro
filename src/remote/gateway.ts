@@ -647,6 +647,24 @@ export class RemoteGateway {
     return paired;
   }
 
+  /**
+   * Owner-scoped, read-only readiness check for MCP diagnostics.
+   * A working HTTP/OAuth connection is NOT proof that a usable EasyEDA editor
+   * is paired, online and (in Hosted Cloud) selected for this owner.
+   * Do not mutate the session router or dispatch a native call here.
+   */
+  hasRoutableSession(identity?: RemoteIdentity, sessionId?: string): boolean {
+    if (!identity || !checkRemoteScope(identity, 'read', this.now()).ok) return false;
+    const selected = this.resolveOwnerSelection(identity, sessionId);
+    if (!selected.ok) return false;
+    const route = this.router.resolve({
+      userId: identity.userId,
+      riskLevel: 'read',
+      sessionId: selected.sessionId,
+    });
+    return route.ok && this.connections.has(route.session.sessionId);
+  }
+
   listPairedExtensions(identity: RemoteIdentity): ManagedExtensionSession[] {
     return this.router.listPairedSessions(identity.userId);
   }

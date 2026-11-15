@@ -36,7 +36,10 @@ client supplies `Mcp-Method`, per-request version metadata and no
    extension in an isolated profile, and pair it using a one-time code.
 2. Select the real focused document on the Cloud dashboard. Verify that the
    project and account identity match the selected native editor.
-3. Link the agent using only `easyeda.read`; verify tool discovery and
+3. Link the agent using only `easyeda.read`; first call `easyeda_health_check`.
+   **MCP OAuth connected does not mean EasyEDA is connected.** The diagnostic
+   reports `bridge_connected: false` and `status: degraded` until the owner's
+   paired, focused project is reachable. After that check passes, verify
    read-only schematic/PCB inventory on a **disposable** project.
 4. Revoke client access and confirm the old token cannot read again; use a
    second independently authenticated user to prove owner isolation.

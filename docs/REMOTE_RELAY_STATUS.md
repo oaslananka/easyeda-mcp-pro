@@ -238,7 +238,13 @@ scopes was **denied**; an `easyeda.read`-only request was approved and
 connected. MCPJam discovered **83 tools**, loaded the MCP Apps resource and
 successfully invoked `easyeda_health_check` (`status: ok`, version 1.15.5).
 The live owner portal was accessible, but **no native EasyEDA design was
-paired** during this MCPJam test. A later database inspection found the
+paired** during this MCPJam test. Its earlier health output incorrectly
+showed the bridge as connected: the remote diagnostic adapter assumed
+connectivity before checking the owner's selected editor. The subsequent
+candidate now reports `degraded` until an owned, paired, selected editor
+is reachable; fixture JWT/WSS and both MCP protocol eras pass regression
+tests. **The corrected diagnostic has not yet passed a live Cloud retest.**
+A later database inspection found the
 MCPJam consent had been revoked; reuse of its old token **after** revocation
 was not tested during the short live pilot.
 

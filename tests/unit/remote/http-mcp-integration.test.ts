@@ -215,6 +215,57 @@ describe('Remote Relay MCP HTTP integration', () => {
     }
   });
 
+  it.each([false, true])(
+    'reports real owner bridge readiness after remote disconnect (modern=%s)',
+    async (modern) => {
+      const harness = await createHarness(modern);
+      cleanup.push(harness.close);
+      const { client, transport } = harness.createClient('health-check-real-bridge', modern);
+      await client.connect(transport);
+
+      const connected = await client.callTool({
+        name: 'easyeda_health_check',
+        arguments: {},
+      });
+      expect(connected.isError).not.toBe(true);
+      expect(connected.structuredContent).toMatchObject({
+        status: 'ok',
+        bridge_connected: true,
+      });
+
+      expect(harness.gateway.revokePairedExtension(harness.identity, harness.remoteSessionId)).toBe(
+        true,
+      );
+      const disconnected = await client.callTool({
+        name: 'easyeda_health_check',
+        arguments: {},
+      });
+      expect(disconnected.isError).not.toBe(true);
+      expect(disconnected.structuredContent).toMatchObject({
+        status: 'degraded',
+        bridge_connected: false,
+      });
+      expect(harness.dispatched).toHaveLength(0);
+    },
+    15_000,
+  );
+
+  it('reports a degraded editor when Hosted Cloud has a paired device but no selected project', async () => {
+    const harness = await createHarness(true);
+    cleanup.push(harness.close);
+    harness.gateway.requireExplicitProjectSelection();
+    const { client, transport } = harness.createClient('remote-http-unselected', true);
+    await client.connect(transport);
+
+    const result = await client.callTool({ name: 'easyeda_health_check', arguments: {} });
+    expect(result.structuredContent).toMatchObject({
+      status: 'degraded',
+      bridge_connected: false,
+      status_error: expect.stringContaining('select the focused project'),
+    });
+    expect(harness.dispatched).toHaveLength(0);
+  }, 15_000);
+
   it('preserves Remote Relay identity, isolation, and approval gating for modern HTTP requests', async () => {
     const harness = await createHarness(true);
     cleanup.push(harness.close);

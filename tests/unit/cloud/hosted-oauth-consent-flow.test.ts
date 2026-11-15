@@ -297,6 +297,15 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
           requestInit: { headers: { Authorization: `Bearer ${issued.access_token}` } },
         }),
       );
+      const pairedHealth = await client.callTool({
+        name: 'easyeda_health_check',
+        arguments: {},
+      });
+      expect(pairedHealth.structuredContent).toMatchObject({
+        status: 'ok',
+        bridge_connected: true,
+      });
+
       const read = await client.callTool({
         name: 'easyeda_schematic_components',
         arguments: { projectId: 'disposable-project' },
@@ -459,6 +468,16 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
         relay.once('close', () => resolve());
         relay.close();
       });
+      const offlineHealth = await client.callTool({
+        name: 'easyeda_health_check',
+        arguments: {},
+      });
+      expect(offlineHealth.structuredContent).toMatchObject({
+        status: 'degraded',
+        bridge_connected: false,
+        status_error: expect.stringContaining('Pair your extension'),
+      });
+
       const offlineRead = await client.callTool({
         name: 'easyeda_schematic_components',
         arguments: { projectId: 'disposable-project' },
