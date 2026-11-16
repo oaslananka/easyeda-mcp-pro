@@ -84,6 +84,18 @@ and dispatcher from **270,680 → 273,794 bytes**. Ratchets are
 **213,145 / 336,317 / 273,799 bytes** (5-byte deterministic margin each),
 with no quality/security gate disabled and no release authorization implied.
 
+On 2026-11-16, Cloud PR #1057 added a preconfigured official Cloud menu,
+independent Custom Cloud WSS selection, and owner-bound expiring device
+resume after relay restarts. The full production .eext measured
+**234,835 bytes** against the previous **234,551-byte** ratchet (+284);
+dist/index.js measured **390,715 bytes** against **389,554** (+1,161);
+the unchanged dispatcher artifact measured **313,113 bytes** against
+its **313,115-byte** ratchet. The reviewed new limits are
+**234,840 / 390,720 / 313,115 bytes** (package/index each measured
+size +5, dispatcher unchanged). The package check remains mandatory
+and fail-closed; these narrow deltas do not authorize general bundle
+growth, enable experimental native writes, or complete Cloud rollout.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:
