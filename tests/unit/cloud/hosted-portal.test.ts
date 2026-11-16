@@ -192,6 +192,7 @@ describe('Hosted Cloud browser recovery', () => {
     elements.set('clients', fakeElement());
     elements.set('extensions', fakeElement());
     elements.set('account-name', fakeElement());
+    elements.set('pairing-hint', fakeElement());
     runInNewContext(CLOUD_JS, {
       document: {
         get hidden() {
@@ -341,6 +342,88 @@ describe('Hosted Cloud browser recovery', () => {
     total = 6;
     await result.tickUsage();
     expect(count).toBe(4);
+  });
+
+  it('refreshes live device state and clears a stale paired indicator while the tab is visible', async () => {
+    let online = true;
+    let deviceRequests = 0;
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Fixture Owner' } }) };
+      if (url === '/cloud/api/extensions') {
+        deviceRequests += 1;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            sessions: [
+              {
+                sessionId: 'sess_disposable',
+                connected: online,
+                mode: 'hosted',
+                extensionVersion: '1.15.6',
+                activeProject: {
+                  projectId: 'disposable-project',
+                  documentId: 'pcb-1',
+                  projectName: 'Disposable PCB',
+                  documentType: 'pcb',
+                },
+              },
+            ],
+            selection: {
+              sessionId: 'sess_disposable',
+              projectId: 'disposable-project',
+              documentId: 'pcb-1',
+            },
+          }),
+        };
+      }
+      if (url === '/cloud/api/clients')
+        return { ok: true, status: 200, json: async () => ({ clients: [] }) };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            total: 0,
+            succeeded: 0,
+            failed: 0,
+            lastCallAt: null,
+          }),
+        };
+      throw new Error('Unexpected test request: ' + url);
+    });
+    const getStatus = () => result.elements.get('extensions').children[0].children[0].children[2];
+    const pairing = result.elements.get('pairing-code');
+    const hint = result.elements.get('pairing-hint');
+    expect(deviceRequests).toBe(1);
+    expect(getStatus().textContent).toBe('Connected');
+    // Simulate a completed prior pairing whose success message remains on screen.
+    pairing.textContent = 'Connected';
+    hint.textContent = 'Your EasyEDA device is connected.';
+    online = false;
+    await result.tickUsage();
+    expect(deviceRequests).toBe(2);
+    expect(getStatus().textContent).toBe('Disconnected');
+    expect(getStatus().className).toContain('off');
+    expect(pairing.textContent).toBe('Disconnected');
+    expect(hint.textContent).toContain('Generate a new pairing code');
+    expect(
+      result.elements
+        .get('extensions')
+        .children[0].children.some((child) => child.textContent === 'Selected PCB'),
+    ).toBe(false);
+
+    result.setHidden(true);
+    online = true;
+    await result.tickUsage();
+    expect(deviceRequests).toBe(2);
+    expect(getStatus().textContent).toBe('Disconnected');
+    result.setHidden(false);
+    await result.tickUsage();
+    expect(deviceRequests).toBe(3);
+    expect(getStatus().textContent).toBe('Connected');
+    expect(pairing.textContent).toBe('Connected');
   });
 
   it('shows a recovery path for a blocked Cloud/Access fetch instead of redirecting to sign-in', async () => {

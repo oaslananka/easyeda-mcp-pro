@@ -196,6 +196,17 @@ export const CLOUD_JS = String.raw`
       selected = data.selection;
       visibleSessionIds = new Set((Array.isArray(data.sessions) ? data.sessions : []).map((session) => session.sessionId));
       hasLoadedSessionList = true;
+      // A remembered pairing is not a live connection. Keep the setup status
+      // in sync when an extension disconnects, without erasing a live code.
+      const connected = data.sessions?.some((session) => session.connected);
+      const pairingStatus = get('pairing-code');
+      if (!connected && pairingStatus?.textContent === 'Connected') {
+        setText('pairing-code', 'Disconnected');
+        setText('pairing-hint', 'EasyEDA is offline. Generate a new pairing code and reconnect from MCP Bridge.');
+      } else if (connected && pairingStatus?.textContent === 'Disconnected') {
+        setText('pairing-code', 'Connected');
+        setText('pairing-hint', 'Your EasyEDA device is connected. Choose its schematic or PCB to allow MCP access.');
+      }
       const workspaceGrid = get('workspace-grid');
       if (workspaceGrid) workspaceGrid.dataset.empty = data.sessions?.length ? 'false' : 'true';
       setText('device-count', Array.isArray(data.sessions) ? data.sessions.length : 0);
@@ -287,7 +298,13 @@ export const CLOUD_JS = String.raw`
         // Low-cost near-live counts: only signed-in, foreground workspaces poll.
         // No background requests and no timers left after page navigation.
         const usageTimer = setInterval(() => {
-          if (!document.hidden) void loadUsage();
+          if (!document.hidden) {
+            void loadUsage();
+            // A device can disconnect while this page remains open.
+            void refreshExtensions().catch(() => {
+              // Manual Refresh is available when a status poll fails.
+            });
+          }
         }, 30000);
         window.addEventListener('pagehide', () => clearInterval(usageTimer), { once: true });
         const pair = get('generate-pairing');
