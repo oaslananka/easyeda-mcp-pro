@@ -24,7 +24,8 @@ services:
       MCP_APPS_ENABLED: 'true'
       OAUTH_REQUIRED_SCOPES: easyeda.read
       HTTP_AUTH_DISABLED: 'false'
-      ALLOWED_ORIGINS: ${EASYEDA_PUBLIC_ORIGIN:?Set canonical HTTPS domain}
+      # Allow the official EasyEDA Pro web editor to pair; never use a wildcard.
+      ALLOWED_ORIGINS: ${EASYEDA_PUBLIC_ORIGIN:?Set canonical HTTPS domain},https://pro.easyeda.com
       CLOUD_HOSTED_ENABLED: 'true'
       CLOUD_HOSTED_ORIGIN: ${EASYEDA_PUBLIC_ORIGIN}
       OAUTH_ISSUER: ${EASYEDA_PUBLIC_ORIGIN}/api/auth
