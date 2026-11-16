@@ -102,11 +102,27 @@ interface RegisteredConnection {
   notifyRevoked?: () => void;
 }
 
-function notifyRevokedConnection(connection: RegisteredConnection | undefined): void {
+// EasyEDA native SYS_WebSocket has no close callback and may discard a final
+// message if its transport closes in the same turn. Keep only the already-
+// revoked socket alive briefly so the notice can reach the extension.
+const REVOKE_NOTICE_GRACE_MS = 750;
+
+function notifyRevokedConnection(connection: RegisteredConnection | undefined): boolean {
   try {
-    connection?.notifyRevoked?.();
+    if (!connection?.notifyRevoked) return false;
+    connection.notifyRevoked();
+    return true;
   } catch {
     // Owner revocation remains final even when the transport notification fails.
+    return false;
+  }
+}
+
+function closeRevokedConnection(connection: RegisteredConnection | undefined): void {
+  try {
+    connection?.closeConnection?.();
+  } catch {
+    // Ownership and grants were revoked before attempting transport cleanup.
   }
 }
 
@@ -808,11 +824,13 @@ export class RemoteGateway {
       userId: identity.userId,
       sessionId,
     });
-    notifyRevokedConnection(connection);
-    try {
-      connection?.closeConnection?.();
-    } catch {
-      // Revocation is authoritative even when the transport refuses to close.
+    if (notifyRevokedConnection(connection)) {
+      // The session is already unroutable: this delay grants no access.
+      // Native clients get one event-loop interval to process SESSION_REVOKED.
+      const timer = setTimeout(() => closeRevokedConnection(connection), REVOKE_NOTICE_GRACE_MS);
+      timer.unref();
+    } else {
+      closeRevokedConnection(connection);
     }
     return true;
   }

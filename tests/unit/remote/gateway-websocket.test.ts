@@ -613,6 +613,40 @@ describe('RemoteGateway WebSocket relay', () => {
     });
   });
 
+  it('keeps an already-revoked socket briefly open for native clients to receive the notice', async () => {
+    const harness = await createHarness();
+    const sessionId = await registerSession(harness);
+    const closed = new Promise<void>((resolve) =>
+      harness.client.socket.once('close', () => resolve()),
+    );
+
+    expect(harness.gateway.revokePairedExtension(readIdentity, sessionId)).toBe(true);
+    await expect(
+      harness.client.waitFor((message) => message.code === 'SESSION_REVOKED'),
+    ).resolves.toMatchObject({ code: 'SESSION_REVOKED', sessionId });
+
+    // Revocation takes effect before transport close; native WebSocket APIs
+    // need an event-loop interval to dispatch the received notice.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(harness.client.socket.readyState).toBe(WebSocket.OPEN);
+    await expect(
+      harness.gateway.routeToolRequest({
+        identity: readIdentity,
+        sessionId,
+        toolName: 'pcb.listComponents',
+        riskLevel: 'read',
+      }),
+    ).resolves.toMatchObject({ ok: false });
+
+    await Promise.race([
+      closed,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Revoked socket did not close')), 2_000),
+      ),
+    ]);
+    expect(harness.client.socket.readyState).toBe(WebSocket.CLOSED);
+  });
+
   it('re-registering one socket replaces and disconnects its previous session', async () => {
     const harness = await createHarness();
     const firstSessionId = await registerSession(harness);
