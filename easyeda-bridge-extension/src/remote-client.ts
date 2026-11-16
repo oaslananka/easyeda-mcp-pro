@@ -73,7 +73,7 @@ function pairedRelayPayloadLimit(message: RemoteEnvelope): number | undefined {
   // Only trust the bounded cap from a confirmed relay pairing; never derive
   // permission or transport limits from a requested tool payload.
   if (message.paired !== true || typeof n !== 'number' || !Number.isInteger(n)) return undefined;
-  return n >= 1024 && n <= 10_485_760 ? n : undefined;
+  return n >= 1024 && n <= 10 * Math.pow(2, 20) ? n : undefined;
 }
 
 const PROTOCOL_VERSION = '2026-07-remote-relay-v1';
