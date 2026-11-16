@@ -39,9 +39,12 @@ its build history is safe.
 
 Before any Hosted Cloud build or public acceptance:
 
-1. Keep `CLOUD_AUTH_SECRET`, `CLOUD_GITHUB_CLIENT_SECRET`, and
-   `CLOUD_GOOGLE_CLIENT_SECRET` **runtime-only, not build-time**. They are
-   not required by the Dockerfile or build scripts. Preserve the existing
+1. Mark **every Hosted Cloud environment variable** as **runtime-only**
+   (`is_runtime=true`, `is_buildtime=false`) in **both normal and preview**
+   Coolify variable sets. The Dockerfile and build scripts do not consume
+   any of these settings during the build. In particular, never expose
+   `CLOUD_AUTH_SECRET`, `CLOUD_GITHUB_CLIENT_SECRET`, or
+   `CLOUD_GOOGLE_CLIENT_SECRET` to build arguments. Keep the existing
    <code>&#123;&#123;vault.KEY&#125;&#125;</code> Doppler references instead of copying credential values.
 2. Enable Coolify's **Use Build Secrets (BuildKit)** and
    **redact all environment values in deployment logs** options. Confirm
@@ -56,6 +59,15 @@ Before any Hosted Cloud build or public acceptance:
 unreferenced affected application images, assess local build cache and
 registry exposure, and rotate the exposed credentials before public release.
 Do not prune other projects' images, caches, containers, or volumes.
+
+For a restart or rollback at the **same commit**, first verify that **neither**
+Coolify variable set has build-time entries. In the 2026-11-16 owner pilot,
+13 otherwise runtime-only values had mistakenly been marked build-time in
+each set. Coolify consequently rebuilt an already-cached image, consuming
+shared VPS resources. Clearing only those flags allowed the subsequent
+same-commit deployment to reuse the existing image, with the persistent
+`/app/data` volume unchanged. This avoids unnecessary builds; it does **not**
+clear the separate historical OAuth secret exposure/rotation gate below.
 
 ### Owner-only preview ingress must preserve Cloud API calls
 
