@@ -309,6 +309,13 @@ describe('Remote Relay MCP HTTP integration', () => {
         approvalId: expect.stringMatching(/^appr_/),
       },
     });
+    const approvalId = (writeResult.structuredContent as { details: { approvalId: string } })
+      .details.approvalId;
+    // The visible MCP error text must carry the retry ID, not only the
+    // structured result: real connector clients may strip structuredContent.
+    expect((writeResult.content as { type: string; text?: string }[])[0]?.text).toContain(
+      `remoteApprovalId="${approvalId}"`,
+    );
     expect(harness.approvalRequests).toHaveLength(1);
     expect(harness.httpTransport.activeSessionCount).toBe(0);
   }, 15_000);

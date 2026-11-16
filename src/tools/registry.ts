@@ -121,7 +121,16 @@ type RemoteGatewayFailure = Extract<RemoteGatewayToolResult, { ok: false }>;
 
 class RemoteRelayRouteError extends Error {
   constructor(readonly failure: RemoteGatewayFailure) {
-    super(`Remote relay ${failure.code}: ${failure.message}`);
+    // Some MCP clients display only text content and drop structuredContent.
+    // The short-lived approval ID is still bound to the exact user, session,
+    // tool and input hash; exposing it enables a normal approved retry.
+    const retryId =
+      failure.code === 'APPROVAL_REQUIRED' &&
+      typeof failure.approvalId === 'string' &&
+      /^appr_[A-Za-z0-9_-]+$/.test(failure.approvalId)
+        ? ` Use remoteApprovalId="${failure.approvalId}" when retrying the same tool call.`
+        : '';
+    super(`Remote relay ${failure.code}: ${failure.message}${retryId}`);
     this.name = 'RemoteRelayRouteError';
   }
 }
