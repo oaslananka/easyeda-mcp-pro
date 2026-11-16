@@ -67,6 +67,14 @@ Every relay message should include:
 | `session_closed`     | Both                        | Close a session intentionally.                                |
 | `error`              | Both                        | Return protocol, routing, or execution errors.                |
 
+A successful owner-initiated **Remove access** revocation sends the active
+extension an error envelope with SESSION_REVOKED code and the exact
+session ID before closing the relay socket. The extension must immediately
+clear its in-memory resume credential, show a new-pairing-code instruction
+and stop retrying. Revocation remains authoritative even when the old
+socket cannot receive the notification; subsequent resume is rejected.
+Messages for another session ID must not change the current connection.
+
 ## Approval handshake
 
 Risky operations are approved at the complete MCP tool-invocation boundary, not separately

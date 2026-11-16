@@ -99,6 +99,15 @@ interface RegisteredConnection {
   dispatch: RemoteToolDispatcher;
   requestApproval?: RemoteApprovalRequester;
   closeConnection?: () => void;
+  notifyRevoked?: () => void;
+}
+
+function notifyRevokedConnection(connection: RegisteredConnection | undefined): void {
+  try {
+    connection?.notifyRevoked?.();
+  } catch {
+    // Owner revocation remains final even when the transport notification fails.
+  }
 }
 
 type ResolvedRemoteConnection =
@@ -606,6 +615,7 @@ export class RemoteGateway {
     dispatch: RemoteToolDispatcher;
     requestApproval?: RemoteApprovalRequester;
     closeConnection?: () => void;
+    notifyRevoked?: () => void;
     pairingCode?: string;
   }): ExtensionSession {
     const session = this.router.registerSession(input);
@@ -614,6 +624,7 @@ export class RemoteGateway {
       dispatch: input.dispatch,
       requestApproval: input.requestApproval,
       closeConnection: input.closeConnection,
+      notifyRevoked: input.notifyRevoked,
     });
     if (input.pairingCode) this.router.completePairingByCode(input.pairingCode, session.sessionId);
     this.audit.record({
@@ -785,7 +796,7 @@ export class RemoteGateway {
       !this.resumeStore.revoke(identity.userId, sessionId)
     )
       return false;
-    const closeConnection = this.connections.get(sessionId)?.closeConnection;
+    const connection = this.connections.get(sessionId);
     this.disconnect(sessionId);
     this.router.forgetSession(sessionId);
     if (this.selectedProjects.get(identity.userId)?.sessionId === sessionId) {
@@ -797,8 +808,9 @@ export class RemoteGateway {
       userId: identity.userId,
       sessionId,
     });
+    notifyRevokedConnection(connection);
     try {
-      closeConnection?.();
+      connection?.closeConnection?.();
     } catch {
       // Revocation is authoritative even when the transport refuses to close.
     }
@@ -1377,6 +1389,13 @@ export class RemoteGateway {
         },
         closeConnection: () => {
           if (ws.readyState === ws.OPEN) ws.close(1011, 'remote_dispatch_timeout');
+        },
+        notifyRevoked: () => {
+          send({
+            type: 'error',
+            code: 'SESSION_REVOKED',
+            message: 'Device access removed by its owner. Generate a new pairing code.',
+          });
         },
         pairingCode,
       });

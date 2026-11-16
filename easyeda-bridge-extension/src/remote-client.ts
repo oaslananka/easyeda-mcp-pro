@@ -337,6 +337,16 @@ export class RemoteRelayClient {
     return;
   }
 
+  private handleRevokedSession(message: RemoteEnvelope): void {
+    if (!this.status.sessionId || message.sessionId !== this.status.sessionId) return;
+    // Server-side owner revocation is final: erase the in-memory device bearer
+    // and stop retries immediately, including native sockets without onclose.
+    this.disconnect('user_disabled');
+    const hint = 'Cloud device access removed. Generate a new pairing code to reconnect.';
+    this.status = { ...this.status, lastError: hint };
+    this.options.showToast(hint);
+  }
+
   private handleMessage(socket: WebSocket, data: unknown): void {
     if (socket !== this.socket) return;
     const text = typeof data === 'string' ? data : '';
@@ -357,6 +367,10 @@ export class RemoteRelayClient {
     }
     if (message.type === 'session_registered') {
       this.handleSessionRegistered(message);
+      return;
+    }
+    if (message.type === 'error' && message.code === 'SESSION_REVOKED') {
+      this.handleRevokedSession(message);
       return;
     }
     if (message.type === 'heartbeat') {

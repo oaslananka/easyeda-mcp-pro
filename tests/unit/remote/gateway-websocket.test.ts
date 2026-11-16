@@ -591,6 +591,28 @@ describe('RemoteGateway WebSocket relay', () => {
     }
   });
 
+  it('notifies the active extension immediately when its owner revokes device access', async () => {
+    const harness = await createHarness();
+    const sessionId = await registerSession(harness);
+    expect(
+      harness.gateway.revokePairedExtension(
+        { userId: 'other-owner', scopes: ['easyeda.read'] },
+        sessionId,
+      ),
+    ).toBe(false);
+    expect(harness.client.messages.some((m) => m.code === 'SESSION_REVOKED')).toBe(false);
+    expect(harness.gateway.revokePairedExtension(readIdentity, sessionId)).toBe(true);
+    await expect(
+      harness.client.waitFor(
+        (message) => message.type === 'error' && message.code === 'SESSION_REVOKED',
+      ),
+    ).resolves.toMatchObject({
+      type: 'error',
+      code: 'SESSION_REVOKED',
+      message: expect.stringMatching(/new pairing code/i),
+    });
+  });
+
   it('re-registering one socket replaces and disconnects its previous session', async () => {
     const harness = await createHarness();
     const firstSessionId = await registerSession(harness);

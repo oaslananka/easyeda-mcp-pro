@@ -96,6 +96,16 @@ size +5, dispatcher unchanged). The package check remains mandatory
 and fail-closed; these narrow deltas do not authorize general bundle
 growth, enable experimental native writes, or complete Cloud rollout.
 
+On 2026-11-16, PR #1057 follow-up made Cloud owner device removal visible
+immediately inside the live extension through a session-bound revocation
+notification. On the deterministic full production build, the package measured
+**234,930 bytes** (previous limit 234,840), dist/index.js measured
+**391,208 bytes** (previous limit 390,720), and dist/dispatcher.js remained
+**313,113 bytes** (within the existing 313,115 limit). The narrowly reviewed
+new ratchets are **234,935 / 391,213 / 313,115 bytes**. Each changed
+artifact retains a five-byte margin; the dispatcher limit is unchanged.
+These limits remain enforced by CI and do not authorize unrelated growth.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:

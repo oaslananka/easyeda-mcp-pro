@@ -111,6 +111,49 @@ describe('RemoteRelayClient resilience', () => {
     expect(FakeWebSocket.instances[1].url).toBe('wss://relay.example/session');
   });
 
+  it('immediately forgets an owner-revoked device and never retries its old credential', async () => {
+    const { client, showToast } = makeClient();
+    client.connect({ mode: 'hosted', pairingCode: 'EDA-ABCDEF12' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    socket.receive(
+      relayMessage('session_registered', {
+        paired: true,
+        sessionId: 'sess_revoked',
+        resumeCredential: 'ers_' + 'a'.repeat(64),
+      }),
+    );
+    expect(client.getStatus().state).toBe('paired');
+
+    socket.receive(
+      relayMessage('error', {
+        sessionId: 'another-session',
+        code: 'SESSION_REVOKED',
+        message: 'Unrelated owner revoked a different session.',
+      }),
+    );
+    expect(client.getStatus().state).toBe('paired');
+
+    socket.receive(
+      relayMessage('error', {
+        sessionId: 'sess_revoked',
+        code: 'SESSION_REVOKED',
+        message: 'Device access removed by Cloud owner.',
+      }),
+    );
+    expect(client.getStatus()).toMatchObject({
+      state: 'disconnected',
+      sessionId: undefined,
+      pairingCode: undefined,
+      nextReconnectDelayMs: undefined,
+    });
+    expect(client.getStatus().lastError).toMatch(/new pairing code/i);
+    expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/new pairing code/i));
+    await vi.advanceTimersByTimeAsync(65_000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(socket.readyState).toBe(CLOSED);
+  });
+
   it('stops using an already consumed Cloud pairing code after reconnect and explains recovery', async () => {
     const { client, showToast } = makeClient();
     client.connect({
