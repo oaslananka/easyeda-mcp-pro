@@ -113,7 +113,7 @@ export function createNativeRemoteWebSocket(
   } catch {
     socket.close();
     const error = new Error(
-      'EasyEDA native WebSocket is unavailable. Enable External Interactions for MCP Pro Bridge in Extension Manager.',
+      'EasyEDA WebSocket failed. Enable External Interactions; if already enabled, use the desktop editor.',
     ) as Error & { code: string };
     error.code = 'REMOTE_SOCKET_UNAVAILABLE';
     throw error;

@@ -124,6 +124,21 @@ describe('EasyEDA native WSS adapter', () => {
     expect(socket.readyState).toBe(3);
   });
 
+  it('offers a desktop recovery path when native registration fails despite permissions', () => {
+    const api = {
+      register: vi.fn(() => {
+        throw new Error('This WebSocket API cannot start in the current editor runtime');
+      }),
+      send: vi.fn(),
+      close: vi.fn(),
+    };
+    expect(() =>
+      createNativeRemoteWebSocket('wss://relay.example/remote/relay', api, timers),
+    ).toThrow(/if already enabled, use the desktop editor/i);
+    expect(api.close).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('reports denied External Interactions as a permanent setup error', () => {
     const api = {
       register: vi.fn(() => {
