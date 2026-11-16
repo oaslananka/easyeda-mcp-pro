@@ -18,6 +18,7 @@ import {
   type ToolResponseMessage,
   ToolResponseMessageSchema,
   RelayMessageSchema,
+  type RegisterSessionMessage,
 } from './protocol.js';
 import { type RemoteIdentity, checkRemoteScope } from './scope.js';
 import {
@@ -108,8 +109,21 @@ type ResolvedRemoteConnection =
     }
   | RemoteGatewayFailure;
 
+/** Authenticated owner/device association implemented only in Hosted Cloud. */
+export interface RemoteDeviceResumeStore {
+  issue(userId: string, sessionId: string, extensionVersion: string): string;
+  redeem(
+    credential: string,
+    nextSessionId: string,
+    extensionVersion: string,
+  ): { userId: string; previousSessionId: string; credential: string } | undefined;
+  list(userId: string): ManagedExtensionSession[];
+  revoke(userId: string, sessionId: string): boolean;
+}
+
 export interface RemoteGatewayOptions {
   router?: RemoteSessionRouter;
+  resumeStore?: RemoteDeviceResumeStore;
   approvals?: ApprovalStore;
   audit?: RemoteAuditLog;
   now?: () => Date;
@@ -355,6 +369,7 @@ export class RemoteGateway {
   readonly audit: RemoteAuditLog;
   private readonly connections = new Map<string, RegisteredConnection>();
   private readonly selectedProjects = new Map<string, SelectedProject>();
+  private readonly resumeStore?: RemoteDeviceResumeStore;
   private readonly now: () => Date;
   private readonly makeId: () => string;
   private readonly hashInput: (value: unknown) => string;
@@ -370,6 +385,7 @@ export class RemoteGateway {
   }
 
   constructor(options: RemoteGatewayOptions = {}) {
+    this.resumeStore = options.resumeStore;
     this.now = options.now ?? (() => new Date());
     this.makeId = options.makeId ?? (() => randomUUID());
     this.hashInput = options.hashInput ?? defaultHashInput;
@@ -389,7 +405,7 @@ export class RemoteGateway {
   ): { ok: true; sessionId?: string } | RemoteGatewayFailure {
     const selected = this.selectedProjects.get(identity.userId);
     if (this.explicitSelectionRequired && !selected) {
-      const sessions = this.router.listPairedSessions(identity.userId);
+      const sessions = this.listPairedExtensions(identity);
       if (sessions.length === 0) {
         return gatewayError(
           404,
@@ -665,8 +681,60 @@ export class RemoteGateway {
     return route.ok && this.connections.has(route.session.sessionId);
   }
 
+  /**
+   * A resume identifies the extension's owner only. It never restores OAuth
+   * grants, an owner-selected native document, or pending write approvals.
+   */
+  private issueOrResumeHostedDevice(
+    session: ExtensionSession,
+    pairingCode?: string,
+    resumeCredential?: string,
+  ): string | undefined {
+    const store = this.resumeStore;
+    if (!store || session.mode !== 'hosted') return undefined;
+    if (session.userId && pairingCode) {
+      return store.issue(session.userId, session.sessionId, session.extensionVersion);
+    }
+    if (session.userId || !resumeCredential) return undefined;
+    const resumed = store.redeem(resumeCredential, session.sessionId, session.extensionVersion);
+    if (!resumed) return undefined;
+    if (!this.router.bindResumedOwner(session.sessionId, resumed.userId)) {
+      throw new Error('A verified device association could not be bound to the relay.');
+    }
+    this.invalidatePreviousResumedSession(resumed.previousSessionId, session.sessionId);
+    this.audit.record({
+      event: 'remote.session.paired',
+      mode: session.mode,
+      userId: resumed.userId,
+      sessionId: session.sessionId,
+    });
+    return resumed.credential;
+  }
+
+  private invalidatePreviousResumedSession(previousSessionId: string, nextSessionId: string): void {
+    if (previousSessionId === nextSessionId) return;
+    const closeOld = this.connections.get(previousSessionId)?.closeConnection;
+    this.disconnect(previousSessionId);
+    this.router.forgetSession(previousSessionId);
+    try {
+      closeOld?.();
+    } catch {
+      // Revocation already invalidated any former approvals and grants.
+    }
+  }
+
   listPairedExtensions(identity: RemoteIdentity): ManagedExtensionSession[] {
-    return this.router.listPairedSessions(identity.userId);
+    const live = this.router.listPairedSessions(identity.userId);
+    if (!this.resumeStore) return live;
+    // Show durable *offline* owner devices for revocation, without carrying
+    // native document selection across a restart.
+    const durable = this.resumeStore.list(identity.userId);
+    const authorized = new Set(durable.map((entry) => entry.sessionId));
+    const visible = live.filter(
+      (session) => session.mode !== 'hosted' || authorized.has(session.sessionId),
+    );
+    const present = new Set(visible.map((session) => session.sessionId));
+    return [...visible, ...durable.filter((session) => !present.has(session.sessionId))];
   }
 
   /** An explicit selection pins both extension session and its active project identity. */
@@ -706,7 +774,17 @@ export class RemoteGateway {
   revokePairedExtension(identity: RemoteIdentity, sessionId: string): boolean {
     const session = this.router.getSession(sessionId);
     // Missing and another owner's session must be indistinguishable to callers.
-    if (!session || session.userId !== identity.userId) return false;
+    if (!session || session.userId !== identity.userId) {
+      // A restart leaves the owner-bound device association offline, but it
+      // must remain revocable before the next auto-resume attempt.
+      return this.resumeStore?.revoke(identity.userId, sessionId) ?? false;
+    }
+    if (
+      session.mode === 'hosted' &&
+      this.resumeStore &&
+      !this.resumeStore.revoke(identity.userId, sessionId)
+    )
+      return false;
     const closeConnection = this.connections.get(sessionId)?.closeConnection;
     this.disconnect(sessionId);
     this.router.forgetSession(sessionId);
@@ -1271,6 +1349,61 @@ export class RemoteGateway {
       });
     };
 
+    const handleRegistration = (
+      registration: RegisterSessionMessage,
+      record: Record<string, unknown>,
+    ): void => {
+      const pairingCode = typeof record.pairingCode === 'string' ? record.pairingCode : undefined;
+      const resumeCredential =
+        typeof registration.resumeCredential === 'string'
+          ? registration.resumeCredential
+          : undefined;
+      // A client must choose precisely one association mechanism. A resume
+      // credential never weakens one-time pairing or origin restrictions.
+      if (pairingCode && resumeCredential) {
+        send({ type: 'error', code: 'BAD_MESSAGE', message: 'Choose pairing or device resume.' });
+        return;
+      }
+      disconnectCurrentSession();
+      const session = this.registerExtension({
+        connectionId,
+        mode: registration.mode,
+        extensionVersion: registration.extensionVersion,
+        activeProject: registration.activeProject,
+        dispatch,
+        requestApproval: async (request) => {
+          if (ws.readyState !== ws.OPEN) throw new Error('Remote relay socket is closed.');
+          ws.send(JSON.stringify(request));
+        },
+        closeConnection: () => {
+          if (ws.readyState === ws.OPEN) ws.close(1011, 'remote_dispatch_timeout');
+        },
+        pairingCode,
+      });
+      sessionId = session.sessionId;
+      let nextCredential: string | undefined;
+      try {
+        nextCredential = this.issueOrResumeHostedDevice(session, pairingCode, resumeCredential);
+      } catch {
+        // A storage fault must not silently authorize an unrevocable device.
+        send({
+          type: 'error',
+          code: 'DEVICE_RESUME_UNAVAILABLE',
+          message: 'Device pairing could not be safely completed. Reconnect with a new code.',
+        });
+        disconnectCurrentSession();
+        ws.close(1011, 'device_resume_unavailable');
+        return;
+      }
+      send({
+        type: 'session_registered',
+        paired: Boolean(session.userId),
+        expiresAt: session.expiresAt.toISOString(),
+        ...(nextCredential ? { resumeCredential: nextCredential } : {}),
+      });
+      return;
+    };
+
     ws.on('message', (raw) => {
       let parsed: unknown;
       try {
@@ -1293,28 +1426,7 @@ export class RemoteGateway {
       }
 
       if (message.data.type === 'register_session') {
-        disconnectCurrentSession();
-        const session = this.registerExtension({
-          connectionId,
-          mode: message.data.mode,
-          extensionVersion: message.data.extensionVersion,
-          activeProject: message.data.activeProject,
-          dispatch,
-          requestApproval: async (request) => {
-            if (ws.readyState !== ws.OPEN) throw new Error('Remote relay socket is closed.');
-            ws.send(JSON.stringify(request));
-          },
-          closeConnection: () => {
-            if (ws.readyState === ws.OPEN) ws.close(1011, 'remote_dispatch_timeout');
-          },
-          pairingCode: typeof record.pairingCode === 'string' ? record.pairingCode : undefined,
-        });
-        sessionId = session.sessionId;
-        send({
-          type: 'session_registered',
-          paired: Boolean(session.userId),
-          expiresAt: session.expiresAt.toISOString(),
-        });
+        handleRegistration(message.data, record);
         return;
       }
 

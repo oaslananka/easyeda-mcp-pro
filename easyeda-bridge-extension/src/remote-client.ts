@@ -55,6 +55,7 @@ interface RemoteRelayConnectInput {
   mode: Exclude<RemoteRelayMode, 'disabled'>;
   relayUrl?: string;
   pairingCode?: string;
+  resumeCredential?: string;
 }
 
 interface RemoteEnvelope {
@@ -170,7 +171,11 @@ export class RemoteRelayClient {
       activeProject: undefined,
       reconnectAttempts: 0,
     };
-    this.options.showToast(`Remote Relay connecting: ${input.mode}`);
+    this.options.showToast(
+      input.mode === 'hosted'
+        ? 'Connecting to EasyEDA MCP Pro Cloud…'
+        : 'Connecting to Custom Cloud…',
+    );
     this.openSocket(this.desiredConnection);
   }
 
@@ -279,7 +284,10 @@ export class RemoteRelayClient {
       type: 'register_session',
       extensionVersion: this.options.extensionVersion,
       mode: this.status.mode,
-      pairingCode,
+      ...(pairingCode ? { pairingCode } : {}),
+      ...(!pairingCode && this.desiredConnection?.resumeCredential
+        ? { resumeCredential: this.desiredConnection.resumeCredential }
+        : {}),
       activeProject,
       capabilities: ['local_bridge_proxy'],
     });
@@ -288,6 +296,45 @@ export class RemoteRelayClient {
         ? 'Remote Relay connected; waiting for pairing confirmation'
         : 'Remote Relay connected',
     );
+  }
+
+  private handleSessionRegistered(message: RemoteEnvelope): void {
+    if (
+      message.paired === false &&
+      (this.desiredConnection?.pairingCode || this.desiredConnection?.resumeCredential)
+    ) {
+      // Pairing codes are single-use: a reconnect cannot reuse one from
+      // the previous session, nor stay silently connected without an owner.
+      const hint =
+        this.status.mode === 'hosted'
+          ? 'Cloud pairing failed or expired. Generate a new pairing code in Cloud, then choose Connect Cloud again.'
+          : 'Remote pairing failed or expired. Generate a new pairing code, then reconnect explicitly.';
+      this.disconnect('user_disabled');
+      this.status = { ...this.status, lastError: hint };
+      this.options.showToast(hint);
+      return;
+    }
+    if (
+      message.paired === true &&
+      typeof message.resumeCredential === 'string' &&
+      /^ers_[a-f0-9]{64}$/.test(message.resumeCredential) &&
+      this.desiredConnection?.mode === 'hosted'
+    ) {
+      // Kept only in the running extension process; never put a device
+      // bearer into visible status, logs, URLs, settings or local storage.
+      this.desiredConnection = {
+        ...this.desiredConnection,
+        pairingCode: undefined,
+        resumeCredential: message.resumeCredential,
+      };
+    }
+    this.status = {
+      ...this.status,
+      state: message.paired ? 'paired' : 'connected',
+      pairingCode: undefined,
+      sessionId: typeof message.sessionId === 'string' ? message.sessionId : this.status.sessionId,
+    };
+    return;
   }
 
   private handleMessage(socket: WebSocket, data: unknown): void {
@@ -309,25 +356,7 @@ export class RemoteRelayClient {
       return;
     }
     if (message.type === 'session_registered') {
-      if (message.paired === false && this.desiredConnection?.pairingCode) {
-        // Pairing codes are single-use: a reconnect cannot reuse one from
-        // the previous session, nor stay silently connected without an owner.
-        const hint =
-          this.status.mode === 'hosted'
-            ? 'Cloud pairing failed or expired. Generate a new pairing code in Cloud, then choose Connect Cloud again.'
-            : 'Remote pairing failed or expired. Generate a new pairing code, then reconnect explicitly.';
-        this.disconnect('user_disabled');
-        this.status = { ...this.status, lastError: hint };
-        this.options.showToast(hint);
-        return;
-      }
-      this.status = {
-        ...this.status,
-        state: message.paired ? 'paired' : 'connected',
-        pairingCode: undefined,
-        sessionId:
-          typeof message.sessionId === 'string' ? message.sessionId : this.status.sessionId,
-      };
+      this.handleSessionRegistered(message);
       return;
     }
     if (message.type === 'heartbeat') {

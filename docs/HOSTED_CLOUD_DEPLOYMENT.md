@@ -69,27 +69,26 @@ same-commit deployment to reuse the existing image, with the persistent
 `/app/data` volume unchanged. This avoids unnecessary builds; it does **not**
 clear the separate historical OAuth secret exposure/rotation gate below.
 
-### Owner-only preview ingress must preserve Cloud API calls
+### Cloud ingress: one user-facing login (2026-11-16)
 
-The 2026-11-15 owner pilot exposed an operational trap: a temporary
-Cloudflare Access policy aimed at `/cloud` also intercepted
-`/cloud/api/*`. When the browser held a valid **application** login but
-no separate **Cloudflare Access** login, the API responded with a
-cross-origin redirect to Cloudflare's login page; the dashboard's CSP
-blocked that fetch, displaying a misleading **Failed to fetch** error.
+The first pilot used a separate Cloudflare Access owner allowlist in front
+of the application's existing GitHub/Google login. That broke the real
+workspace because Cloudflare intercepted /cloud/api/* and attempted to
+redirect browser fetches to its own login page.
 
-Before a bounded preview, either establish and verify the owner's
-separate Cloudflare Access session, or use an ingress policy that
-protects the full preview's authenticated journey without redirecting
-its API calls unexpectedly. The dashboard now distinguishes a genuine
-application HTTP 401 from unreachable APIs and additional Access login
-requirements. It preserves a usable **Refresh** action after an initial
-device-list failure instead of discarding the current signed-in page.
-Test the actual browser refresh/recovery and `/cloud/api/extensions` with
-the intended owner login, not just `/cloud` and `/healthz`. A successful
-application OAuth login is **not** proof that a separate Access gate is
-satisfied. Remove all temporary access rules and preview credentials
-during cleanup.
+The user-facing paths /, /cloud and /cloud/api/* now bypass **Cloudflare
+Access**. The backend is the authorization boundary: anonymous /cloud
+redirects to /sign-in, and anonymous /cloud/api/me, /cloud/api/clients,
+/cloud/api/extensions, /cloud/api/usage and /cloud/api/pairing-code return
+HTTP 401. The existing Cloudflare Tunnel and Access policy for the separate
+/admin path are preserved. OAuth callbacks, MCP discovery and native WSS
+remain accessible only through their own required token/pairing controls.
+
+Any later ingress change must recheck anonymous requests, signed-in owner
+and distinct-owner isolation, and keep the application authorization and
+per-tool write/export gates independent from Cloudflare. A publicly
+accessible sign-in page is **not** evidence that public production rollout
+issue #850 or live WRITE acceptance is completed.
 
 ### Live build-secret proof and outstanding release risk (2026-11-15)
 
@@ -161,7 +160,7 @@ nor bypasses of OAuth/project selection. See
 
 MCP clients use this service's standard OAuth metadata/authorization flow.
 
-## First activation for owner-only live acceptance
+## Historical first activation: owner-only acceptance
 
 The real GitHub/Google callback, public MCP and WSS checks in #849 cannot
 pass while the official service returns 503. This is a **bounded pre-release
@@ -179,15 +178,14 @@ billable provider, auto-deploy or public release is required.
    acceptance only, manually select the reviewed PR branch and its **exact
    verified commit** in the existing application. The protected main branch
    remains the target for the eventual production deployment.
-3. Before starting the app, configure and verify a **temporary owner-only
-   ingress policy restricted to this hostname**; do not change policies for
-   other applications. Verify it permits the owner's GitHub/Google callback
-   navigation. If the identity gate interferes with native WSS or MCP discovery,
-   any narrowly scoped path exception must still enforce application-level
-   pairing, OAuth, token scopes and selected-project authorization. Do not
-   weaken those checks or claim the external-client test passed through an
-   intermediary login it cannot use. Without a verifiable access boundary,
-   **stop here**.
+3. Initially, the pilot used a **temporary owner-only Cloudflare Access**
+   allowlist restricted to this hostname; that arrangement has since been
+   replaced by the application-owned sign-in boundary described above.
+   Re-verify anonymous and signed-in user routes, the separate /admin gate,
+   pairing, OAuth, client scopes and selected-project authorization after
+   changing any Cloudflare rule. The two-login historical arrangement must
+   not be reintroduced. Public production acceptance still requires the
+   independent second-user isolation and native WRITE gates.
 4. Start **one manual acceptance deployment**. Require healthy /healthz,
    TLS, protected /mcp, negative unauthorized and cross-owner requests,
    both real provider callbacks, and genuine owner-paired EasyEDA WSS with

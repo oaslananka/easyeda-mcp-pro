@@ -778,7 +778,7 @@ async function promptConnectionValue(message: string, initialValue = ''): Promis
 async function connectHostedCloudInternal(): Promise<void> {
   const generation = ++connectionPromptGeneration;
   const pairingCode = await promptConnectionValue(
-    'Open easyeda-mcp-pro.oaslananka.dev/cloud; paste EDA-XXXXXXXX.',
+    'Official EasyEDA MCP Pro Cloud. Open https://easyeda-mcp-pro.oaslananka.dev/cloud and enter its EDA-XXXXXXXX pairing code. No server address is needed.',
   );
   if (generation !== connectionPromptGeneration || pairingCode === null) return;
   const code = pairingCode.trim().toUpperCase();
@@ -791,8 +791,12 @@ async function connectHostedCloudInternal(): Promise<void> {
 
 async function connectCustomRemoteInternal(): Promise<void> {
   const generation = ++connectionPromptGeneration;
-  const existingUrl = remoteRelayClient?.getStatus().relayUrl ?? '';
-  const rawUrl = await promptConnectionValue('Custom Remote Relay URL (wss://)', existingUrl);
+  const existingStatus = remoteRelayClient?.getStatus();
+  const existingUrl = existingStatus?.mode === 'self_hosted' ? (existingStatus.relayUrl ?? '') : '';
+  const rawUrl = await promptConnectionValue(
+    'Custom Cloud WSS address (e.g. wss://my-cloud.example/remote/relay)',
+    existingUrl,
+  );
   if (generation !== connectionPromptGeneration || rawUrl === null) return;
   let relayUrl: string;
   try {
@@ -801,11 +805,13 @@ async function connectCustomRemoteInternal(): Promise<void> {
     showToast(`Custom Remote: ${error instanceof Error ? error.message : String(error)}`);
     return;
   }
-  const pairingCode = await promptConnectionValue('Enter the one-time pairing code (EDA-XXXXXXXX)');
+  const pairingCode = await promptConnectionValue(
+    'Custom Cloud one-time pairing code (EDA-XXXXXXXX)',
+  );
   if (generation !== connectionPromptGeneration || pairingCode === null) return;
   const code = pairingCode.trim().toUpperCase();
   if (!/^EDA-[A-F0-9]{8}$/.test(code)) {
-    showToast('Custom Remote requires a valid EDA-XXXXXXXX pairing code.');
+    showToast('Custom Cloud requires a valid EDA-XXXXXXXX pairing code.');
     return;
   }
   connectRemoteRelayInternal('self_hosted', relayUrl, code);
@@ -872,8 +878,24 @@ function showRemoteRelayStatusInternal(): void {
       ? ` | attempts: ${status.reconnectAttempts}`
       : '';
   const error = status.lastError ? ` | last error: ${status.lastError}` : '';
+  const connectionName =
+    status.mode === 'hosted'
+      ? 'EasyEDA MCP Pro Cloud'
+      : status.mode === 'self_hosted'
+        ? 'Custom Cloud'
+        : 'Cloud';
+  const customAddress =
+    status.mode === 'self_hosted' && status.relayUrl ? ' | WSS: ' + status.relayUrl : '';
   showToast(
-    `Remote Relay: ${status.mode}/${status.state} | project: ${project}${attempts}${retry}${error}`,
+    connectionName +
+      ': ' +
+      status.state +
+      ' | project: ' +
+      project +
+      customAddress +
+      attempts +
+      retry +
+      error,
   );
 }
 

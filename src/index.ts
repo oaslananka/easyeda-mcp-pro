@@ -68,7 +68,12 @@ async function main() {
   const remoteGateway =
     config.MCP_BRIDGE_BACKEND === 'remote_relay'
       ? new RemoteGateway(
-          hostedCloud ? { audit: createHostedUsageAuditLog(hostedCloud.usage) } : {},
+          hostedCloud
+            ? {
+                audit: createHostedUsageAuditLog(hostedCloud.usage),
+                resumeStore: hostedCloud.devices,
+              }
+            : {},
         )
       : undefined;
   const instance = await createServer(config, {

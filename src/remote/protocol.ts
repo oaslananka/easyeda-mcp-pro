@@ -37,12 +37,20 @@ export const RegisterSessionMessageSchema = BaseRelayMessageSchema.extend({
   mode: RemoteDeploymentModeSchema.exclude(['local']),
   activeProject: ActiveProjectSchema.optional(),
   capabilities: z.array(z.string().min(1)).default([]),
+  resumeCredential: z
+    .string()
+    .regex(/^ers_[a-f0-9]{64}$/)
+    .optional(),
 });
 
 export const SessionRegisteredMessageSchema = BaseRelayMessageSchema.extend({
   type: z.literal('session_registered'),
   sessionId: z.string().min(1),
   paired: z.boolean(),
+  resumeCredential: z
+    .string()
+    .regex(/^ers_[a-f0-9]{64}$/)
+    .optional(),
   expiresAt: z.string().datetime(),
 });
 

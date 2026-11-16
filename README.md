@@ -67,9 +67,12 @@ The fastest way to install and configure `easyeda-mcp-pro` for your favorite AI 
 
    _This opens the folder containing the extension package `easyeda-bridge-extension.eext`. Import it via **EasyEDA Pro 3.2.209 desktop → Advanced → Extensions Manager…** (older builds may use Settings → Extensions → Extension Manager)._
 
-3. **Connect the bridge:**
-   In EasyEDA Pro, click **MCP Bridge → Connect** in the menu bar.
-   On EasyEDA Web, Local also works with the server on the same PC. For a separate self-hosted gateway, use **MCP Bridge → Connect Custom Remote... (Experimental)** with its secure WSS Relay address and one-time EDA-XXXXXXXX pairing code; this is not the public HTTP /mcp URL. [Details](docs/REMOTE_MCP_MODES.md).
+3. **Connect the bridge:** In EasyEDA Pro (desktop or web), open **MCP Bridge**:
+   - **Connect EasyEDA MCP Pro Cloud** — the official Cloud is already configured. Sign in at https://easyeda-mcp-pro.oaslananka.dev/cloud with GitHub or Google, generate a one-time code, and enter **only that code** in EasyEDA. No URL or WebSocket expertise required.
+   - **Connect Custom Cloud (WSS)…** — for your own hosted server, enter its secure wss:// relay address (for example, wss://my-cloud.example/remote/relay), then its pairing code.
+   - **Connect Local MCP** — connect to a server running on the same computer, without Cloud sign-in.
+
+   AI assistants (ChatGPT, MCPJam, Claude, etc.) use the official **HTTPS MCP URL**, https://easyeda-mcp-pro.oaslananka.dev/mcp; do **not** paste this URL into the extension's Custom Cloud WSS field. [Connection details](docs/REMOTE_MCP_MODES.md).
 
 For advanced configurations, manual instructions, and specific clients, see [Installation & Client Configuration](#installation--client-configuration).
 

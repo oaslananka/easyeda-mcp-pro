@@ -118,6 +118,26 @@ export class RemoteSessionRouter {
     return true;
   }
 
+  /**
+   * Bind a newly registered socket after the hosted store has atomically
+   * redeemed a persisted owner/device credential. Never call from a relay
+   * message before the store authenticates the credential.
+   */
+  bindResumedOwner(sessionId: string, ownerId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    if (
+      !session ||
+      session.userId ||
+      !ownerId ||
+      !session.connected ||
+      session.expiresAt.getTime() <= this.now().getTime()
+    )
+      return false;
+    session.userId = ownerId;
+    session.lastSeenAt = this.now();
+    return true;
+  }
+
   heartbeat(sessionId: string): boolean {
     const session = this.sessions.get(sessionId);
     if (!session || !session.connected) return false;

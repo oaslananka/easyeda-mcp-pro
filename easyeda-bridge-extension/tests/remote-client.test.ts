@@ -144,6 +144,72 @@ describe('RemoteRelayClient resilience', () => {
     expect(FakeWebSocket.instances).toHaveLength(3);
   });
 
+  it('rotates an in-memory owner device credential without replaying its one-time pairing code', async () => {
+    const { client } = makeClient();
+    const firstToken = 'ers_' + 'a'.repeat(64);
+    const secondToken = 'ers_' + 'b'.repeat(64);
+    client.connect({ mode: 'hosted', pairingCode: 'EDA-ABCDEF12' });
+    const first = FakeWebSocket.instances[0];
+    first.open();
+    first.receive(
+      relayMessage('session_registered', {
+        paired: true,
+        sessionId: 'sess_original',
+        resumeCredential: firstToken,
+      }),
+    );
+    expect(JSON.stringify(client.getStatus())).not.toContain(firstToken);
+    first.close();
+    await vi.advanceTimersByTimeAsync(1_000);
+    const second = FakeWebSocket.instances[1];
+    second.open();
+    const resume = second.sent.map((s) => JSON.parse(s)).find((m) => m.type === 'register_session');
+    expect(resume.pairingCode).toBeUndefined();
+    expect(resume.resumeCredential).toBe(firstToken);
+    second.receive(
+      relayMessage('session_registered', {
+        paired: true,
+        sessionId: 'sess_after_restart',
+        resumeCredential: secondToken,
+      }),
+    );
+    second.close();
+    // The reconnect backoff advances from one to two seconds.
+    await vi.advanceTimersByTimeAsync(2_000);
+    const third = FakeWebSocket.instances[2];
+    third.open();
+    const next = third.sent.map((s) => JSON.parse(s)).find((m) => m.type === 'register_session');
+    expect(next.pairingCode).toBeUndefined();
+    expect(next.resumeCredential).toBe(secondToken);
+    client.disconnect();
+    expect(JSON.stringify(client.getStatus())).not.toContain(secondToken);
+  });
+
+  it('fails closed when the server rejects an expired or revoked resume credential', async () => {
+    const { client, showToast } = makeClient();
+    client.connect({ mode: 'hosted', pairingCode: 'EDA-ABCDEF12' });
+    const initial = FakeWebSocket.instances[0];
+    initial.open();
+    initial.receive(
+      relayMessage('session_registered', {
+        paired: true,
+        sessionId: 'sess_one',
+        resumeCredential: 'ers_' + 'c'.repeat(64),
+      }),
+    );
+    initial.close();
+    await vi.advanceTimersByTimeAsync(1_000);
+    const reconnect = FakeWebSocket.instances[1];
+    reconnect.open();
+    reconnect.receive(
+      relayMessage('session_registered', { paired: false, sessionId: 'sess_other' }),
+    );
+    expect(client.getStatus().state).toBe('disconnected');
+    expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/new pairing code/i));
+    await vi.advanceTimersByTimeAsync(35_000);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
   it('refreshes async native UUIDs before each hosted dispatch and fails closed after document switch', async () => {
     let focused:
       | { projectId: string; documentId: string; projectName: string; documentType: 'pcb' }

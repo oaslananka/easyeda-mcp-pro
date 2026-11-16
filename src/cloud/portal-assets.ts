@@ -30,7 +30,12 @@ footer{padding:29px 0 38px;display:flex;align-items:center;justify-content:space
 .session{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;background:#111e30;border:1px solid #344963;border-radius:15px;padding:18px}.session strong{font-size:13px;word-break:break-word}.session p{color:#9cafc8;font-size:12px;margin:6px 0}.session>div{min-width:0}.client-permission{display:inline-flex;align-items:center;border:1px solid #356e61;background:#163a34;color:#baf5df;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:750;margin:9px 0 2px}.client-permission.limited{border-color:#655333;background:#352d1d;color:#f7dca0}.session p.client-permission-help{line-height:1.55;max-width:560px;color:#bdcfe5;margin-top:8px}.session-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.session .btn{min-height:37px;font-size:12px;padding:8px 12px}.status{display:inline-flex;gap:6px;align-items:center;font-size:11px;font-weight:720;padding:4px 10px;border:1px solid #315f55;border-radius:999px;background:#173b38;color:#8fe8cd}.status.off{border-color:#604655;background:#3b2c3b;color:#f4c4d3}
 .setup-steps{display:grid;gap:0;margin:18px 0}.setup-steps p{display:flex;align-items:center;gap:13px;border-bottom:1px solid #2a3e55;margin:0;padding:14px 0;font-size:12px;color:#b5c8df}.setup-steps strong{color:#e0ecfd;font-weight:700}.setup-steps p>span{border:1px solid #385773;background:#172d44;color:#aad7f4;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex-shrink:0;font-weight:800}.pair-button{width:100%;justify-content:space-between;padding:14px 17px;margin:7px 0 16px}.pairing-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}.code{display:inline-flex;align-items:center;justify-content:center;max-width:100%;letter-spacing:.12em;font-size:23px;font-weight:850;color:#dbefff;background:#091322;border:1px solid #3d5672;border-radius:10px;min-height:52px;padding:8px 15px;margin:0;user-select:all;word-break:break-all}.muted,.meta{color:#a7b7cb;font-size:12px}.pairing-panel .muted{line-height:1.65}.usage-panel{margin-top:22px}.usage-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.usage-stat{padding:18px;background:#0e1a2b;border:1px solid #334a65;border-radius:14px}.usage-stat strong{display:block;font-size:32px;line-height:1.1;letter-spacing:-.05em;color:#e6f5ff;font-variant-numeric:tabular-nums}.usage-stat span{display:block;color:#abc0d9;font-size:12px;margin-top:9px}.usage-panel .muted{margin:14px 0 0}.clients-panel{margin-top:22px}.clients-panel .empty{padding:18px}.account-actions{display:flex;justify-content:flex-end;margin-top:24px}
 .notice{background:#162a3e;border:1px solid #41607c;color:#cde3f9;border-radius:12px;padding:13px 16px;font-size:13px}.notice.error{background:#3b2638;border-color:#94576e;color:#ffdbec}
-.scopes{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;list-style:none;padding:0;margin:18px 0}.scopes li{border:1px solid #3b526c;border-radius:10px;padding:12px 14px;background:#19273b;font-size:13px}.scopes li strong,.scopes li small,.scopes li code{display:block}.scopes li strong{color:#eef5ff;font-size:13px}.scopes li small{color:#b6c8df;font-size:12px;line-height:1.55;margin-top:5px}.scopes li code{color:#9ab2d0;font-size:10px;overflow-wrap:anywhere;margin-top:10px}.segment{border-top:1px solid #33435a;margin-top:23px;padding-top:23px}
+.scopes{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;list-style:none;padding:0;margin:18px 0}.scopes li{border:1px solid #3b526c;border-radius:10px;padding:12px 14px;background:#19273b;font-size:13px}.scopes li strong,.scopes li small,.scopes li code{display:block}
+.scope-option{display:flex;gap:12px;align-items:flex-start;cursor:pointer;min-height:44px}
+.scope-option input{width:19px;height:19px;accent-color:#8acfff;flex:0 0 19px;margin:2px 0 0}
+.scope-option input:focus-visible{outline:3px solid #7dc9ff;outline-offset:3px}
+.scope-option span{min-width:0}
+.scopes li strong{color:#eef5ff;font-size:13px}.scopes li small{color:#b6c8df;font-size:12px;line-height:1.55;margin-top:5px}.scopes li code{color:#9ab2d0;font-size:10px;overflow-wrap:anywhere;margin-top:10px}.segment{border-top:1px solid #33435a;margin-top:23px;padding-top:23px}
 [hidden]{display:none!important}
 
 /* A separate color identity for each real user task, not additional cards or flows. */
@@ -42,6 +47,14 @@ footer{padding:29px 0 38px;display:flex;align-items:center;justify-content:space
 .device-panel:before{background:linear-gradient(90deg,#69dabe,#56b7eb,transparent 85%)}
 .pairing-panel:before{background:linear-gradient(90deg,#818cfb,#bf91f6,transparent 85%)}
 .clients-panel:before{background:linear-gradient(90deg,#8cb8f4,#b1c1ed,transparent 85%)}
+.client-manage{width:100%;margin-top:9px;border-top:1px solid #334963;padding-top:12px}
+.client-manage summary{cursor:pointer;display:inline-flex;align-items:center;color:#bfe2ff;font-size:13px;font-weight:750;padding:10px 4px;min-height:44px}
+.client-manage summary:focus-visible{outline:3px solid #7dc9ff;outline-offset:3px}
+.client-scope-grid{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}
+.client-scope{border:1px solid #526073;color:#91a3ba;padding:7px 11px;border-radius:8px;font-size:12px}
+.client-scope.granted{border-color:#488a79;background:#143a34;color:#a7f3dc}
+.client-manage .btn.danger{margin-top:12px}
+
 .usage-panel:before{content:"";position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,#69bdf5,#92a8ed,transparent 85%)}
 .section-description{font-size:14px}
 .setup-steps p{font-size:13px}
@@ -130,9 +143,18 @@ export const CLOUD_JS = String.raw`
         document.querySelectorAll('[data-consent]').forEach((b) => {b.disabled = true;});
         setText('notice', 'Processing your decision…');
         try {
+          const accepted = button.dataset.consent === 'allow';
+          const selected = accepted
+            ? Array.from(document.querySelectorAll('input[name="cloud-scope"]:checked'),
+                (input) => input.value).filter((value) => typeof value === 'string')
+            : [];
+          if (accepted && selected.length === 0) {
+            throw new Error('Select at least one permission, or deny access.');
+          }
           const result = await post('/api/auth/oauth2/consent', {
-            accept: button.dataset.consent === 'allow',
+            accept: accepted,
             oauth_query: query,
+            ...(accepted ? { scope: selected.join(' ') } : {}),
           });
           showLocation(result);
         } catch (error) {
@@ -267,18 +289,36 @@ export const CLOUD_JS = String.raw`
               ', reconnect from your MCP client requesting ' + absent.join(' and ') +
               '. Approve the new permissions when prompted. Each action still needs approval in EasyEDA.'
             : 'Write and export are authorized for this client, but each action still requires your approval in EasyEDA.'));
-          info.appendChild(el('p','',Array.isArray(consent.scopes) ? consent.scopes.join(' · ') : 'Authorized via OAuth'));
           card.appendChild(info);
+          const manage = el('details', 'client-manage');
+          manage.appendChild(el('summary', '', 'Manage access'));
+          const permissions = el('div', 'client-scope-grid');
+          [['Read', canRead], ['Write', canWrite], ['Export', canExport], ['Admin', hasAdmin]].forEach(([name, enabled]) => {
+            permissions.appendChild(el('span', 'client-scope' + (enabled ? ' granted' : ''), name + (enabled ? ' ✓' : ' —')));
+          });
+          manage.appendChild(permissions);
+          manage.appendChild(el('p', 'client-permission-help',
+            'To change permissions: revoke this authorization, then reconnect from the MCP client and approve the requested permissions. Design writes and exports still require EasyEDA approval.'));
           if (typeof consent.id === 'string') {
-            const revoke = el('button','btn danger','Revoke');
+            const revoke = el('button', 'btn danger small', 'Revoke access');
             revoke.type = 'button';
+            let confirmRevoke = false;
             revoke.addEventListener('click', async () => {
+              if (!confirmRevoke) {
+                confirmRevoke = true;
+                revoke.textContent = 'Confirm revoke';
+                return;
+              }
               revoke.disabled = true;
-              try { await post('/api/auth/oauth2/delete-consent',{id:consent.id}); await loadClients(); }
-              catch (error) { fail(error); revoke.disabled = false; }
+              try {
+                await post('/api/auth/oauth2/delete-consent', { id: consent.id });
+                await loadClients();
+                setText('notice', 'MCP client access revoked. Reconnect it to authorize new permissions.');
+              } catch (error) { fail(error); revoke.disabled = false; }
             });
-            card.appendChild(revoke);
+            manage.appendChild(revoke);
           }
+          card.appendChild(manage);
           dest.appendChild(card);
         });
       } catch (error) {
@@ -360,7 +400,7 @@ export const CLOUD_JS = String.raw`
           try {
             if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
             await navigator.clipboard.writeText(currentCode);
-            setText('notice', 'Code copied. Paste it into EasyEDA MCP Bridge > Connect Cloud.');
+            setText('notice', 'Code copied. Paste it into EasyEDA MCP Bridge > Connect EasyEDA MCP Pro Cloud.');
           } catch {
             setText('notice', 'Clipboard unavailable. Select the displayed code to copy it manually.');
           }

@@ -148,6 +148,7 @@ The extension and gateway must reject:
 
 - unsupported protocol versions,
 - messages for unknown sessions,
+- hosted device resumes use high-entropy, owner-bound credentials held only in extension process memory and stored as SHA-256 digests in the existing Cloud SQLite database. Each accepted reconnect rotates the credential atomically; the owner can revoke online or offline devices. A resume never restores OAuth access, an explicitly selected design, or a write/export approval. Expired/revoked/replayed credentials fail closed.
 - tool requests before pairing,
 - approval-required actions without a matching invocation grant or legacy direct approval,
 - rejected, timed-out, mismatched, or replayed approval IDs,

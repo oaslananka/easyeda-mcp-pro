@@ -5,6 +5,7 @@ import { getMigrations } from 'better-auth/db/migration';
 import type { EnvConfig } from '../config/env.js';
 import { createHostedAuth, type HostedAuth, type HostedAuthSettings } from './hosted-auth.js';
 import { HostedUsageStore } from './usage.js';
+import { HostedDeviceResumeStore } from './device-resume.js';
 
 export interface HostedCloudSettings extends Omit<HostedAuthSettings, 'database'> {
   databasePath: string;
@@ -13,6 +14,7 @@ export interface HostedCloudSettings extends Omit<HostedAuthSettings, 'database'
 export interface HostedCloudRuntime {
   auth: HostedAuth;
   usage: HostedUsageStore;
+  devices: HostedDeviceResumeStore;
   close: () => void;
 }
 
@@ -132,7 +134,8 @@ export async function createHostedCloudRuntime(
     await migrations.runMigrations();
     auth.installGrantProtection();
     const usage = new HostedUsageStore(database);
-    return { auth, usage, close: () => database.close() };
+    const devices = new HostedDeviceResumeStore(database);
+    return { auth, usage, devices, close: () => database.close() };
   } catch (error) {
     database.close();
     throw error;

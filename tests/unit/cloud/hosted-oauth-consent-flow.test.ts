@@ -591,6 +591,85 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
         await fullClient.close();
       }
 
+      // OAuth consent must grant only the selected subset, not all requested scopes.
+      const selectiveVerifier = randomBytes(32).toString('base64url');
+      const selectiveQuery = new URLSearchParams(fullQuery);
+      selectiveQuery.set('prompt', 'consent');
+      selectiveQuery.set('state', 'selective-read-only');
+      selectiveQuery.set(
+        'code_challenge',
+        createHash('sha256').update(selectiveVerifier).digest('base64url'),
+      );
+      const selectiveAuthorize = await fetch(
+        origin + '/api/auth/oauth2/authorize?' + selectiveQuery,
+        { headers },
+      );
+      expect(selectiveAuthorize.status).toBe(200);
+      const selectiveUrl = new URL(
+        ((await selectiveAuthorize.json()) as { url: string }).url,
+        origin,
+      );
+      const selectiveConsent = await fetch(origin + '/api/auth/oauth2/consent', {
+        method: 'POST',
+        headers: {
+          cookie: headers.get('cookie') ?? '',
+          origin,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          accept: true,
+          scope: 'easyeda.read',
+          oauth_query: selectiveUrl.search.slice(1),
+        }),
+      });
+      const selectiveResult = (await selectiveConsent.json()) as { url?: string; error?: string };
+      expect(selectiveConsent.status, selectiveResult.error).toBe(200);
+      const selectiveCode = new URL(selectiveResult.url!, origin).searchParams.get('code');
+      expect(selectiveCode).toBeTruthy();
+      const selectiveExchange = await fetch(tokenEndpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: fullRegistration.client_id!,
+          code: selectiveCode!,
+          code_verifier: selectiveVerifier,
+          redirect_uri: redirectUri,
+          resource: origin + '/mcp',
+        }),
+      });
+      const selectiveIssued = (await selectiveExchange.json()) as {
+        access_token?: string;
+        scope?: string;
+        error?: string;
+      };
+      expect(selectiveExchange.status, selectiveIssued.error).toBe(200);
+      expect(selectiveIssued.scope?.split(' ')).toEqual(['easyeda.read']);
+      const selectiveClient = new Client({
+        name: 'selective-read-client',
+        version: '1.0.0',
+      });
+      try {
+        await selectiveClient.connect(
+          new StreamableHTTPClientTransport(new URL(origin + '/mcp'), {
+            requestInit: {
+              headers: { Authorization: 'Bearer ' + selectiveIssued.access_token },
+            },
+          }),
+        );
+        const prohibitedWrite = await selectiveClient.callTool({
+          name: 'easyeda_schematic_add_text',
+          arguments: { x: 1, y: 1, content: 'Must not execute', confirmWrite: true },
+        });
+        expect(prohibitedWrite.isError).toBe(true);
+        expect(prohibitedWrite.structuredContent).toMatchObject({
+          details: { remoteCode: 'SCOPE_MISSING' },
+        });
+        expect(dispatched).toHaveLength(3);
+      } finally {
+        await selectiveClient.close();
+      }
+
       // Two distinct users with real provider-issued OAuth tokens must never
       // share sessions, consent or native dispatch. These identities come from
       // an isolated fixture database, not independently logged-in real people.

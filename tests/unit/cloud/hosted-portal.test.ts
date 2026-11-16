@@ -502,6 +502,65 @@ describe('Hosted Cloud browser recovery', () => {
     expect(fullInfo[1].textContent).toBe('Read · Write · Export');
     expect(fullInfo[1].className).not.toContain('limited');
     expect(fullInfo[2].textContent).toContain('requires your approval in EasyEDA');
+    const readAccess = cards[0].children[1].children;
+    expect(readAccess[0].textContent).toBe('Manage access');
+    expect(readAccess[1].children.map((x: { textContent: string }) => x.textContent)).toEqual([
+      'Read ✓',
+      'Write —',
+      'Export —',
+      'Admin —',
+    ]);
+    expect(readAccess[2].textContent).toContain('reconnect from the MCP client');
+    expect(readAccess[3].textContent).toBe('Revoke access');
+  });
+
+  it('requires an explicit second click before revoking client access', async () => {
+    let revocations = 0;
+    let authorized = true;
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Fixture Owner' } }) };
+      if (url === '/cloud/api/extensions')
+        return { ok: true, status: 200, json: async () => ({ sessions: [], selection: null }) };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            total: 0,
+            succeeded: 0,
+            failed: 0,
+            lastCallAt: null,
+          }),
+        };
+      if (url === '/cloud/api/clients') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            clients: authorized
+              ? [{ id: 'read-client', name: 'Read-only agent', scopes: ['easyeda.read'] }]
+              : [],
+          }),
+        };
+      }
+      if (url === '/api/auth/oauth2/delete-consent') {
+        revocations += 1;
+        authorized = false;
+        return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      }
+      throw Error('Unexpected request: ' + url);
+    });
+    const button = result.elements.get('clients').children[0].children[1].children[3];
+    await button.dispatch('click');
+    expect(revocations).toBe(0);
+    expect(button.textContent).toBe('Confirm revoke');
+    await button.dispatch('click');
+    expect(revocations).toBe(1);
+    expect(result.elements.get('clients').children[0].textContent).toBe(
+      'No MCP clients have your authorization yet.',
+    );
+    expect(result.notice.textContent).toContain('MCP client access revoked.');
   });
 
   it('lets a signed-in owner retry MCP client permissions without reloading the pairing page', async () => {
@@ -611,6 +670,7 @@ describe('Hosted Cloud browser portal', () => {
       expect(html).toContain('easyeda.read');
       expect(html).toContain('Read your selected design');
       expect(html).toContain('No editing is permitted by this scope.');
+      expect(html).toContain('name="cloud-scope" value="easyeda.read" checked');
       expect(html).toContain('client.example');
     });
   });
@@ -641,6 +701,13 @@ describe('Hosted Cloud browser portal', () => {
         expect(html).toContain('<code>' + scope + '</code>');
       expect(html).toContain('Other requested permission');
       expect(html).toContain('<code>unknown&lt;svg&gt;</code>');
+      expect(html).toContain('name="cloud-scope" value="easyeda.read" checked');
+      for (const scope of ['easyeda.write', 'easyeda.export', 'easyeda.project_admin']) {
+        expect(html).toContain('name="cloud-scope" value="' + scope + '">');
+        expect(html).not.toContain('name="cloud-scope" value="' + scope + '" checked');
+      }
+      expect(html).toContain('name="cloud-scope" value="unknown&lt;svg&gt;"');
+      expect(html).toContain('Allow selected permissions');
       expect(html).not.toContain('<code>unknown<svg></code>');
       expect(html).toContain('data-consent="deny"');
     });

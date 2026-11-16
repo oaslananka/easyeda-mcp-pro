@@ -467,7 +467,7 @@ describe('extension loader lifecycle source', () => {
       }),
     );
     extension.showStatus();
-    expect(toasts.at(-1)).toContain('Remote Relay: self_hosted/');
+    expect(toasts.at(-1)).toContain('Custom Cloud: connected');
     expect(storage.autoConnect).toBe(true); // Local preference remains intact for later sessions.
 
     await extension.activate('onStartupFinished');
@@ -553,7 +553,7 @@ describe('extension loader lifecycle source', () => {
     remote.open();
     await flushMicrotasks();
     reloaded.showRemoteRelayStatus();
-    expect(toasts.at(-1)).toContain('Remote Relay: hosted/');
+    expect(toasts.at(-1)).toContain('EasyEDA MCP Pro Cloud: connected');
     expect(toasts.at(-1)).not.toContain('disabled/disconnected');
 
     reloaded.disconnectRemoteRelay();
@@ -646,7 +646,7 @@ describe('extension loader lifecycle source', () => {
       }),
     });
     extension.showRemoteRelayStatus();
-    expect(toasts.at(-1)).toContain('hosted/paired');
+    expect(toasts.at(-1)).toContain('EasyEDA MCP Pro Cloud: paired');
     extension.disconnectRemoteRelay();
     expect(native.close).toHaveBeenCalledWith(socketId);
   });

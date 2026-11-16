@@ -99,8 +99,8 @@ const account = (): string =>
 <section class="panel pairing-panel" aria-labelledby="pair-title">
 <div class="section-heading"><div><p class="section-kicker">ADD A DEVICE</p><h2 id="pair-title">Connect EasyEDA</h2></div><span class="step-indicator">SETUP</span></div>
 <div class="setup-steps"><p><span>1</span>Open <strong>MCP Bridge</strong> in EasyEDA Pro.</p>
-<p><span>2</span>Choose <strong>Connect Cloud… (Experimental)</strong>.</p>
-<p><span>3</span>Enter the one-time pairing code below.</p></div>
+<p><span>2</span>Choose <strong>Connect EasyEDA MCP Pro Cloud</strong>.</p>
+<p><span>3</span>Enter the code shown below. No WSS address is required.</p></div>
 <button class="btn pair-button" id="generate-pairing" type="button">Generate pairing code <span aria-hidden="true">↗</span></button>
 <div class="pairing-actions"><p id="pairing-code" class="code" aria-live="polite" aria-label="One-time pairing code">—</p>
 <button class="btn subtle small" id="copy-pairing" type="button" aria-describedby="pairing-hint" disabled hidden>Copy code</button></div>
@@ -119,7 +119,8 @@ const account = (): string =>
 <section class="panel clients-panel" aria-labelledby="clients-title">
 <div class="section-heading"><div><p class="section-kicker">PERMISSIONS</p><h2 id="clients-title">Authorized MCP clients</h2></div>
 <button class="btn subtle small" id="refresh-clients" type="button">↻ Refresh</button></div>
-<p class="section-description">Review each client's permissions. Read-only access cannot be upgraded here: reconnect the client requesting write/export scopes and approve the new consent. Each operation still requires EasyEDA approval.</p>
+<p class="section-description">Review each client's permissions. Each MCP client has its own Read, Write, Export and Admin permissions. Select Manage access to review or revoke a client. To grant additional permissions, reconnect that client and approve its new request. EasyEDA still asks before changes or exports.</p>
+<p class="section-description">MCP client URL: <code class="endpoint">https://easyeda-mcp-pro.oaslananka.dev/mcp</code>. This is for ChatGPT and other MCP clients, not the extension WSS address.</p>
 <div id="clients" aria-live="polite"><div class="empty">Checking authorizations…</div></div></section>
 <div class="account-actions"><button id="sign-out" class="btn subtle small" type="button">Sign out</button></div>`,
     'account',
@@ -149,24 +150,27 @@ const PERMISSION_DETAILS = new Map<string, readonly [title: string, detail: stri
 ]);
 
 function consent(clientName: string, redirectHost: string, scopeList: string[]): string {
+  const defaultScopes = new Set(['openid', 'profile', 'email', 'easyeda.read']);
   const permissions = scopeList
     .map((scope) => {
       const [title, detail] = PERMISSION_DETAILS.get(scope) ?? [
         'Other requested permission',
         'Review this permission code before approving.',
       ];
-      return `<li><strong>${escaped(title)}</strong><small>${escaped(detail)}</small><code>${escaped(scope)}</code></li>`;
+      const selected = defaultScopes.has(scope) ? ' checked' : '';
+      return `<li><label class="scope-option"><input type="checkbox" name="cloud-scope" value="${escaped(scope)}"${selected}><span><strong>${escaped(title)}</strong><small>${escaped(detail)}</small><code>${escaped(scope)}</code></span></label></li>`;
     })
     .join('');
   return page(
     'Approve client',
-    `<p class="eyebrow">MCP client authorization</p><h1 class="hero">Choose what this AI client can access.</h1>
-<p class="subtitle">Your Cloud account sign-in does not authorize a client automatically. Review its request before continuing.</p>
+    `<p class="eyebrow">MCP client authorization</p><h1 class="hero">Choose this client's permissions.</h1>
+<p class="subtitle">Your Cloud sign-in does not authorize an MCP client automatically. Select only the access you want to grant.</p>
 <section class="panel" aria-labelledby="consent-title"><h2 id="consent-title">${escaped(clientName)}</h2>
 <p class="muted">After approval, the client returns to: <strong>${escaped(redirectHost)}</strong></p>
-<p class="muted">Requested permissions:</p><ul class="scopes">${permissions}</ul>
-<p class="notice">Read access is routed through your paired EasyEDA extension. Write or export still requires approval in your EasyEDA extension. Never approve a client you do not recognize.</p>
-<div class="actions"><button class="btn" type="button" data-consent="allow">Allow these permissions</button>
+<p class="muted">Requested permissions (only checked permissions will be granted):</p>
+<ul class="scopes">${permissions}</ul>
+<p class="notice">Write, Export and Admin are off by default. Enabling them allows the MCP client to request those actions, but each native change/export still needs approval in EasyEDA. Deny clients you do not recognize.</p>
+<div class="actions"><button class="btn" type="button" data-consent="allow">Allow selected permissions</button>
 <button class="btn danger" type="button" data-consent="deny">Deny access</button></div></section>`,
     'consent',
   );
