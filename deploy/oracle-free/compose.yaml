@@ -16,6 +16,9 @@ services:
       HTTP_HOST: 0.0.0.0
       HTTP_PORT: '3000'
       MCP_BRIDGE_BACKEND: remote_relay
+      # Bounded 8 MiB relay frame supports typical approved zipped Gerber
+      # results; binary payloads retain the bridge's 60% safety margin.
+      BRIDGE_MAX_PAYLOAD_SIZE: '${EASYEDA_BRIDGE_MAX_PAYLOAD_SIZE:-8388608}'
       DATA_DIR: /app/data
       OAUTH_ENABLED: 'true'
       # Serve modern stateless and legacy sessionful MCP over the same OAuth boundary.

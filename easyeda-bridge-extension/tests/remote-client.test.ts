@@ -54,6 +54,7 @@ function makeClient(
 ) {
   const log = vi.fn();
   const showToast = vi.fn();
+  const onPayloadLimit = vi.fn();
   const client = new RemoteRelayClient({
     extensionVersion: '0.24.2',
     log,
@@ -61,10 +62,11 @@ function makeClient(
     readActiveProject: () => ({ projectName: 'Fixture', documentType: 'schematic' }),
     executeToolRequest: executeToolRequest ?? undefined,
     requestApproval,
+    onPayloadLimit,
     timers: createRuntimeTimers(() => undefined, globalThis as any, 'remote-test'),
     createWebSocket: (url) => new FakeWebSocket(url) as unknown as WebSocket,
   });
-  return { client, log, showToast, executeToolRequest, requestApproval };
+  return { client, log, showToast, executeToolRequest, requestApproval, onPayloadLimit };
 }
 
 function relayMessage(type: string, extra: Record<string, unknown> = {}) {
@@ -109,6 +111,30 @@ describe('RemoteRelayClient resilience', () => {
 
     expect(FakeWebSocket.instances).toHaveLength(2);
     expect(FakeWebSocket.instances[1].url).toBe('wss://relay.example/session');
+  });
+
+  it('uses only a bounded payload cap from an authenticated paired relay registration', () => {
+    const { client, onPayloadLimit } = makeClient();
+    client.connect({ mode: 'hosted', pairingCode: 'EDA-ABCDEF12' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    socket.receive(
+      relayMessage('session_registered', { paired: false, maxPayloadSize: 8_388_608 }),
+    );
+    expect(onPayloadLimit).not.toHaveBeenCalled();
+    client.connect({ mode: 'hosted', pairingCode: 'EDA-ABCDEF12' });
+    const paired = FakeWebSocket.instances[1];
+    paired.open();
+    paired.receive(
+      relayMessage('session_registered', { paired: true, maxPayloadSize: 99_999_999 }),
+    );
+    paired.receive(relayMessage('session_registered', { paired: true, maxPayloadSize: 8_388_608 }));
+    expect(onPayloadLimit).toHaveBeenCalledTimes(2);
+    expect(onPayloadLimit).toHaveBeenLastCalledWith(8_388_608);
+    // A legitimate legacy relay that omits the optional limit must restore
+    // the conservative local default instead of retaining a stale cap.
+    paired.receive(relayMessage('session_registered', { paired: true }));
+    expect(onPayloadLimit).toHaveBeenLastCalledWith(undefined);
   });
 
   it('immediately forgets an owner-revoked device and never retries its old credential', async () => {

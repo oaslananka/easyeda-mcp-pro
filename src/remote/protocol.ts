@@ -47,6 +47,7 @@ export const SessionRegisteredMessageSchema = BaseRelayMessageSchema.extend({
   type: z.literal('session_registered'),
   sessionId: z.string().min(1),
   paired: z.boolean(),
+  maxPayloadSize: z.number().int().min(1024).max(10_485_760).optional(),
   resumeCredential: z
     .string()
     .regex(/^ers_[a-f0-9]{64}$/)

@@ -402,6 +402,7 @@ export class RemoteGateway {
   private readonly invocationGrants: RemoteInvocationGrantStore;
   private readonly dispatchQueue = new SessionDispatchQueue();
   private wsAttached = false;
+  private relayMaxPayloadSize = 1_048_576;
   private explicitSelectionRequired = false;
 
   /** Called only for the first-party Hosted Cloud transport; preserves Custom Remote compatibility. */
@@ -1265,9 +1266,10 @@ export class RemoteGateway {
   ): void {
     if (this.wsAttached) return;
     this.wsAttached = true;
+    this.relayMaxPayloadSize = config?.BRIDGE_MAX_PAYLOAD_SIZE ?? 1_048_576;
     const wss = new WebSocketServer({
       noServer: true,
-      maxPayload: config?.BRIDGE_MAX_PAYLOAD_SIZE ?? 1_048_576,
+      maxPayload: this.relayMaxPayloadSize,
     });
     const attempts = new Map<string, { count: number; expiresAt: number }>();
 
@@ -1435,6 +1437,7 @@ export class RemoteGateway {
       send({
         type: 'session_registered',
         paired: Boolean(session.userId),
+        maxPayloadSize: this.relayMaxPayloadSize,
         expiresAt: session.expiresAt.toISOString(),
         ...(nextCredential ? { resumeCredential: nextCredential } : {}),
       });

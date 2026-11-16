@@ -19,6 +19,10 @@ The exact `https://pro.easyeda.com` Origin is included alongside the canonical
 Cloud origin to support the real browser editor's WebSocket pairing. Do not use
 `ALLOWED_ORIGINS=*`: unauthorized relay upgrades must remain rejected, and
 the existing one-time pairing and owner grants still apply.
+The owner pilot uses a bounded 8 MiB relay frame cap (binary results retain
+a 60% margin) so small native zipped Gerber exports fit; exports that exceed
+this cap must still fail closed. This does not relax OAuth, pairing or
+per-action export approval.
 Leave the existing reverse proxy and unrelated applications untouched.
 
 ## Prepare and start

@@ -157,6 +157,7 @@ async function registerSession(
     (message) => message.type === 'session_registered' && !previousMessages.has(message),
   );
   expect(registered.paired).toBe(true);
+  expect(registered.maxPayloadSize).toBeTypeOf('number');
   return String(registered.sessionId);
 }
 
@@ -184,6 +185,16 @@ afterEach(async () => {
 });
 
 describe('RemoteGateway WebSocket upgrade admission accounting', () => {
+  it('advertises the configured bounded frame to an authenticated extension', async () => {
+    const harness = await createHarness(10);
+    await registerSession(harness);
+    const registered = harness.client.messages.find(
+      (message) => message.type === 'session_registered',
+    );
+    expect(registered?.paired).toBe(true);
+    expect(registered?.maxPayloadSize).toBe(1024);
+  });
+
   it('bounds source tracking without clearing unexpired rate limits', () => {
     const now = 100_000;
     const attempts = new Map(

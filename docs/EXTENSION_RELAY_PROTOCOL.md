@@ -58,7 +58,7 @@ Every relay message should include:
 | Type                 | Direction                   | Purpose                                                       |
 | -------------------- | --------------------------- | ------------------------------------------------------------- |
 | `register_session`   | Extension → Gateway         | Register extension version, mode, and active EasyEDA context. |
-| `session_registered` | Gateway → Extension         | Confirm registration and pairing state.                       |
+| `session_registered` | Gateway → Extension         | Confirm pairing and advertise an optional bounded frame cap.  |
 | `heartbeat`          | Both                        | Keep connection alive and measure liveness.                   |
 | `tool_request`       | Gateway → Extension         | Request a tool action after auth, routing, and policy checks. |
 | `tool_response`      | Extension → Gateway         | Return success, structured output, or safe error.             |
@@ -66,6 +66,13 @@ Every relay message should include:
 | `approval_result`    | Extension → Gateway         | Return approve/reject/timeout.                                |
 | `session_closed`     | Both                        | Close a session intentionally.                                |
 | `error`              | Both                        | Return protocol, routing, or execution errors.                |
+
+The gateway may advertise `maxPayloadSize` in `session_registered` (an integer
+between 1 KiB and 10 MiB). The native extension accepts this bound **only**
+after the session is paired; it uses its local default if the field is absent,
+invalid, or the session disconnects. This enables approved binary exports to
+observe the remote transport budget without relaxing OAuth, device pairing,
+project focus, or action-specific approval. Larger payloads still fail closed.
 
 A successful owner-initiated **Remove access** revocation sends the active
 extension an error envelope with SESSION_REVOKED code and the exact

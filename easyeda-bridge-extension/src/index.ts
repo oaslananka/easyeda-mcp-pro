@@ -217,6 +217,8 @@ let externalInteractionWarningShown = false;
 // Updated from the server's `hello` message; matches BRIDGE_MAX_PAYLOAD_SIZE default
 // until the handshake completes.
 let bridgeMaxPayloadSize = 1_048_576;
+// Authoritative limit advertised by the paired Cloud relay; independent of local hello.
+let remoteRelayMaxPayloadSize: number | undefined;
 // From the server's hello: whether it reassembles chunked frames (A5) and the
 // aggregate cap for one chunked payload. When unset, fall back to single-frame
 // sends limited by bridgeMaxPayloadSize, exactly as before.
@@ -323,7 +325,11 @@ const dispatcherToolkit: DispatcherToolkit = {
   // With chunked sends (A5) a single logical payload may span many frames, so
   // the dispatcher's binary self-limit is the aggregate cap, not the frame cap.
   getBridgeMaxPayloadSize: () =>
-    serverSupportsChunking ? maxAggregatePayloadSize : bridgeMaxPayloadSize,
+    remoteRelayClient?.getStatus().state === 'paired' && remoteRelayMaxPayloadSize
+      ? remoteRelayMaxPayloadSize
+      : serverSupportsChunking
+        ? maxAggregatePayloadSize
+        : bridgeMaxPayloadSize,
   normalizeCanvasBinaryResult: (value, fallbackFileName) =>
     normalizeCanvasBinaryResult(value, fallbackFileName, bridgeMaxPayloadSize),
   getBridgeVersion: () => BRIDGE_VERSION,
@@ -686,6 +692,9 @@ function getRemoteRelayClient(): RemoteRelayClient {
     executeToolRequest: (toolName, input) =>
       dispatchViaActive(toolName, isRecord(input) ? input : {}),
     requestApproval: requestRemoteApproval,
+    onPayloadLimit: (maxBytes) => {
+      remoteRelayMaxPayloadSize = maxBytes;
+    },
     timers: runtimeTimers,
     createWebSocket: (url) => {
       const native = getWsApi();
