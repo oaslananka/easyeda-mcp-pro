@@ -605,6 +605,39 @@ describe('Hosted OAuth real provider authorization-code flow (fixture identity o
       expect(outsiderExtensions.status).toBe(200);
       await expect(outsiderExtensions.json()).resolves.toMatchObject({ sessions: [] });
 
+      // A signed-in second owner cannot select or remove the first owner's
+      // extension by guessing its session ID. These are real fixture-backed
+      // HTTP routes; independent human-account acceptance remains separate.
+      const outsiderSelect = await fetch(`${origin}/cloud/api/selection`, {
+        method: 'PUT',
+        headers: {
+          cookie: outsiderHeaders.get('cookie') ?? '',
+          origin,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ sessionId }),
+      });
+      expect(outsiderSelect.status).toBe(404);
+      await expect(outsiderSelect.json()).resolves.toMatchObject({
+        code: 'PROJECT_NOT_AVAILABLE',
+      });
+
+      const outsiderRemove = await fetch(`${origin}/cloud/api/extensions/${sessionId}`, {
+        method: 'DELETE',
+        headers: { cookie: outsiderHeaders.get('cookie') ?? '', origin },
+      });
+      expect(outsiderRemove.status).toBe(404);
+      await expect(outsiderRemove.json()).resolves.toMatchObject({ code: 'NOT_FOUND' });
+
+      // Rejected cross-owner actions must leave the original owner's
+      // paired extension and selected document untouched.
+      const retainedOwnerExtension = await fetch(`${origin}/cloud/api/extensions`, { headers });
+      expect(retainedOwnerExtension.status).toBe(200);
+      await expect(retainedOwnerExtension.json()).resolves.toMatchObject({
+        sessions: [expect.objectContaining({ sessionId, connected: true })],
+        selection: expect.objectContaining({ sessionId }),
+      });
+
       const outsiderClients = await fetch(`${origin}/cloud/api/clients`, {
         headers: outsiderHeaders,
       });
