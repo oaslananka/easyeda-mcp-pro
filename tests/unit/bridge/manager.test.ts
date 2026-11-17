@@ -411,6 +411,53 @@ describe('BridgeManager - token enforcement', () => {
   });
 });
 
+describe('BridgeManager - origin validation', () => {
+  it('rejects connection with unauthorized external browser origin', async () => {
+    const port = await getFreePort();
+    const config = createTestConfig({
+      BRIDGE_HOST: '127.0.0.1',
+      BRIDGE_PORT_SCAN: String(port),
+    });
+    const manager = new BridgeManager(config);
+    await manager.connect();
+
+    const ws = new WebSocket(`ws://127.0.0.1:${port}`, {
+      headers: { Origin: 'https://evil.example.com' },
+    });
+
+    const errorOrClose = await new Promise<string>((resolve) => {
+      ws.once('error', (err) => resolve(err.message));
+      ws.once('close', (code) => resolve(String(code)));
+    });
+
+    expect(errorOrClose).toMatch(/403|Forbidden|unexpected server response/i);
+    manager.disconnect('test complete');
+  });
+
+  it('accepts connection with authorized loopback or EasyEDA origin', async () => {
+    const port = await getFreePort();
+    const config = createTestConfig({
+      BRIDGE_HOST: '127.0.0.1',
+      BRIDGE_PORT_SCAN: String(port),
+    });
+    const manager = new BridgeManager(config);
+    await manager.connect();
+
+    const ws = new WebSocket(`ws://127.0.0.1:${port}`, {
+      headers: { Origin: 'https://pro.easyeda.com' },
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      ws.once('open', resolve);
+      ws.once('error', reject);
+    });
+
+    expect(ws.readyState).toBe(WebSocket.OPEN);
+    ws.close();
+    manager.disconnect('test complete');
+  });
+});
+
 describe('BridgeManager - protocol version validation', () => {
   it('should reject handshake with unsupported protocol version', async () => {
     const port = await getFreePort();

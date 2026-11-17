@@ -852,6 +852,14 @@ describe('ToolRegistry', () => {
     expect(remoteRiskForTool(write!)).toBe('destructive');
     expect(getRequiredToolScopes(read!)).toEqual(['api:read']);
     expect(getRequiredToolScopes(write!)).toEqual(['api:write']);
+    const hotSwap = registry.get('easyeda_dev_hot_swap');
+    if (hotSwap) {
+      expect(getRequiredToolScopes(hotSwap)).toEqual(['bridge:execute']);
+    }
+    const regression = registry.get('easyeda_live_write_regression');
+    if (regression) {
+      expect(getRequiredToolScopes(regression)).toEqual(['diagnostics:write']);
+    }
     const bridgeCall = vi.fn().mockResolvedValue({
       path: 'PCB_PrimitiveVia.getAll',
       result: [{ state: { PrimitiveId: 'via-a' } }],

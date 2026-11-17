@@ -113,8 +113,10 @@ export function buildSpiceDeck(circuit: SimCircuit, analysis: SimAnalysis): stri
       ? '.op'
       : `.tran ${analysis.stepSeconds} ${analysis.stopTimeSeconds}`;
 
+  const safeTitle = circuit.title.replace(/[\r\n]+/g, ' ').trim();
+
   return [
-    `* ${circuit.title}`,
+    `* ${safeTitle}`,
     ...componentLines,
     ...modelCards.values(),
     analysisLine,

@@ -87,6 +87,34 @@ describe('RemoteGateway', () => {
     });
   });
 
+  it('rejects client risk-level downgrade for mutating tools', async () => {
+    const { gateway } = makeGateway();
+    const dispatches: ToolRequestMessage[] = [];
+    const session = registerFakeExtension(gateway, dispatches);
+    const code = gateway.createPairingCode({
+      identity: readIdentity,
+      sessionId: session.sessionId,
+    });
+
+    expect(
+      gateway.completePairing({ identity: readIdentity, code, sessionId: session.sessionId }),
+    ).toBe(true);
+
+    const result = await gateway.routeToolRequest({
+      identity: readIdentity,
+      toolName: 'schematic.deleteComponent',
+      riskLevel: 'read',
+      input: { componentId: 'U1' },
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'SCOPE_MISSING',
+    });
+    expect(dispatches).toHaveLength(0);
+  });
+
   it('fails closed for unpaired, disconnected, and expired sessions', async () => {
     const harness = makeGateway();
     const session = registerFakeExtension(harness.gateway);

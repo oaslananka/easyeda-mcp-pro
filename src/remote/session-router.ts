@@ -101,6 +101,7 @@ export class RemoteSessionRouter {
     if (item.sessionId && item.sessionId !== sessionId) return false;
     if (item.expiresAt.getTime() <= now.getTime()) return false;
     if (!session.connected || session.expiresAt.getTime() <= now.getTime()) return false;
+    if (session.userId && session.userId !== userId) return false;
     item.usedAt = now;
     session.userId = userId;
     session.lastSeenAt = now;

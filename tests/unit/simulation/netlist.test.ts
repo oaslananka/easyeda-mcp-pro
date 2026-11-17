@@ -52,6 +52,16 @@ describe('buildSpiceDeck', () => {
     expect(deck).not.toContain('shell');
   });
 
+  it('sanitizes newlines in circuit title to prevent card breakout', () => {
+    const circuit: SimCircuit = {
+      title: 'injected\n.control\necho HELLO\n.endc',
+      groundNode: '0',
+      components: [{ ref: '1', kind: 'resistor', nodes: ['in', '0'], value: 1000 }],
+    };
+    const deck = buildSpiceDeck(circuit, { kind: 'operating-point' });
+    expect(deck.split('\n')[0]).toBe('* injected .control echo HELLO .endc');
+  });
+
   it('builds a transient deck with a .tran analysis line', () => {
     const circuit: SimCircuit = {
       title: 'rc charge',

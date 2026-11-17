@@ -484,8 +484,7 @@ export class CdpBridgeManager extends EventEmitter {
       targets.find(
         (target) => target.type === 'page' && target.url.includes(EASYEDA_EDITOR_URL_PART),
       ) ??
-      targets.find((target) => target.type === 'page' && /JLCEDA|EasyEDA/i.test(target.title)) ??
-      targets.find((target) => target.type === 'page')
+      targets.find((target) => target.type === 'page' && /JLCEDA|EasyEDA/i.test(target.title))
     );
   }
 

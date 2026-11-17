@@ -48,6 +48,24 @@ describe('RemoteSessionRouter', () => {
     );
   });
 
+  it('rejects pairing code redemption when the session is already paired to another user', () => {
+    const { router } = makeRouter();
+    const session = router.registerSession({
+      connectionId: 'conn_1',
+      mode: 'hosted',
+      extensionVersion: '0.17.1',
+    });
+    const codeUser1 = router.createPairingCode({ userId: 'user_1', sessionId: session.sessionId });
+    expect(
+      router.completePairing({ code: codeUser1, userId: 'user_1', sessionId: session.sessionId }),
+    ).toBe(true);
+
+    const codeUser2 = router.createPairingCode({ userId: 'user_2' });
+    expect(
+      router.completePairing({ code: codeUser2, userId: 'user_2', sessionId: session.sessionId }),
+    ).toBe(false);
+  });
+
   it('resolves a paired read session without active project', () => {
     const { router } = makeRouter();
     const session = router.registerSession({

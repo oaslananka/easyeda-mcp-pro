@@ -92,7 +92,10 @@ const simComponentSchema = z.discriminatedUnion('kind', [
 ]);
 
 const simCircuitSchema = z.object({
-  title: z.string().min(1),
+  title: z
+    .string()
+    .min(1)
+    .regex(/^[^\r\n]+$/, 'Circuit title must not contain newline characters'),
   groundNode: z.literal('0'),
   components: z.array(simComponentSchema).min(1),
 });
