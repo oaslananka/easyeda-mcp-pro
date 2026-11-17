@@ -6,6 +6,40 @@
 
 `MCP_BRIDGE_BACKEND=remote_relay` is an implemented, explicitly selected runtime path. It is not the default and is not yet advertised as Beta or production-ready. Local bridge mode remains the supported default.
 
+## Current owner-only acceptance (2026-11-17)
+
+The Oracle Always Free pilot is live for the authenticated owner, but **public
+rollout #850 remains HOLD**. The latest PR [#1057](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057)
+implements opt-in Cloud alongside the account-free Local MCP path.
+
+**Real GitHub OAuth callback: PASS.** The owner signed in through GitHub's
+actual account selection and provider callback on one browser, and repeated
+GitHub sign-in from a separate device/browser. Both landed in the same
+owner Cloud workspace, with the previously selected disposable PCB, paired
+device, MCP client permissions and usage counters visible. An earlier
+owner-only real Google sign-in also succeeded. These are real provider
+callbacks, not the local fake-credential login simulation; GitHub/Google
+Cloud login remains distinct from the MCP client's own OAuth scopes.
+
+**Real native owner-pilot READ, approved WRITE/EXPORT and negative rejection:
+PASS within their documented scope.** On a disposable EasyEDA Pro 3.2.209
+project, the owner-authorized remote read returned 33 PCB components;
+an approved schematic write persisted through Save/reopen. After refreshing
+a separately versioned test extension, an approved Gerber EXPORT returned a
+CRC-valid ZIP with 13 nonempty files. A rejected export failed closed and
+left the earlier ZIP unchanged. Two wrong-project native reads were denied.
+This proves transport and permission behavior, **not** PCB correctness,
+manufacturing readiness, a public stable extension release or a complete
+standalone desktop acceptance.
+
+**Still not verified:** a genuinely independent second owner's data and
+permission isolation; standalone Electron desktop revoke/no-retry, cold
+restart and live timeout behavior; and disposition of historically exposed
+OAuth credentials. Two separate browsers signing in as the **same owner**
+do not establish a two-user test. Keep remote relay maturity Experimental
+and do not publish a general Cloud release on the strength of these
+owner-only results.
+
 ### First-party Cloud identity foundation (owner-only live pilot, not public release)
 
 The issue #849 branch adds an opt-in hosted OAuth identity provider and MCP resource discovery. The
@@ -40,7 +74,8 @@ project before the EasyEDA tool is called. A changed project identity requires
 reselection before remote tool routing; tampered/expired consent requests fail closed. These tests alone do not prove real provider sign-in, owner consent or native
 desktop pairing. The separate 2026-11-14 owner-only live pilot below verified
 Google sign-in, actual native pairing, owner-approved PKCE OAuth and a real
-read-only MCP call; GitHub provider callback and production rollout are still
+read-only MCP call. A later 2026-11-17 owner-only pilot accepted the real
+GitHub provider callback on two browsers; general production rollout remains
 unverified.
 
 A separate end-to-end loopback test uses the **actual first-party Better Auth provider**,
@@ -325,8 +360,10 @@ real cross-account isolation; **actual** ChatGPT, Claude and eligible
 Gemini host connectors; a separately owner-approved and cold-reopen
 verified Cloud WRITE/export path; the beta native text-deletion durability
 issue [#1060](https://github.com/oaslananka/easyeda-mcp-pro/issues/1060);
-and earlier credential-exposure disposition. Keep **PR #1057 Draft**,
-**issue #850 production HOLD**, and Hosted maturity **Experimental**.
+and earlier credential-exposure disposition. At that pilot date, **PR #1057
+was Draft** and **issue #850 remained on production HOLD**; Hosted maturity
+was Experimental. The later owner-only acceptance above does not lift the
+public-release HOLD.
 
 [Full live acceptance evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/849#issuecomment-6888075039).
 
