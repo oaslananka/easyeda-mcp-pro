@@ -13,6 +13,8 @@ export interface RemoteInvocationGrantValidation {
   userId: string;
   sessionId: string;
   riskLevel: RemoteRiskLevel;
+  toolName?: string;
+  inputHash?: string;
 }
 
 interface RemoteInvocationGrantRecord extends RemoteInvocationGrantInput {
@@ -48,7 +50,9 @@ export class RemoteInvocationGrantStore {
     return (
       grant.userId === input.userId &&
       grant.sessionId === input.sessionId &&
-      grant.riskLevel === input.riskLevel
+      grant.riskLevel === input.riskLevel &&
+      (!input.toolName || grant.toolName === input.toolName) &&
+      (!input.inputHash || grant.inputHash === input.inputHash)
     );
   }
 

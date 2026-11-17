@@ -157,6 +157,7 @@ export interface RemoteGatewayOptions {
   approvalTtlMs?: number;
   invocationGrantTtlMs?: number;
   projectSessionGrantTtlMs?: number;
+  toolRiskResolver?: (toolName: string) => RemoteRiskLevel | undefined;
 }
 
 function stableStringify(value: unknown): string {
@@ -389,6 +390,18 @@ function projectIdentity(project?: ExtensionSession['activeProject']): string | 
   return project?.url ? `url:${project.url}` : undefined;
 }
 
+const DESTRUCTIVE_TOOL_RE =
+  /^(?:easyeda_execute|api\.execute)$|delete|hotswap|hot_swap|regression/i;
+const WRITE_TOOL_RE = /place|add|create|set|update|write|route|apply|remove|clear/i;
+const EXPORT_TOOL_RE = /export/i;
+
+function defaultToolRiskHeuristic(toolName: string): RemoteRiskLevel | undefined {
+  if (DESTRUCTIVE_TOOL_RE.test(toolName)) return 'destructive';
+  if (WRITE_TOOL_RE.test(toolName)) return 'write';
+  if (EXPORT_TOOL_RE.test(toolName)) return 'export';
+  return undefined;
+}
+
 export class RemoteGateway {
   readonly router: RemoteSessionRouter;
   readonly approvals: ApprovalStore;
@@ -404,6 +417,7 @@ export class RemoteGateway {
   private readonly projectSessionGrantTtlMs: number;
   private readonly projectSessionGrants = new Map<string, number>();
   private readonly dispatchQueue = new SessionDispatchQueue();
+  private readonly toolRiskResolver?: (toolName: string) => RemoteRiskLevel | undefined;
   private wsAttached = false;
   private relayMaxPayloadSize = 1_048_576;
   private explicitSelectionRequired = false;
@@ -423,6 +437,7 @@ export class RemoteGateway {
     this.router = options.router ?? new RemoteSessionRouter(this.now, this.makeId);
     this.approvals = options.approvals ?? new ApprovalStore();
     this.audit = options.audit ?? new RemoteAuditLog();
+    this.toolRiskResolver = options.toolRiskResolver;
     this.invocationGrants = new RemoteInvocationGrantStore(
       this.makeId,
       options.invocationGrantTtlMs ?? 300_000,
@@ -550,6 +565,16 @@ export class RemoteGateway {
       );
     }
     return { ok: true, sessionId: selected.sessionId };
+  }
+
+  private resolveEffectiveRisk(toolName: string, assertedRisk?: RemoteRiskLevel): RemoteRiskLevel {
+    const intrinsic = this.toolRiskResolver?.(toolName) ?? defaultToolRiskHeuristic(toolName);
+    if (!intrinsic) return assertedRisk ?? 'read';
+    const rank: Record<RemoteRiskLevel, number> = { read: 0, export: 1, write: 2, destructive: 3 };
+    if (!assertedRisk || rank[intrinsic] > rank[assertedRisk]) {
+      return intrinsic;
+    }
+    return assertedRisk;
   }
 
   private resolveConnection(input: {
@@ -998,7 +1023,8 @@ export class RemoteGateway {
     /** Trusted tool-registry metadata, never a client-supplied MCP argument. */
     sessionApprovalEligible?: boolean;
   }): Promise<RemoteGatewayAuthorizationResult> {
-    const scope = checkRemoteScope(input.identity, input.riskLevel, this.now());
+    const effectiveRisk = this.resolveEffectiveRisk(input.toolName, input.riskLevel);
+    const scope = checkRemoteScope(input.identity, effectiveRisk, this.now());
     if (!scope.ok) {
       return gatewayError(scope.code === 'SCOPE_MISSING' ? 403 : 401, scope.code, scope.message);
     }
@@ -1007,16 +1033,18 @@ export class RemoteGateway {
 
     const route = this.resolveConnection({
       identity,
-      riskLevel: input.riskLevel,
+      riskLevel: effectiveRisk,
       sessionId: input.sessionId,
     });
     if (!route.ok) return route;
 
     const now = this.now();
     const inputHash = this.hashInput(input.input);
+    // A caller may assert a lower risk than the server-resolved tool policy.
+    // A temporary native grant can never lower the effective risk tier.
+    const consentEligible = input.sessionApprovalEligible && effectiveRisk === input.riskLevel;
     const reusable = Boolean(
-      input.sessionApprovalEligible &&
-      this.hasProjectSessionGrant(identity, route.session, input.riskLevel, now),
+      consentEligible && this.hasProjectSessionGrant(identity, route.session, effectiveRisk, now),
     );
     if (!input.approvalId && !reusable) {
       return await this.requestRemoteApproval({
@@ -1024,11 +1052,11 @@ export class RemoteGateway {
         session: route.session,
         connection: route.connection,
         toolName: input.toolName,
-        riskLevel: input.riskLevel,
+        riskLevel: effectiveRisk,
         inputHash,
         now,
         actionLabel: 'MCP tool',
-        sessionApprovalEligible: input.sessionApprovalEligible,
+        sessionApprovalEligible: consentEligible,
         retryMessage:
           'Approval was requested in EasyEDA. Retry the same MCP tool call with remoteApprovalId after the user decides.',
       });
@@ -1047,11 +1075,11 @@ export class RemoteGateway {
       });
       if (approvalFailure) return approvalFailure;
       if (
-        input.sessionApprovalEligible &&
+        consentEligible &&
         nativeApproval?.allowsProjectSession &&
         nativeApproval.clientId === identity.clientId
       ) {
-        this.allowProjectSession(identity, route.session, input.riskLevel, now);
+        this.allowProjectSession(identity, route.session, effectiveRisk, now);
       }
     }
 
@@ -1060,7 +1088,7 @@ export class RemoteGateway {
         userId: identity.userId,
         sessionId: route.session.sessionId,
         toolName: input.toolName,
-        riskLevel: input.riskLevel,
+        riskLevel: effectiveRisk,
         inputHash,
       },
       now,
@@ -1082,7 +1110,8 @@ export class RemoteGateway {
     grantId?: string;
     deadlineMs?: number;
   }): Promise<RemoteGatewayToolResult> {
-    const scope = checkRemoteScope(input.identity, input.riskLevel, this.now());
+    const effectiveRisk = this.resolveEffectiveRisk(input.toolName, input.riskLevel);
+    const scope = checkRemoteScope(input.identity, effectiveRisk, this.now());
     if (!scope.ok) {
       this.audit.record({
         event: 'remote.identity.rejected',
@@ -1090,7 +1119,7 @@ export class RemoteGateway {
         userId: input.identity?.userId,
         sessionId: input.sessionId,
         toolName: input.toolName,
-        riskLevel: input.riskLevel,
+        riskLevel: effectiveRisk,
         status: 'rejected',
         errorCode: scope.code,
       });
@@ -1104,7 +1133,7 @@ export class RemoteGateway {
 
     const route = this.resolveConnection({
       identity,
-      riskLevel: input.riskLevel,
+      riskLevel: effectiveRisk,
       sessionId: input.sessionId,
     });
     if (!route.ok) return route;
@@ -1112,14 +1141,14 @@ export class RemoteGateway {
 
     const now = this.now();
     const inputHash = this.hashInput(input.input);
-    if (requiresApproval(input.riskLevel)) {
+    if (requiresApproval(effectiveRisk)) {
       if (input.grantId) {
         const validGrant = this.invocationGrants.validate(
           {
             grantId: input.grantId,
             userId: identity.userId,
             sessionId: route.session.sessionId,
-            riskLevel: input.riskLevel,
+            riskLevel: effectiveRisk,
           },
           now,
         );
@@ -1136,7 +1165,7 @@ export class RemoteGateway {
           session: route.session,
           connection,
           toolName: input.toolName,
-          riskLevel: input.riskLevel,
+          riskLevel: effectiveRisk,
           inputHash,
           now,
           actionLabel: 'action',
@@ -1170,8 +1199,8 @@ export class RemoteGateway {
       sessionId: route.session.sessionId,
       timestamp: this.now().toISOString(),
       toolName: input.toolName,
-      riskLevel: input.riskLevel,
-      requiresApproval: requiresApproval(input.riskLevel),
+      riskLevel: effectiveRisk,
+      requiresApproval: requiresApproval(effectiveRisk),
       input: input.input,
       inputHash,
       activeProjectHint: route.session.activeProject,
@@ -1184,7 +1213,7 @@ export class RemoteGateway {
       userId: identity.userId,
       sessionId: route.session.sessionId,
       toolName: input.toolName,
-      riskLevel: input.riskLevel,
+      riskLevel: effectiveRisk,
       inputHash,
     });
 

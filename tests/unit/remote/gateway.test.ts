@@ -6,12 +6,16 @@ import {
 import { RemoteGateway } from '../../../src/remote/gateway.js';
 import type { RemoteIdentity } from '../../../src/remote/scope.js';
 
-function makeGateway(start = new Date('2026-07-04T00:00:00.000Z')) {
+function makeGateway(
+  start = new Date('2026-07-04T00:00:00.000Z'),
+  options?: Partial<RemoteGatewayOptions>,
+) {
   let now = start;
   let counter = 0;
   const gateway = new RemoteGateway({
     now: () => now,
     makeId: () => `id-${++counter}`,
+    ...options,
   });
   return {
     gateway,
@@ -84,6 +88,73 @@ describe('RemoteGateway', () => {
       toolName: 'easyeda_board_read',
       riskLevel: 'read',
       requiresApproval: false,
+    });
+  });
+
+  it('rejects client risk-level downgrade for mutating tools', async () => {
+    const { gateway } = makeGateway();
+    const dispatches: ToolRequestMessage[] = [];
+    const session = registerFakeExtension(gateway, dispatches);
+    const code = gateway.createPairingCode({
+      identity: readIdentity,
+      sessionId: session.sessionId,
+    });
+
+    expect(
+      gateway.completePairing({ identity: readIdentity, code, sessionId: session.sessionId }),
+    ).toBe(true);
+
+    const result = await gateway.routeToolRequest({
+      identity: readIdentity,
+      toolName: 'schematic.deleteComponent',
+      riskLevel: 'read',
+      input: { componentId: 'U1' },
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'SCOPE_MISSING',
+    });
+    expect(dispatches).toHaveLength(0);
+
+    // Test export tool risk resolution
+    const exportResult = await gateway.routeToolRequest({
+      identity: readIdentity,
+      toolName: 'project.exportBOM',
+      riskLevel: 'read',
+      input: {},
+    });
+    expect(exportResult).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'SCOPE_MISSING',
+    });
+
+    // Test custom toolRiskResolver
+    const { gateway: customGateway } = makeGateway(undefined, {
+      toolRiskResolver: (name) => (name === 'custom_safe' ? 'read' : 'destructive'),
+    });
+    const customSession = registerFakeExtension(customGateway, dispatches);
+    const customCode = customGateway.createPairingCode({
+      identity: readIdentity,
+      sessionId: customSession.sessionId,
+    });
+    customGateway.completePairing({
+      identity: readIdentity,
+      code: customCode,
+      sessionId: customSession.sessionId,
+    });
+    const customResult = await customGateway.routeToolRequest({
+      identity: readIdentity,
+      toolName: 'custom_mutating',
+      riskLevel: 'read',
+      input: {},
+    });
+    expect(customResult).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'SCOPE_MISSING',
     });
   });
 
@@ -759,6 +830,38 @@ describe('Project-session native consent', () => {
         approvalId: pending.approvalId,
       }),
     ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_NOT_APPROVED' });
+  });
+
+  it('never bypasses a server-elevated destructive risk through a forged session eligibility flag', async () => {
+    const { gateway, session } = connected();
+    const first = {
+      identity,
+      sessionId: session.sessionId,
+      riskLevel: 'write' as const,
+      toolName: 'easyeda_schematic_add_text',
+      sessionApprovalEligible: true,
+    };
+    const pending = await gateway.authorizeToolInvocation(first);
+    if (pending.ok || !pending.approvalId) throw new Error('Initial approval missing');
+    gateway.resolveApprovalFromExtension({
+      sessionId: session.sessionId,
+      approvalId: pending.approvalId,
+      result: 'approved',
+    });
+    expect(
+      await gateway.authorizeToolInvocation({
+        ...first,
+        approvalId: pending.approvalId,
+      }),
+    ).toMatchObject({ ok: true });
+    const elevated = {
+      ...first,
+      toolName: 'easyeda_schematic_delete_primitive',
+    };
+    // Main branch #1070 independently raises the effective risk to destructive.
+    const result = await gateway.authorizeToolInvocation(elevated);
+    expect(result).toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
+    expect(result.ok ? 'ok' : result.approvalId).toBeTruthy();
   });
 
   it('fails closed for other clients, other risk classes and destructive operations', async () => {

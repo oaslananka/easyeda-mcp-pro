@@ -325,7 +325,7 @@ function hostWithoutPort(hostHeader: string): string {
 }
 
 function isAllowedLoopbackOrigin(origin: string): boolean {
-  if (origin === 'null') return true;
+  if (origin === 'null') return false;
   try {
     const url = new URL(origin);
     return (url.protocol === 'http:' || url.protocol === 'https:') && isLoopback(url.hostname);

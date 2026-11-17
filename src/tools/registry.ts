@@ -173,6 +173,8 @@ const STATIC_GROUP_SCOPES: Partial<Record<ToolDefinition['group'], string[]>> = 
 
 function specialToolScopes(tool: ToolDefinition): string[] | undefined {
   if (tool.name === 'easyeda_execute') return ['bridge:execute'];
+  if (tool.name === 'easyeda_dev_hot_swap') return ['bridge:execute'];
+  if (tool.name === 'easyeda_live_write_regression') return ['diagnostics:write'];
   if (tool.name === 'easyeda_api_call') return ['api:write'];
   if (tool.name === 'easyeda_api_read') return ['api:read'];
   if (tool.name === 'easyeda_api_inventory' || tool.name === 'easyeda_component_probe') {
@@ -185,7 +187,14 @@ export function getRequiredToolScopes(tool: ToolDefinition): string[] {
   const special = specialToolScopes(tool);
   if (special) return special;
   const staticScopes = STATIC_GROUP_SCOPES[tool.group];
-  if (staticScopes) return staticScopes;
+  if (staticScopes) {
+    if (tool.confirmWrite) {
+      return staticScopes.map((scope) =>
+        scope.endsWith(':read') ? scope.replace(/:read$/, ':write') : scope,
+      );
+    }
+    return staticScopes;
+  }
   if (tool.group === 'schematic') {
     return [tool.confirmWrite ? 'schematic:write' : 'schematic:read'];
   }

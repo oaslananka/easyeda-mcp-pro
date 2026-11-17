@@ -40,6 +40,7 @@ const HEARTBEAT_LIVENESS_MULTIPLIER = 3;
 const CHUNK_AGGREGATE_MULTIPLIER = 8;
 // Drop a partial chunk assembly that has not completed within this window.
 const CHUNK_ASSEMBLY_TTL_MS = 60_000;
+const MAX_CHUNK_ASSEMBLIES = 128;
 
 function replacementChunkBytes(
   chunks: Array<string | undefined>,
@@ -142,6 +143,10 @@ interface PairingEntry {
 }
 
 export type BridgeState = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+const EASYEDA_HOST_RE = /^(?:.+\.)?(?:easyeda\.com|lceda\.cn)$/i;
+const EXTENSION_PROTOCOL_RE = /^(?:chrome-extension|moz-extension):$/;
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
 export class BridgeManager extends EventEmitter {
   public state: BridgeState = 'disconnected';
@@ -463,11 +468,40 @@ export class BridgeManager extends EventEmitter {
     this.scheduleReconnect();
   }
 
+  private isAllowedBridgeOrigin(origin: string): boolean {
+    if (this.config.ALLOWED_ORIGINS) {
+      const allowed = this.config.ALLOWED_ORIGINS.split(',').map((s) => s.trim());
+      if (allowed.includes('*') || allowed.includes(origin)) return true;
+    }
+    if (this.config.CORS_ORIGIN && this.config.CORS_ORIGIN === origin) return true;
+    try {
+      const parsed = new URL(origin);
+      if (['http:', 'https:'].includes(parsed.protocol) && LOOPBACK_HOSTS.has(parsed.hostname)) {
+        return true;
+      }
+      if (parsed.protocol === 'https:' && EASYEDA_HOST_RE.test(parsed.hostname)) {
+        return true;
+      }
+      return EXTENSION_PROTOCOL_RE.test(parsed.protocol);
+    } catch {
+      return false;
+    }
+  }
+
   private tryListen(port: number): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const wss = new WebSocketServer({
         host: this.config.BRIDGE_HOST,
         port,
+        verifyClient: (info, callback) => {
+          const origin = info.origin;
+          if (!origin) {
+            callback(true);
+            return;
+          }
+          const allowed = this.isAllowedBridgeOrigin(origin);
+          callback(allowed, allowed ? undefined : 403, allowed ? undefined : 'Forbidden Origin');
+        },
       });
       this.wss = wss;
 
@@ -544,6 +578,22 @@ export class BridgeManager extends EventEmitter {
       }
     };
 
+    const canAcceptAssembly = (assemblyId: string): boolean => {
+      if (chunkAssemblies.size < MAX_CHUNK_ASSEMBLIES) return true;
+      const now = Date.now();
+      for (const [key, entry] of chunkAssemblies) {
+        if (now - entry.startedAt > CHUNK_ASSEMBLY_TTL_MS) chunkAssemblies.delete(key);
+      }
+      if (chunkAssemblies.size >= MAX_CHUNK_ASSEMBLIES) {
+        logger.warn(
+          { id: assemblyId, activeAssemblies: chunkAssemblies.size },
+          'too many active chunk assemblies, dropping',
+        );
+        return false;
+      }
+      return true;
+    };
+
     const handleChunk = (data: Record<string, unknown>): void => {
       const id = typeof data.id === 'string' ? data.id : '';
       const seq = typeof data.seq === 'number' ? data.seq : -1;
@@ -553,18 +603,15 @@ export class BridgeManager extends EventEmitter {
         logger.warn({ id, seq, total }, 'invalid chunk envelope');
         return;
       }
-      const now = Date.now();
-      for (const [key, entry] of chunkAssemblies) {
-        if (now - entry.startedAt > CHUNK_ASSEMBLY_TTL_MS) chunkAssemblies.delete(key);
-      }
       let assembly = chunkAssemblies.get(id);
       if (!assembly) {
+        if (!canAcceptAssembly(id)) return;
         assembly = {
           chunks: new Array<string | undefined>(total),
           total,
           received: 0,
           bytes: 0,
-          startedAt: now,
+          startedAt: Date.now(),
         };
         chunkAssemblies.set(id, assembly);
       }

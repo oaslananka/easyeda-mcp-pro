@@ -31,7 +31,7 @@
     "src/bom-quality/adapter.ts": [18],
     "src/bom-quality/quality.ts": [27, 22, 17],
     "src/bridge/cdp-manager.ts": [18, 16],
-    "src/bridge/manager.ts": [19],
+    "src/bridge/manager.ts": [18],
     "src/catalog/ingest.ts": [49],
     "src/circuit/circuit-ir.ts": [24],
     "src/circuit/component-planning.ts": [19, 19],
