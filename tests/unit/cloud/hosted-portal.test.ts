@@ -426,6 +426,114 @@ describe('Hosted Cloud browser recovery', () => {
     expect(pairing.textContent).toBe('Connected');
   });
 
+  it('prioritizes connected devices and keeps old pairings removable without losing expansion on refresh', async () => {
+    let sessions = [
+      {
+        sessionId: 'live',
+        connected: true,
+        mode: 'hosted',
+        extensionVersion: '1.15.7',
+        activeProject: {
+          projectId: 'pcb',
+          documentId: 'doc',
+          projectName: 'Current PCB',
+          documentType: 'pcb',
+        },
+      },
+      {
+        sessionId: 'old-a',
+        connected: false,
+        mode: 'hosted',
+        extensionVersion: '1.15.6',
+        activeProject: { projectName: 'Previous PCB' },
+      },
+      {
+        sessionId: 'old-b',
+        connected: false,
+        mode: 'hosted',
+        extensionVersion: '1.15.6',
+        activeProject: { projectName: 'Previous PCB' },
+      },
+    ];
+    const removed: string[] = [];
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Fixture Owner' } }) };
+      if (url === '/cloud/api/extensions')
+        return { ok: true, status: 200, json: async () => ({ sessions, selection: null }) };
+      if (url === '/cloud/api/clients')
+        return { ok: true, status: 200, json: async () => ({ clients: [] }) };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ total: 0, succeeded: 0, failed: 0, lastCallAt: null }),
+        };
+      if (url.startsWith('/cloud/api/extensions/')) {
+        const sessionId = decodeURIComponent(url.slice('/cloud/api/extensions/'.length));
+        removed.push(sessionId);
+        sessions = sessions.filter((s) => s.sessionId !== sessionId);
+        return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      }
+      throw Error('Unexpected request: ' + url);
+    });
+    const list = result.elements.get('extensions');
+    expect(result.elements.get('device-count').textContent).toBe('1 connected');
+    expect(list.children).toHaveLength(2);
+    expect(list.children[0].children[0].children[0].textContent).toBe('Current PCB');
+    const history = list.children[1];
+    expect(history.className).toBe('device-history');
+    expect(history.children[0].textContent).toBe('Previous connections (2)');
+    expect(history.open).toBe(false);
+    expect(history.children[2].children[1].textContent).toBe('Remove access');
+    history.open = true;
+    await history.dispatch('toggle');
+    await result.elements.get('refresh-extensions').dispatch('click');
+    expect(list.children[1].open).toBe(true);
+    await list.children[1].children[2].children[1].dispatch('click');
+    expect(removed).toEqual(['old-a']);
+    expect(list.children[1].children[0].textContent).toBe('Previous connections (1)');
+    expect(list.children[1].open).toBe(true);
+    expect(result.elements.get('device-count').textContent).toBe('1 connected');
+    expect(result.redirects).toEqual([]);
+  });
+
+  it('shows reconnect guidance before collapsed old sessions when every device is offline', async () => {
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Fixture Owner' } }) };
+      if (url === '/cloud/api/extensions')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            sessions: ['old-a', 'old-b'].map((sessionId) => ({
+              sessionId,
+              connected: false,
+              mode: 'hosted',
+              extensionVersion: '1.15.6',
+            })),
+            selection: null,
+          }),
+        };
+      if (url === '/cloud/api/clients')
+        return { ok: true, status: 200, json: async () => ({ clients: [] }) };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ total: 0, succeeded: 0, failed: 0, lastCallAt: null }),
+        };
+      throw Error('Unexpected request: ' + url);
+    });
+    const list = result.elements.get('extensions');
+    expect(result.elements.get('device-count').textContent).toBe('0 connected');
+    expect(result.elements.get('workspace-grid').dataset.empty).toBe('true');
+    expect(list.children[0].textContent).toContain('Connect EasyEDA');
+    expect(list.children[1].children[0].textContent).toBe('Previous connections (2)');
+    expect(list.children[1].children[2].children[1].textContent).toBe('Remove access');
+  });
+
   it('shows a recovery path for a blocked Cloud/Access fetch instead of redirecting to sign-in', async () => {
     const result = await runWorkspace(async () => {
       throw new TypeError('Failed to fetch');

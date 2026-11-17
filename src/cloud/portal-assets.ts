@@ -26,6 +26,7 @@ main{padding:65px 0 74px}.eyebrow{font-size:11px;text-transform:uppercase;letter
 footer{padding:29px 0 38px;display:flex;align-items:center;justify-content:space-between;gap:15px;border-top:1px solid #27354b;font-size:12px;color:#8ca0ba}footer a{color:#b3c9e6;text-decoration:none}
 .workspace-head{display:flex;justify-content:space-between;align-items:center;gap:22px;margin-bottom:32px}.workspace-title{font-size:clamp(34px,4vw,47px);line-height:1.1;letter-spacing:-.055em;margin:0 0 12px}.workspace-desc{color:#adbdd2;font-size:15px;max-width:660px;margin:0}.account-identity{border:1px solid #34495f;background:#142239;border-radius:14px;padding:11px 15px;display:flex;gap:11px;align-items:center;min-width:200px}.account-identity small,.account-identity strong{display:block}.account-identity small{font-size:11px;color:#98aeca}.account-identity strong{font-size:13px;color:#e7f3ff;word-break:break-word}.identity-avatar{color:#86d1ff;font-size:15px;background:#233e5d;display:grid;place-items:center;width:36px;height:36px;border-radius:11px}
 .workspace-grid{display:grid;grid-template-columns:minmax(0,1.22fr) minmax(320px,.78fr);align-items:start;gap:22px}.panel{padding:27px;max-width:none}.panel h2{font-size:19px;letter-spacing:-.035em;margin:0;line-height:1.35}.section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.section-kicker{margin:0 0 6px;color:#83c9ec;letter-spacing:.15em;font-size:10px;font-weight:800}.section-description{color:#a9b9cf;font-size:13px;line-height:1.65;margin:12px 0 22px}.count{display:inline-flex;vertical-align:middle;margin-left:7px;padding:3px 8px;border:1px solid #45627e;border-radius:7px;color:#b8d4f3;font-size:12px;font-weight:700}
+.device-history{border:1px solid #344963;border-radius:14px;padding:9px 12px;background:#0e1b2c}.device-history>summary{cursor:pointer;color:#c6e3ff;font-weight:720;font-size:13px;padding:9px 6px;min-height:42px}.device-history>summary:focus-visible{outline:3px solid #7dc9ff;outline-offset:2px}.device-history[open]{display:grid;gap:11px}.device-history .session{margin-top:4px}.device-history-note{color:#aabed6;font-size:12px;line-height:1.55;margin:4px 6px 8px}
 .device-list{display:grid;gap:12px}.empty{padding:28px 20px;background:#0c1625;border:1px dashed #39516a;border-radius:15px;color:#b3c4db;font-size:13px;line-height:1.6}.device-list .empty{min-height:138px;display:flex;align-items:center;justify-content:center;text-align:center}
 .session{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;background:#111e30;border:1px solid #344963;border-radius:15px;padding:18px}.session strong{font-size:13px;word-break:break-word}.session p{color:#9cafc8;font-size:12px;margin:6px 0}.session>div{min-width:0}.client-permission{display:inline-flex;align-items:center;border:1px solid #356e61;background:#163a34;color:#baf5df;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:750;margin:9px 0 2px}.client-permission.limited{border-color:#655333;background:#352d1d;color:#f7dca0}.session p.client-permission-help{line-height:1.55;max-width:560px;color:#bdcfe5;margin-top:8px}.session-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.session .btn{min-height:37px;font-size:12px;padding:8px 12px}.status{display:inline-flex;gap:6px;align-items:center;font-size:11px;font-weight:720;padding:4px 10px;border:1px solid #315f55;border-radius:999px;background:#173b38;color:#8fe8cd}.status.off{border-color:#604655;background:#3b2c3b;color:#f4c4d3}
 .setup-steps{display:grid;gap:0;margin:18px 0}.setup-steps p{display:flex;align-items:center;gap:13px;border-bottom:1px solid #2a3e55;margin:0;padding:14px 0;font-size:12px;color:#b5c8df}.setup-steps strong{color:#e0ecfd;font-weight:700}.setup-steps p>span{border:1px solid #385773;background:#172d44;color:#aad7f4;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex-shrink:0;font-weight:800}.pair-button{width:100%;justify-content:space-between;padding:14px 17px;margin:7px 0 16px}.pairing-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}.code{display:inline-flex;align-items:center;justify-content:center;max-width:100%;letter-spacing:.12em;font-size:23px;font-weight:850;color:#dbefff;background:#091322;border:1px solid #3d5672;border-radius:10px;min-height:52px;padding:8px 15px;margin:0;user-select:all;word-break:break-all}.muted,.meta{color:#a7b7cb;font-size:12px}.pairing-panel .muted{line-height:1.65}.usage-panel{margin-top:22px}.usage-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.usage-stat{padding:18px;background:#0e1a2b;border:1px solid #334a65;border-radius:14px}.usage-stat strong{display:block;font-size:32px;line-height:1.1;letter-spacing:-.05em;color:#e6f5ff;font-variant-numeric:tabular-nums}.usage-stat span{display:block;color:#abc0d9;font-size:12px;margin-top:9px}.usage-panel .muted{margin:14px 0 0}.clients-panel{margin-top:22px}.clients-panel .empty{padding:18px}.account-actions{display:flex;justify-content:flex-end;margin-top:24px}
@@ -169,6 +170,7 @@ export const CLOUD_JS = String.raw`
     let selected = null;
     let visibleSessionIds = new Set();
     let hasLoadedSessionList = false;
+    let previousConnectionsOpen = false;
     const addSession = (s) => {
       const card = el('div','session');
       const info = el('div');
@@ -229,16 +231,33 @@ export const CLOUD_JS = String.raw`
         setText('pairing-code', 'Connected');
         setText('pairing-hint', 'Your EasyEDA device is connected. Choose its schematic or PCB to allow MCP access.');
       }
+      const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+      const online = sessions.filter((session) => session.connected);
+      const offline = sessions.filter((session) => !session.connected);
       const workspaceGrid = get('workspace-grid');
-      if (workspaceGrid) workspaceGrid.dataset.empty = data.sessions?.length ? 'false' : 'true';
-      setText('device-count', Array.isArray(data.sessions) ? data.sessions.length : 0);
+      if (workspaceGrid) workspaceGrid.dataset.empty = online.length ? 'false' : 'true';
+      setText('device-count', online.length + ' connected');
       list.replaceChildren();
-      if (!data.sessions?.length) {
+      if (!sessions.length) {
         list.appendChild(el('div', 'empty', 'No devices connected. Select Generate pairing code in Connect EasyEDA to add your extension.'));
-        return;
+        return sessions;
       }
-      data.sessions.forEach((session) => list.appendChild(addSession(session)));
-      return data.sessions;
+      if (!online.length && offline.length > 1) {
+        list.appendChild(el('div', 'empty', 'No devices online. Connect EasyEDA to choose an active design.'));
+      }
+      online.forEach((session) => list.appendChild(addSession(session)));
+      if (offline.length && (online.length || offline.length > 1)) {
+        const previous = el('details', 'device-history');
+        previous.open = previousConnectionsOpen;
+        previous.appendChild(el('summary', '', 'Previous connections (' + offline.length + ')'));
+        previous.appendChild(el('p', 'device-history-note', 'Offline connections cannot receive tool calls. Remove access here to revoke an old pairing.'));
+        offline.forEach((session) => previous.appendChild(addSession(session)));
+        previous.addEventListener('toggle', () => { previousConnectionsOpen = previous.open; });
+        list.appendChild(previous);
+      } else {
+        offline.forEach((session) => list.appendChild(addSession(session)));
+      }
+      return sessions;
     };
     let usagePending = false;
     const loadUsage = async () => {

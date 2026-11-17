@@ -102,7 +102,7 @@ describe('Hosted Cloud pairing-code user experience', () => {
 
     await vi.waitFor(() => expect(get('generate-pairing').listeners.has('click')).toBe(true));
     expect(get('workspace-grid').dataset.empty).toBe('true');
-    expect(get('device-count').textContent).toBe('0');
+    expect(get('device-count').textContent).toBe('0 connected');
     await get('generate-pairing').click();
     expect(get('notice').classList.contains('error')).toBe(true);
 
@@ -226,7 +226,7 @@ describe('Hosted Cloud pairing-code user experience', () => {
     expect(extensionFetches).toBe(1);
     clock += 1000;
     tick?.();
-    await vi.waitFor(() => expect(get('device-count').textContent).toBe('2'));
+    await vi.waitFor(() => expect(get('device-count').textContent).toBe('2 connected'));
     expect(extensionFetches).toBe(2);
     expect(get('workspace-grid').dataset.empty).toBe('false');
     expect(
@@ -314,7 +314,7 @@ describe('Hosted Cloud pairing-code user experience', () => {
     await get('generate-pairing').click();
     clock += 5000;
     tick?.();
-    await vi.waitFor(() => expect(get('device-count').textContent).toBe('1'));
+    await vi.waitFor(() => expect(get('device-count').textContent).toBe('1 connected'));
     expect(extensionFetches).toBe(2);
     // A formerly hidden existing session must never masquerade as the code's result.
     expect(get('pairing-code').textContent).toBe('EDA-A1B2C3D4');
@@ -404,7 +404,7 @@ describe('Hosted Cloud pairing-code user experience', () => {
 
     await vi.waitFor(() => expect(get('refresh-extensions').listeners.has('click')).toBe(true));
     expect(get('workspace-grid').dataset.empty).toBe('false');
-    expect(get('device-count').textContent).toBe('1');
+    expect(get('device-count').textContent).toBe('1 connected');
     expect(button().textContent).toBe('Selected PCB');
     expect(button().disabled).toBe(true);
 
