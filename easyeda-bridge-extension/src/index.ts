@@ -644,7 +644,6 @@ function requestRemoteApproval(prompt: RemoteApprovalPrompt): Promise<RemoteAppr
     return Promise.resolve('timeout');
   }
   if (typeof dialog?.showConfirmationMessage !== 'function') {
-    log('No approval UI');
     showToast('No approval UI.');
     return Promise.resolve('rejected');
   }
@@ -662,8 +661,8 @@ function requestRemoteApproval(prompt: RemoteApprovalPrompt): Promise<RemoteAppr
 
     try {
       dialog.showConfirmationMessage?.(
-        `${prompt.actionSummary}\nTool: ${prompt.toolName} (${prompt.riskLevel})\nProject: ${prompt.activeProject?.projectName ?? 'project'}\nHash: ${prompt.inputHash.slice(0, 12)}\nExpires in ${Math.ceil((expiresAtMs - Date.now()) / 1000)}s. Reject after expiry.`,
-        'MCP Approval',
+        `${prompt.actionSummary}\nTool: ${prompt.toolName} (${prompt.riskLevel})\nProject: ${prompt.activeProject?.projectName ?? 'project'}\nHash: ${prompt.inputHash.slice(0, 12)}\nExpires in ${Math.ceil((expiresAtMs - Date.now()) / 1000)}s. Reject if expired.`,
+        'Remote MCP Approval',
         'Approve',
         'Reject',
         (mainButtonClicked) =>
@@ -672,7 +671,7 @@ function requestRemoteApproval(prompt: RemoteApprovalPrompt): Promise<RemoteAppr
           ),
       );
     } catch (error) {
-      log('Approval error', error);
+      log('UI error', error);
       finish('rejected');
     }
   });
