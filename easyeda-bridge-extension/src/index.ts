@@ -16,12 +16,15 @@ import {
   validateCustomRemoteRelayUrl,
 } from './connection-policy.js';
 import {
+  OFFICIAL_HOSTED_RELAY_URL,
   RemoteRelayClient,
   type RemoteApprovalDecision,
   type RemoteApprovalPrompt,
   type RemoteRelayMode,
 } from './remote-client.js';
 import { createDispatcher } from './dispatcher.js';
+import { readNativeRemoteActiveProject } from './remote-active-project.js';
+import { createNativeRemoteWebSocket } from './remote-native-websocket.js';
 import { normalizeCanvasBinaryResult } from './capture-binary-result.js';
 import { createHostZoneReservationClient } from './zone-host-reservation-client.js';
 import type { Dispatcher, DispatcherToolkit } from './toolkit.js';
@@ -94,6 +97,7 @@ interface EasyedaGlobal {
   disconnectRemoteRelay?: () => void;
   showRemoteRelayStatus?: () => void;
   connectCustomRemote?: () => Promise<void>;
+  connectHostedCloud?: () => Promise<void>;
 }
 
 interface EasyedaWebSocketApi {
@@ -113,6 +117,15 @@ interface EasyedaMessageApi {
 }
 
 interface EasyedaDialogApi {
+  showInputDialog?: (
+    beforeContent?: string,
+    afterContent?: string,
+    title?: string,
+    type?: 'text' | 'url' | 'password',
+    value?: string | number,
+    otherProperty?: { maxlength?: number; placeholder?: string },
+    callbackFn?: (value: unknown) => void,
+  ) => void;
   showConfirmationMessage?: (
     content: string,
     title?: string,
@@ -204,6 +217,8 @@ let externalInteractionWarningShown = false;
 // Updated from the server's `hello` message; matches BRIDGE_MAX_PAYLOAD_SIZE default
 // until the handshake completes.
 let bridgeMaxPayloadSize = 1_048_576;
+// Authoritative limit advertised by the paired Cloud relay; independent of local hello.
+let remoteRelayMaxPayloadSize: number | undefined;
 // From the server's hello: whether it reassembles chunked frames (A5) and the
 // aggregate cap for one chunked payload. When unset, fall back to single-frame
 // sends limited by bridgeMaxPayloadSize, exactly as before.
@@ -310,7 +325,11 @@ const dispatcherToolkit: DispatcherToolkit = {
   // With chunked sends (A5) a single logical payload may span many frames, so
   // the dispatcher's binary self-limit is the aggregate cap, not the frame cap.
   getBridgeMaxPayloadSize: () =>
-    serverSupportsChunking ? maxAggregatePayloadSize : bridgeMaxPayloadSize,
+    remoteRelayClient?.getStatus().state === 'paired' && remoteRelayMaxPayloadSize
+      ? remoteRelayMaxPayloadSize
+      : serverSupportsChunking
+        ? maxAggregatePayloadSize
+        : bridgeMaxPayloadSize,
   normalizeCanvasBinaryResult: (value, fallbackFileName) =>
     normalizeCanvasBinaryResult(value, fallbackFileName, bridgeMaxPayloadSize),
   getBridgeVersion: () => BRIDGE_VERSION,
@@ -621,44 +640,38 @@ let remoteRelayClient: RemoteRelayClient | null = null;
 function requestRemoteApproval(prompt: RemoteApprovalPrompt): Promise<RemoteApprovalDecision> {
   const dialog = readPath<EasyedaDialogApi>(getGlobal(), 'sys_Dialog');
   const expiresAtMs = Date.parse(prompt.expiresAt);
-  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
+  if (!(expiresAtMs > Date.now())) {
     return Promise.resolve('timeout');
   }
-  const showConfirmationMessage = dialog?.showConfirmationMessage?.bind(dialog);
-  if (!showConfirmationMessage) {
-    log('Remote approval dialog unavailable', { toolName: prompt.toolName });
-    showToast('Remote approval dialog is unavailable; request rejected.');
+  if (typeof dialog?.showConfirmationMessage !== 'function') {
+    showToast('No approval UI.');
     return Promise.resolve('rejected');
   }
 
   return new Promise<RemoteApprovalDecision>((resolve) => {
     let settled = false;
-    const timer = setTimeout(() => finish('timeout'), Math.max(0, expiresAtMs - Date.now()));
+    const timer = setTimeout(() => finish('timeout'), expiresAtMs - Date.now());
     function finish(decision: RemoteApprovalDecision): void {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (decision === 'timeout') showToast('Expired: reject, retry.');
       resolve(decision);
     }
 
-    const project = prompt.activeProject?.projectName ?? 'current EasyEDA project';
-    const summary = [
-      prompt.actionSummary,
-      `Method: ${prompt.toolName}`,
-      `Risk: ${prompt.riskLevel}`,
-      `Project: ${project}`,
-      `Input hash: ${prompt.inputHash.slice(0, 12)}`,
-    ].join('\n');
     try {
-      showConfirmationMessage(
-        summary,
+      dialog.showConfirmationMessage?.(
+        `${prompt.actionSummary}\nTool: ${prompt.toolName} (${prompt.riskLevel})\nProject: ${prompt.activeProject?.projectName ?? 'project'}\nHash: ${prompt.inputHash.slice(0, 12)}\nExpires in ${Math.ceil((expiresAtMs - Date.now()) / 1000)}s. Reject if expired.`,
         'Remote MCP Approval',
         'Approve',
         'Reject',
-        (mainButtonClicked) => finish(mainButtonClicked ? 'approved' : 'rejected'),
+        (mainButtonClicked) =>
+          finish(
+            Date.now() >= expiresAtMs ? 'timeout' : mainButtonClicked ? 'approved' : 'rejected',
+          ),
       );
     } catch (error) {
-      log('Remote approval dialog failed', error);
+      log('UI error', error);
       finish('rejected');
     }
   });
@@ -673,27 +686,44 @@ function getRemoteRelayClient(): RemoteRelayClient {
     executeToolRequest: (toolName, input) =>
       dispatchViaActive(toolName, isRecord(input) ? input : {}),
     requestApproval: requestRemoteApproval,
+    onPayloadLimit: (maxBytes) => {
+      remoteRelayMaxPayloadSize = maxBytes;
+    },
     timers: runtimeTimers,
     createWebSocket: (url) => {
-      const WebSocketCtor = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
-      if (typeof WebSocketCtor !== 'function') {
-        throw new Error('WebSocket is unavailable in the EasyEDA extension runtime.');
+      const native = getWsApi();
+      if (native?.register && native.send && native.close) {
+        // Standard browser WebSocket is unavailable inside the EasyEDA main
+        // extension sandbox; use the official external-interactions API.
+        return createNativeRemoteWebSocket(url, native, runtimeTimers);
       }
-      return new WebSocketCtor(url);
+      const BrowserWebSocket = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
+      if (typeof BrowserWebSocket === 'function') return new BrowserWebSocket(url);
+      const error = new Error(
+        'Enable External Interactions for Remote Relay WebSocket.',
+      ) as Error & { code: string };
+      error.code = 'REMOTE_SOCKET_UNAVAILABLE';
+      throw error;
     },
   });
   return remoteRelayClient;
 }
 
-function readRemoteActiveProject():
-  | { projectName?: string; documentType: 'schematic' | 'pcb' | 'unknown'; url?: string }
-  | undefined {
+async function readRemoteActiveProject(mode: RemoteRelayMode) {
+  // The official Hosted Cloud must never use tab titles/URLs as project identity:
+  // multiple EasyEDA documents commonly share both, and that could route a
+  // tool call to a different design. Beta native UUID APIs are capability-gated.
+  const native = await readNativeRemoteActiveProject(getGlobal());
+  if (native) return native;
+  if (mode === 'hosted') return undefined;
+
+  // Preserve legacy Custom Remote interoperability when native APIs are absent.
   const href = typeof location !== 'undefined' ? location.href : undefined;
   const title = typeof document !== 'undefined' ? document.title : undefined;
   const projectName = title && title.trim() ? title.trim() : undefined;
   if (!href && !projectName) return undefined;
   const lower = `${href ?? ''} ${projectName ?? ''}`.toLowerCase();
-  const documentType = lower.includes('pcb')
+  const documentType: 'pcb' | 'schematic' | 'unknown' = lower.includes('pcb')
     ? 'pcb'
     : lower.includes('sch')
       ? 'schematic'
@@ -705,26 +735,72 @@ function readRemoteActiveProject():
 // silently connect to the placeholder hosted URL, or auto-open a remote session.
 let selectedConnectionMode: 'local' | 'remote' = 'local';
 
-function promptConnectionValue(message: string, initialValue = ''): string | null {
+let connectionPromptGeneration = 0;
+
+/** EasyEDA's main extension sandbox does not expose browser prompt(). */
+async function promptConnectionValue(message: string, initialValue = ''): Promise<string | null> {
+  const dialog = readPath<EasyedaDialogApi>(getGlobal(), 'sys_Dialog');
+  if (typeof dialog?.showInputDialog === 'function') {
+    return await new Promise<string | null>((resolve) => {
+      try {
+        // This native dialog API is beta: capability-check it, and fail
+        // closed rather than guessing a code if the runtime rejects it.
+        dialog.showInputDialog?.call(
+          dialog,
+          message,
+          'Cloud optional. One-time codes are not saved.',
+          'EasyEDA MCP Pro — Remote Connection',
+          'text',
+          initialValue,
+          { maxlength: 2048 },
+          (value) => resolve(typeof value === 'string' ? value : null),
+        );
+      } catch {
+        showToast('EasyEDA input dialog is unavailable. Local MCP remains available.');
+        resolve(null);
+      }
+    });
+  }
+
+  // Useful only in browser-based harnesses and older runtimes. No expectation
+  // that the main EasyEDA extension process exposes browser prompt().
   const promptFn = (globalThis as { prompt?: (text: string, value?: string) => string | null })
     .prompt;
   if (typeof promptFn !== 'function') {
-    showToast('Custom Remote input dialog unavailable; local works.');
+    showToast('EasyEDA input dialog is unavailable. Local MCP remains available.');
     return null;
   }
   try {
     return promptFn(message, initialValue);
-  } catch (error) {
-    log('Custom Remote input dialog unavailable', error);
-    showToast('Custom Remote input dialog unavailable. Local remains available.');
+  } catch {
+    showToast('Remote input dialog failed. Local MCP remains available.');
     return null;
   }
 }
 
+async function connectHostedCloudInternal(): Promise<void> {
+  const generation = ++connectionPromptGeneration;
+  const pairingCode = await promptConnectionValue(
+    'Official EasyEDA MCP Pro Cloud. Open https://easyeda-mcp-pro.oaslananka.dev/cloud and enter its EDA-XXXXXXXX pairing code. No server address is needed.',
+  );
+  if (generation !== connectionPromptGeneration || pairingCode === null) return;
+  const code = pairingCode.trim().toUpperCase();
+  if (!/^EDA-[A-F0-9]{8}$/.test(code)) {
+    showToast('Enter a valid EDA-XXXXXXXX Cloud code.');
+    return;
+  }
+  connectRemoteRelayInternal('hosted', OFFICIAL_HOSTED_RELAY_URL, code);
+}
+
 async function connectCustomRemoteInternal(): Promise<void> {
-  const existingUrl = remoteRelayClient?.getStatus().relayUrl ?? '';
-  const rawUrl = promptConnectionValue('Custom Remote Relay URL (wss://)', existingUrl);
-  if (rawUrl === null) return;
+  const generation = ++connectionPromptGeneration;
+  const existingStatus = remoteRelayClient?.getStatus();
+  const existingUrl = existingStatus?.mode === 'self_hosted' ? (existingStatus.relayUrl ?? '') : '';
+  const rawUrl = await promptConnectionValue(
+    'Custom Cloud WSS address (e.g. wss://my-cloud.example/remote/relay)',
+    existingUrl,
+  );
+  if (generation !== connectionPromptGeneration || rawUrl === null) return;
   let relayUrl: string;
   try {
     relayUrl = validateCustomRemoteRelayUrl(rawUrl);
@@ -732,17 +808,20 @@ async function connectCustomRemoteInternal(): Promise<void> {
     showToast(`Custom Remote: ${error instanceof Error ? error.message : String(error)}`);
     return;
   }
-  const pairingCode = promptConnectionValue('Enter the one-time pairing code (EDA-XXXXXXXX)');
-  if (pairingCode === null) return;
+  const pairingCode = await promptConnectionValue(
+    'Custom Cloud one-time pairing code (EDA-XXXXXXXX)',
+  );
+  if (generation !== connectionPromptGeneration || pairingCode === null) return;
   const code = pairingCode.trim().toUpperCase();
   if (!/^EDA-[A-F0-9]{8}$/.test(code)) {
-    showToast('Custom Remote requires a valid EDA-XXXXXXXX pairing code.');
+    showToast('Custom Cloud requires a valid EDA-XXXXXXXX pairing code.');
     return;
   }
   connectRemoteRelayInternal('self_hosted', relayUrl, code);
 }
 
 function connectLocalInternal(mode: ConnectMode = 'manual'): Promise<void> {
+  connectionPromptGeneration += 1; // Ignore any delayed native dialog callback.
   if (selectedConnectionMode === 'remote') {
     remoteRelayClient?.disconnect('user_disabled');
     selectedConnectionMode = 'local';
@@ -763,16 +842,28 @@ function connectRemoteRelayInternal(
       return;
     }
   }
-  if (typeof (globalThis as { WebSocket?: unknown }).WebSocket !== 'function') {
-    showToast('Remote Relay needs WebSocket in EasyEDA.');
+  const nativeWs = getWsApi();
+  const browserWs = (globalThis as { WebSocket?: unknown }).WebSocket;
+  if (!(nativeWs?.register && nativeWs.send && nativeWs.close) && typeof browserWs !== 'function') {
+    showToast(
+      'Remote Relay requires EasyEDA WebSocket and External Interactions permission; Local is still available.',
+    );
     return;
   }
   disconnectInternal(false);
   selectedConnectionMode = 'remote';
-  getRemoteRelayClient().connect({ mode, relayUrl, pairingCode });
+  const client = getRemoteRelayClient();
+  client.connect({ mode, relayUrl, pairingCode });
+  if (client.getStatus().state === 'disconnected') {
+    // A denied native external-interactions permission is not a transient
+    // outage: restore Local as the user's selected mode instead of looping.
+    selectedConnectionMode = 'local';
+    showToast('Remote could not connect. Choose Connect to resume Local MCP.');
+  }
 }
 
 function disconnectRemoteRelayInternal(): void {
+  connectionPromptGeneration += 1;
   getRemoteRelayClient().disconnect('user_disabled');
   selectedConnectionMode = 'local';
   showToast('Remote Relay off. Use Connect for the local bridge.');
@@ -780,7 +871,7 @@ function disconnectRemoteRelayInternal(): void {
 
 function showRemoteRelayStatusInternal(): void {
   const status = getRemoteRelayClient().getStatus();
-  const project = status.activeProject?.projectName ?? 'no active project detected';
+  const project = status.activeProject?.projectName ?? 'not yet reported';
   const retry =
     status.nextReconnectDelayMs !== undefined
       ? ` | retry: ${Math.ceil(status.nextReconnectDelayMs / 1000)}s`
@@ -790,8 +881,24 @@ function showRemoteRelayStatusInternal(): void {
       ? ` | attempts: ${status.reconnectAttempts}`
       : '';
   const error = status.lastError ? ` | last error: ${status.lastError}` : '';
+  const connectionName =
+    status.mode === 'hosted'
+      ? 'EasyEDA MCP Pro Cloud'
+      : status.mode === 'self_hosted'
+        ? 'Custom Cloud'
+        : 'Cloud';
+  const customAddress =
+    status.mode === 'self_hosted' && status.relayUrl ? ' | WSS: ' + status.relayUrl : '';
   showToast(
-    `Remote Relay: ${status.mode}/${status.state} | project: ${project}${attempts}${retry}${error}`,
+    connectionName +
+      ': ' +
+      status.state +
+      ' | project: ' +
+      project +
+      customAddress +
+      attempts +
+      retry +
+      error,
   );
 }
 
@@ -1601,6 +1708,7 @@ async function activateInternal(_status?: 'onStartupFinished', _arg?: string): P
 }
 
 function deactivateInternal(): void {
+  connectionPromptGeneration += 1;
   activationStarted = false;
   disconnectInternal(false);
   remoteRelayClient?.disconnect('disconnected');
@@ -1624,6 +1732,7 @@ interface PersistentRuntime {
   toggleAutoConnect: typeof toggleAutoConnectInternal;
   connectRemoteRelay: typeof connectRemoteRelayInternal;
   connectCustomRemote: typeof connectCustomRemoteInternal;
+  connectHostedCloud: typeof connectHostedCloudInternal;
   disconnectRemoteRelay: typeof disconnectRemoteRelayInternal;
   showRemoteRelayStatus: typeof showRemoteRelayStatusInternal;
 }
@@ -1633,7 +1742,10 @@ const PERSISTENT_RUNTIME_KEY = '__easyedaMcpProBridgeRuntime_v8__';
 function getPersistentRuntime(): PersistentRuntime {
   const globalScope = globalThis as any;
   const existing = globalScope[PERSISTENT_RUNTIME_KEY] as PersistentRuntime | undefined;
-  if (existing) return existing;
+  // Retain the entire relay/cancellation owner, or retire a legacy
+  // pre-Cloud runtime before installing its replacement.
+  if (existing?.connectHostedCloud) return existing;
+  existing?.deactivate();
 
   const runtime: PersistentRuntime = {
     activate: activateInternal,
@@ -1646,6 +1758,7 @@ function getPersistentRuntime(): PersistentRuntime {
     toggleAutoConnect: toggleAutoConnectInternal,
     connectRemoteRelay: connectRemoteRelayInternal,
     connectCustomRemote: connectCustomRemoteInternal,
+    connectHostedCloud: connectHostedCloudInternal,
     disconnectRemoteRelay: disconnectRemoteRelayInternal,
     showRemoteRelayStatus: showRemoteRelayStatusInternal,
   };
@@ -1699,6 +1812,10 @@ export async function connectCustomRemote(): Promise<void> {
   await persistentRuntime.connectCustomRemote();
 }
 
+export async function connectHostedCloud(): Promise<void> {
+  await persistentRuntime.connectHostedCloud();
+}
+
 export function disconnectRemoteRelay(): void {
   persistentRuntime.disconnectRemoteRelay();
 }
@@ -1715,6 +1832,7 @@ function expose(): void {
     api.showStatus = showStatus;
     api.connectRemoteRelay = connectRemoteRelay;
     api.connectCustomRemote = connectCustomRemote;
+    api.connectHostedCloud = connectHostedCloud;
     api.disconnectRemoteRelay = disconnectRemoteRelay;
     api.showRemoteRelayStatus = showRemoteRelayStatus;
     api.enableAutoConnect = enableAutoConnect;
@@ -1730,6 +1848,7 @@ function expose(): void {
   globalScope.showStatus = showStatus;
   globalScope.connectRemoteRelay = connectRemoteRelay;
   globalScope.connectCustomRemote = connectCustomRemote;
+  globalScope.connectHostedCloud = connectHostedCloud;
   globalScope.disconnectRemoteRelay = disconnectRemoteRelay;
   globalScope.showRemoteRelayStatus = showRemoteRelayStatus;
   globalScope.enableAutoConnect = enableAutoConnect;

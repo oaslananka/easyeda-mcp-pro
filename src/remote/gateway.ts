@@ -18,9 +18,14 @@ import {
   type ToolResponseMessage,
   ToolResponseMessageSchema,
   RelayMessageSchema,
+  type RegisterSessionMessage,
 } from './protocol.js';
 import { type RemoteIdentity, checkRemoteScope } from './scope.js';
-import { type ExtensionSession, RemoteSessionRouter } from './session-router.js';
+import {
+  type ExtensionSession,
+  type ManagedExtensionSession,
+  RemoteSessionRouter,
+} from './session-router.js';
 import { SessionDispatchQueue } from './session-dispatch-queue.js';
 
 const RouteToolRequestSchema = z.object({
@@ -94,6 +99,31 @@ interface RegisteredConnection {
   dispatch: RemoteToolDispatcher;
   requestApproval?: RemoteApprovalRequester;
   closeConnection?: () => void;
+  notifyRevoked?: () => void;
+}
+
+// EasyEDA native SYS_WebSocket has no close callback and may discard a final
+// message if its transport closes in the same turn. Keep only the already-
+// revoked socket alive briefly so the notice can reach the extension.
+const REVOKE_NOTICE_GRACE_MS = 750;
+
+function notifyRevokedConnection(connection: RegisteredConnection | undefined): boolean {
+  try {
+    if (!connection?.notifyRevoked) return false;
+    connection.notifyRevoked();
+    return true;
+  } catch {
+    // Owner revocation remains final even when the transport notification fails.
+    return false;
+  }
+}
+
+function closeRevokedConnection(connection: RegisteredConnection | undefined): void {
+  try {
+    connection?.closeConnection?.();
+  } catch {
+    // Ownership and grants were revoked before attempting transport cleanup.
+  }
 }
 
 type ResolvedRemoteConnection =
@@ -104,8 +134,21 @@ type ResolvedRemoteConnection =
     }
   | RemoteGatewayFailure;
 
+/** Authenticated owner/device association implemented only in Hosted Cloud. */
+export interface RemoteDeviceResumeStore {
+  issue(userId: string, sessionId: string, extensionVersion: string): string;
+  redeem(
+    credential: string,
+    nextSessionId: string,
+    extensionVersion: string,
+  ): { userId: string; previousSessionId: string; credential: string } | undefined;
+  list(userId: string): ManagedExtensionSession[];
+  revoke(userId: string, sessionId: string): boolean;
+}
+
 export interface RemoteGatewayOptions {
   router?: RemoteSessionRouter;
+  resumeStore?: RemoteDeviceResumeStore;
   approvals?: ApprovalStore;
   audit?: RemoteAuditLog;
   now?: () => Date;
@@ -113,6 +156,7 @@ export interface RemoteGatewayOptions {
   hashInput?: (value: unknown) => string;
   approvalTtlMs?: number;
   invocationGrantTtlMs?: number;
+  projectSessionGrantTtlMs?: number;
   toolRiskResolver?: (toolName: string) => RemoteRiskLevel | undefined;
 }
 
@@ -182,6 +226,28 @@ function isUnsupportedRemoteMethod(code: string | undefined): boolean {
   return code === 'METHOD_NOT_ALLOWED' || code === 'METHOD_NOT_FOUND';
 }
 
+function relayExtensionFailure(error?: { code: string; message: string }): RemoteGatewayFailure {
+  if (error?.code === 'PROJECT_INACTIVE') {
+    return gatewayError(
+      409,
+      'PROJECT_INACTIVE',
+      error.message || 'EasyEDA switched projects. Select the project again.',
+    );
+  }
+  if (isUnsupportedRemoteMethod(error?.code)) {
+    return gatewayError(
+      422,
+      'REMOTE_TOOL_UNSUPPORTED',
+      `${error?.code}: ${error?.message ?? 'Remote extension does not support this method.'}`,
+    );
+  }
+  return gatewayError(
+    502,
+    'REMOTE_EXTENSION_ERROR',
+    error?.message ?? 'Remote extension returned an error.',
+  );
+}
+
 function scopeStringToList(value: unknown): string[] {
   if (typeof value === 'string') return value.split(/[\s,]+/).filter(Boolean);
   if (Array.isArray(value)) return value.flatMap((item) => scopeStringToList(item));
@@ -233,8 +299,18 @@ export function identityFromRequest(
 const MAX_RELAY_WEBSOCKETS = 64;
 const RELAY_UPGRADE_WINDOW_MS = 60_000;
 
-function validUpgradeHost(host: string | undefined, config: EnvConfig): boolean {
+function validUpgradeHost(
+  host: string | undefined,
+  config: EnvConfig,
+  canonicalHostedOrigin?: string,
+): boolean {
   if (!host) return false;
+  if (
+    canonicalHostedOrigin &&
+    host.toLowerCase() === new URL(canonicalHostedOrigin).host.toLowerCase()
+  ) {
+    return true;
+  }
   const hostname = host.toLowerCase().replace(/:\d+$/, '');
   const expected = config.HTTP_HOST.toLowerCase();
   if (expected === '127.0.0.1' || expected === 'localhost' || expected === '::1') {
@@ -243,8 +319,11 @@ function validUpgradeHost(host: string | undefined, config: EnvConfig): boolean 
   return hostname === expected || hostname === '127.0.0.1' || hostname === 'localhost';
 }
 
-function validUpgradeOrigin(origin: string | undefined, config: EnvConfig): boolean {
+function validUpgradeOrigin(origin: string | undefined, config: EnvConfig, path: string): boolean {
   if (!origin) return true; // Non-browser extension clients do not set Origin.
+  // EasyEDA Pro 3.2.209's native SYS_WebSocket sends this Electron origin.
+  // Admit it only to the paired relay; Origin never grants a user session.
+  if (path === '/remote/relay' && origin === 'https://client') return true;
   if (
     config.ALLOWED_ORIGINS.split(',')
       .map((value) => value.trim())
@@ -287,6 +366,30 @@ export function allowRelayUpgradeAttempt(
   return current.count <= rateLimit;
 }
 
+interface SelectedProject {
+  sessionId: string;
+  projectKey: string;
+  projectId?: string;
+  documentId?: string;
+  projectName?: string;
+  documentType: string;
+}
+
+function hasNativeDocumentIdentity(
+  required: boolean,
+  project?: ExtensionSession['activeProject'],
+): boolean {
+  return !required || Boolean(project?.projectId && project.documentId);
+}
+
+function projectIdentity(project?: ExtensionSession['activeProject']): string | undefined {
+  if (project?.projectId) return `id:${project.projectId}:document:${project.documentId ?? ''}`;
+  if (project?.projectName) {
+    return `name:${project.documentType}:${project.projectName}:${project.url ?? ''}`;
+  }
+  return project?.url ? `url:${project.url}` : undefined;
+}
+
 const DESTRUCTIVE_TOOL_RE =
   /^(?:easyeda_execute|api\.execute)$|delete|hotswap|hot_swap|regression/i;
 const WRITE_TOOL_RE = /place|add|create|set|update|write|route|apply|remove|clear/i;
@@ -304,20 +407,33 @@ export class RemoteGateway {
   readonly approvals: ApprovalStore;
   readonly audit: RemoteAuditLog;
   private readonly connections = new Map<string, RegisteredConnection>();
+  private readonly selectedProjects = new Map<string, SelectedProject>();
+  private readonly resumeStore?: RemoteDeviceResumeStore;
   private readonly now: () => Date;
   private readonly makeId: () => string;
   private readonly hashInput: (value: unknown) => string;
   private readonly approvalTtlMs: number;
   private readonly invocationGrants: RemoteInvocationGrantStore;
+  private readonly projectSessionGrantTtlMs: number;
+  private readonly projectSessionGrants = new Map<string, number>();
   private readonly dispatchQueue = new SessionDispatchQueue();
   private readonly toolRiskResolver?: (toolName: string) => RemoteRiskLevel | undefined;
   private wsAttached = false;
+  private relayMaxPayloadSize = 1_048_576;
+  private explicitSelectionRequired = false;
+
+  /** Called only for the first-party Hosted Cloud transport; preserves Custom Remote compatibility. */
+  requireExplicitProjectSelection(): void {
+    this.explicitSelectionRequired = true;
+  }
 
   constructor(options: RemoteGatewayOptions = {}) {
+    this.resumeStore = options.resumeStore;
     this.now = options.now ?? (() => new Date());
     this.makeId = options.makeId ?? (() => randomUUID());
     this.hashInput = options.hashInput ?? defaultHashInput;
     this.approvalTtlMs = options.approvalTtlMs ?? 60_000;
+    this.projectSessionGrantTtlMs = options.projectSessionGrantTtlMs ?? 30 * 60_000;
     this.router = options.router ?? new RemoteSessionRouter(this.now, this.makeId);
     this.approvals = options.approvals ?? new ApprovalStore();
     this.audit = options.audit ?? new RemoteAuditLog();
@@ -326,6 +442,129 @@ export class RemoteGateway {
       this.makeId,
       options.invocationGrantTtlMs ?? 300_000,
     );
+  }
+
+  /** A native owner approval can cover routine changes only for one paired,
+   *  authenticated client and native project. It is never a bearer credential. */
+  private projectGrantKey(
+    identity: RemoteIdentity,
+    session: ExtensionSession,
+    riskLevel: RemoteRiskLevel,
+  ): string | undefined {
+    if (
+      !identity.clientId ||
+      !session.activeProject?.projectId ||
+      (riskLevel !== 'write' && riskLevel !== 'export')
+    )
+      return undefined;
+    return JSON.stringify([
+      identity.userId,
+      identity.clientId,
+      session.sessionId,
+      session.activeProject.projectId,
+      riskLevel,
+    ]);
+  }
+
+  private hasProjectSessionGrant(
+    identity: RemoteIdentity,
+    session: ExtensionSession,
+    riskLevel: RemoteRiskLevel,
+    now: Date,
+  ): boolean {
+    const key = this.projectGrantKey(identity, session, riskLevel);
+    if (!key) return false;
+    const expiry = this.projectSessionGrants.get(key);
+    if (expiry === undefined) return false;
+    if (expiry <= now.getTime()) {
+      this.projectSessionGrants.delete(key);
+      return false;
+    }
+    return true;
+  }
+
+  private allowProjectSession(
+    identity: RemoteIdentity,
+    session: ExtensionSession,
+    riskLevel: RemoteRiskLevel,
+    now: Date,
+  ): void {
+    const key = this.projectGrantKey(identity, session, riskLevel);
+    if (!key) return;
+    // Fixed duration, no sliding renewal, bounded by the native session.
+    // Token expiry is checked on every call; refreshing an OAuth token for
+    // the same verified client must not force another native prompt.
+    const expiry = Math.min(
+      now.getTime() + this.projectSessionGrantTtlMs,
+      session.expiresAt.getTime(),
+    );
+    if (expiry <= now.getTime()) return;
+    if (this.projectSessionGrants.size >= 512) {
+      for (const [entry, deadline] of this.projectSessionGrants) {
+        if (deadline <= now.getTime()) this.projectSessionGrants.delete(entry);
+      }
+      if (this.projectSessionGrants.size >= 512) {
+        const oldest = this.projectSessionGrants.keys().next().value;
+        if (oldest !== undefined) this.projectSessionGrants.delete(oldest);
+      }
+    }
+    this.projectSessionGrants.set(key, expiry);
+  }
+
+  private revokeProjectSessionGrants(sessionId: string): void {
+    for (const key of this.projectSessionGrants.keys()) {
+      const values = JSON.parse(key) as string[];
+      if (values[2] === sessionId) this.projectSessionGrants.delete(key);
+    }
+  }
+
+  private resolveOwnerSelection(
+    identity: RemoteIdentity,
+    requestedSessionId?: string,
+  ): { ok: true; sessionId?: string } | RemoteGatewayFailure {
+    const selected = this.selectedProjects.get(identity.userId);
+    if (this.explicitSelectionRequired && !selected) {
+      const sessions = this.listPairedExtensions(identity);
+      if (sessions.length === 0) {
+        return gatewayError(
+          404,
+          'SESSION_UNPAIRED',
+          'Pair your EasyEDA extension from your Cloud account before using MCP.',
+        );
+      }
+      if (!sessions.some((session) => session.connected)) {
+        return gatewayError(
+          424,
+          'SESSION_DISCONNECTED',
+          'Your linked EasyEDA extension is offline. Reconnect it using a fresh pairing code.',
+        );
+      }
+      return gatewayError(
+        409,
+        'PROJECT_INACTIVE',
+        'Select an EasyEDA extension and its active project in your Cloud account before using MCP.',
+      );
+    }
+    if (!selected) return { ok: true, sessionId: requestedSessionId };
+    if (requestedSessionId && requestedSessionId !== selected.sessionId) {
+      return gatewayError(
+        403,
+        'SESSION_UNPAIRED',
+        'This session differs from the owner-selected EasyEDA project.',
+      );
+    }
+    const current = this.router.getSession(selected.sessionId);
+    if (!current || current.userId !== identity.userId) {
+      return gatewayError(404, 'SESSION_UNPAIRED', 'Selected EasyEDA session is unavailable.');
+    }
+    if (projectIdentity(current.activeProject) !== selected.projectKey) {
+      return gatewayError(
+        409,
+        'PROJECT_INACTIVE',
+        'The EasyEDA active project changed. Select the project again in Cloud.',
+      );
+    }
+    return { ok: true, sessionId: selected.sessionId };
   }
 
   private resolveEffectiveRisk(toolName: string, assertedRisk?: RemoteRiskLevel): RemoteRiskLevel {
@@ -343,10 +582,12 @@ export class RemoteGateway {
     sessionId?: string;
     riskLevel: RemoteRiskLevel;
   }): ResolvedRemoteConnection {
+    const selection = this.resolveOwnerSelection(input.identity, input.sessionId);
+    if (!selection.ok) return selection;
     const route = this.router.resolve({
       userId: input.identity.userId,
       riskLevel: input.riskLevel,
-      sessionId: input.sessionId,
+      sessionId: selection.sessionId,
     });
     if (!route.ok) {
       const status =
@@ -373,6 +614,7 @@ export class RemoteGateway {
     now: Date;
     actionLabel: string;
     retryMessage: string;
+    sessionApprovalEligible?: boolean;
   }): Promise<RemoteGatewayFailure> {
     if (!input.connection.requestApproval) {
       return gatewayError(
@@ -384,6 +626,8 @@ export class RemoteGateway {
 
     const existing = this.approvals.findPending({
       userId: input.identity.userId,
+      clientId: input.identity.clientId,
+      activeProject: input.session.activeProject,
       sessionId: input.session.sessionId,
       toolName: input.toolName,
       inputHash: input.inputHash,
@@ -397,10 +641,20 @@ export class RemoteGateway {
         input.session.activeProject?.projectName
           ? ` on ${input.session.activeProject.projectName}`
           : ''
+      }${
+        input.sessionApprovalEligible &&
+        this.projectGrantKey(input.identity, input.session, input.riskLevel)
+          ? `. Approve routine ${input.riskLevel} actions from this MCP client on this project for 30 minutes; destructive actions always need a separate approval.`
+          : ''
       }`;
       this.approvals.request({
         approvalId,
         userId: input.identity.userId,
+        clientId: input.identity.clientId,
+        allowsProjectSession: Boolean(
+          input.sessionApprovalEligible &&
+          this.projectGrantKey(input.identity, input.session, input.riskLevel),
+        ),
         sessionId: input.session.sessionId,
         toolName: input.toolName,
         riskLevel: input.riskLevel,
@@ -463,6 +717,8 @@ export class RemoteGateway {
     const approved = this.approvals.consumeApproved({
       approvalId: input.approvalId,
       userId: input.identity.userId,
+      clientId: input.identity.clientId,
+      activeProject: input.session.activeProject,
       sessionId: input.session.sessionId,
       toolName: input.toolName,
       inputHash: input.inputHash,
@@ -494,6 +750,7 @@ export class RemoteGateway {
     dispatch: RemoteToolDispatcher;
     requestApproval?: RemoteApprovalRequester;
     closeConnection?: () => void;
+    notifyRevoked?: () => void;
     pairingCode?: string;
   }): ExtensionSession {
     const session = this.router.registerSession(input);
@@ -502,6 +759,7 @@ export class RemoteGateway {
       dispatch: input.dispatch,
       requestApproval: input.requestApproval,
       closeConnection: input.closeConnection,
+      notifyRevoked: input.notifyRevoked,
     });
     if (input.pairingCode) this.router.completePairingByCode(input.pairingCode, session.sessionId);
     this.audit.record({
@@ -551,12 +809,161 @@ export class RemoteGateway {
     return paired;
   }
 
+  /**
+   * Owner-scoped, read-only readiness check for MCP diagnostics.
+   * A working HTTP/OAuth connection is NOT proof that a usable EasyEDA editor
+   * is paired, online and (in Hosted Cloud) selected for this owner.
+   * Do not mutate the session router or dispatch a native call here.
+   */
+  hasRoutableSession(identity?: RemoteIdentity, sessionId?: string): boolean {
+    if (!identity || !checkRemoteScope(identity, 'read', this.now()).ok) return false;
+    const selected = this.resolveOwnerSelection(identity, sessionId);
+    if (!selected.ok) return false;
+    const route = this.router.resolve({
+      userId: identity.userId,
+      riskLevel: 'read',
+      sessionId: selected.sessionId,
+    });
+    return route.ok && this.connections.has(route.session.sessionId);
+  }
+
+  /**
+   * A resume identifies the extension's owner only. It never restores OAuth
+   * grants, an owner-selected native document, or pending write approvals.
+   */
+  private issueOrResumeHostedDevice(
+    session: ExtensionSession,
+    pairingCode?: string,
+    resumeCredential?: string,
+  ): string | undefined {
+    const store = this.resumeStore;
+    if (!store || session.mode !== 'hosted') return undefined;
+    if (session.userId && pairingCode) {
+      return store.issue(session.userId, session.sessionId, session.extensionVersion);
+    }
+    if (session.userId || !resumeCredential) return undefined;
+    const resumed = store.redeem(resumeCredential, session.sessionId, session.extensionVersion);
+    if (!resumed) return undefined;
+    if (!this.router.bindResumedOwner(session.sessionId, resumed.userId)) {
+      throw new Error('A verified device association could not be bound to the relay.');
+    }
+    this.invalidatePreviousResumedSession(resumed.previousSessionId, session.sessionId);
+    this.audit.record({
+      event: 'remote.session.paired',
+      mode: session.mode,
+      userId: resumed.userId,
+      sessionId: session.sessionId,
+    });
+    return resumed.credential;
+  }
+
+  private invalidatePreviousResumedSession(previousSessionId: string, nextSessionId: string): void {
+    if (previousSessionId === nextSessionId) return;
+    const closeOld = this.connections.get(previousSessionId)?.closeConnection;
+    this.disconnect(previousSessionId);
+    this.router.forgetSession(previousSessionId);
+    try {
+      closeOld?.();
+    } catch {
+      // Revocation already invalidated any former approvals and grants.
+    }
+  }
+
+  listPairedExtensions(identity: RemoteIdentity): ManagedExtensionSession[] {
+    const live = this.router.listPairedSessions(identity.userId);
+    if (!this.resumeStore) return live;
+    // Show durable *offline* owner devices for revocation, without carrying
+    // native document selection across a restart.
+    const durable = this.resumeStore.list(identity.userId);
+    const authorized = new Set(durable.map((entry) => entry.sessionId));
+    const visible = live.filter(
+      (session) => session.mode !== 'hosted' || authorized.has(session.sessionId),
+    );
+    const present = new Set(visible.map((session) => session.sessionId));
+    return [...visible, ...durable.filter((session) => !present.has(session.sessionId))];
+  }
+
+  /** An explicit selection pins both extension session and its active project identity. */
+  selectPairedProject(identity: RemoteIdentity, sessionId: string): boolean {
+    const session = this.router.getSession(sessionId);
+    const projectKey = projectIdentity(session?.activeProject);
+    if (
+      !session ||
+      session.userId !== identity.userId ||
+      // Hosted Cloud cannot authorize a title-only/URL-only project claim:
+      // native document + parent project UUIDs are required at selection.
+      !hasNativeDocumentIdentity(this.explicitSelectionRequired, session.activeProject) ||
+      !session.connected ||
+      session.expiresAt.getTime() <= this.now().getTime() ||
+      !projectKey
+    ) {
+      return false;
+    }
+    const previousSelection = this.selectedProjects.get(identity.userId);
+    // Explicitly selecting even the same project starts a fresh native consent epoch.
+    if (previousSelection) this.revokeProjectSessionGrants(previousSelection.sessionId);
+    this.selectedProjects.set(identity.userId, {
+      sessionId,
+      projectKey,
+      projectId: session.activeProject?.projectId,
+      documentId: session.activeProject?.documentId,
+      projectName: session.activeProject?.projectName,
+      documentType: session.activeProject?.documentType ?? 'unknown',
+    });
+    return true;
+  }
+
+  getSelectedProject(identity: RemoteIdentity): Omit<SelectedProject, 'projectKey'> | undefined {
+    const selection = this.selectedProjects.get(identity.userId);
+    if (!selection) return undefined;
+    const { projectKey: _key, ...publicSelection } = selection;
+    return publicSelection;
+  }
+
+  revokePairedExtension(identity: RemoteIdentity, sessionId: string): boolean {
+    const session = this.router.getSession(sessionId);
+    // Missing and another owner's session must be indistinguishable to callers.
+    if (!session || session.userId !== identity.userId) {
+      // A restart leaves the owner-bound device association offline, but it
+      // must remain revocable before the next auto-resume attempt.
+      return this.resumeStore?.revoke(identity.userId, sessionId) ?? false;
+    }
+    if (
+      session.mode === 'hosted' &&
+      this.resumeStore &&
+      !this.resumeStore.revoke(identity.userId, sessionId)
+    )
+      return false;
+    const connection = this.connections.get(sessionId);
+    this.disconnect(sessionId);
+    this.router.forgetSession(sessionId);
+    if (this.selectedProjects.get(identity.userId)?.sessionId === sessionId) {
+      this.selectedProjects.delete(identity.userId);
+    }
+    this.audit.record({
+      event: 'remote.session.revoked',
+      mode: session.mode,
+      userId: identity.userId,
+      sessionId,
+    });
+    if (notifyRevokedConnection(connection)) {
+      // The session is already unroutable: this delay grants no access.
+      // Native clients get one event-loop interval to process SESSION_REVOKED.
+      const timer = setTimeout(() => closeRevokedConnection(connection), REVOKE_NOTICE_GRACE_MS);
+      timer.unref();
+    } else {
+      closeRevokedConnection(connection);
+    }
+    return true;
+  }
+
   disconnect(sessionId: string): void {
     const session = this.router.getSession(sessionId);
     this.router.disconnect(sessionId);
     this.connections.delete(sessionId);
     this.approvals.deleteForSession(sessionId);
     this.invocationGrants.deleteForSession(sessionId);
+    this.revokeProjectSessionGrants(sessionId);
     if (session) {
       this.audit.record({
         event: 'remote.session.disconnected',
@@ -613,6 +1020,8 @@ export class RemoteGateway {
     riskLevel: Exclude<RemoteRiskLevel, 'read'>;
     input?: unknown;
     approvalId?: string;
+    /** Trusted tool-registry metadata, never a client-supplied MCP argument. */
+    sessionApprovalEligible?: boolean;
   }): Promise<RemoteGatewayAuthorizationResult> {
     const effectiveRisk = this.resolveEffectiveRisk(input.toolName, input.riskLevel);
     const scope = checkRemoteScope(input.identity, effectiveRisk, this.now());
@@ -631,7 +1040,13 @@ export class RemoteGateway {
 
     const now = this.now();
     const inputHash = this.hashInput(input.input);
-    if (!input.approvalId) {
+    // A caller may assert a lower risk than the server-resolved tool policy.
+    // A temporary native grant can never lower the effective risk tier.
+    const consentEligible = input.sessionApprovalEligible && effectiveRisk === input.riskLevel;
+    const reusable = Boolean(
+      consentEligible && this.hasProjectSessionGrant(identity, route.session, effectiveRisk, now),
+    );
+    if (!input.approvalId && !reusable) {
       return await this.requestRemoteApproval({
         identity,
         session: route.session,
@@ -641,21 +1056,32 @@ export class RemoteGateway {
         inputHash,
         now,
         actionLabel: 'MCP tool',
+        sessionApprovalEligible: consentEligible,
         retryMessage:
           'Approval was requested in EasyEDA. Retry the same MCP tool call with remoteApprovalId after the user decides.',
       });
     }
 
-    const approvalFailure = this.consumeRemoteApproval({
-      approvalId: input.approvalId,
-      identity,
-      session: route.session,
-      toolName: input.toolName,
-      inputHash,
-      now,
-      mismatchTarget: 'MCP tool',
-    });
-    if (approvalFailure) return approvalFailure;
+    if (input.approvalId) {
+      const nativeApproval = this.approvals.get(input.approvalId);
+      const approvalFailure = this.consumeRemoteApproval({
+        approvalId: input.approvalId,
+        identity,
+        session: route.session,
+        toolName: input.toolName,
+        inputHash,
+        now,
+        mismatchTarget: 'MCP tool',
+      });
+      if (approvalFailure) return approvalFailure;
+      if (
+        consentEligible &&
+        nativeApproval?.allowsProjectSession &&
+        nativeApproval.clientId === identity.clientId
+      ) {
+        this.allowProjectSession(identity, route.session, effectiveRisk, now);
+      }
+    }
 
     const grantId = this.invocationGrants.issue(
       {
@@ -833,19 +1259,7 @@ export class RemoteGateway {
           errorCode: response.error?.code ?? 'REMOTE_EXTENSION_ERROR',
           durationMs: Date.now() - startedAt,
         });
-        const extensionCode = response.error?.code;
-        if (isUnsupportedRemoteMethod(extensionCode)) {
-          return gatewayError(
-            422,
-            'REMOTE_TOOL_UNSUPPORTED',
-            `${extensionCode}: ${response.error?.message ?? 'Remote extension does not support this method.'}`,
-          );
-        }
-        return gatewayError(
-          502,
-          'REMOTE_EXTENSION_ERROR',
-          response.error?.message ?? 'Remote extension returned an error.',
-        );
+        return relayExtensionFailure(response.error);
       }
       this.audit.record({
         event: 'remote.tool.completed',
@@ -894,6 +1308,42 @@ export class RemoteGateway {
   }
 
   registerHttpRoutes(app: Express, config: EnvConfig): void {
+    const manageIdentity = (req: Request, res: Response): RemoteIdentity | undefined => {
+      const identity = identityFromRequest(req, res, config);
+      const result = checkRemoteScope(identity, 'read');
+      if (!result.ok) {
+        res.status(result.code === 'SCOPE_MISSING' ? 403 : 401).json({
+          ok: false,
+          code: result.code,
+          message: result.message,
+        });
+        return undefined;
+      }
+      return identity;
+    };
+
+    app.get('/remote/sessions', (req: Request, res: Response) => {
+      const identity = manageIdentity(req, res);
+      if (!identity) return;
+      res.json({ ok: true, sessions: this.listPairedExtensions(identity) });
+    });
+
+    app.delete('/remote/sessions/:sessionId', (req: Request, res: Response) => {
+      const identity = manageIdentity(req, res);
+      if (!identity) return;
+      const target = z
+        .string()
+        .regex(/^sess_[a-zA-Z0-9_-]{1,100}$/)
+        .safeParse(req.params.sessionId);
+      if (!target.success || !this.revokePairedExtension(identity, target.data)) {
+        res
+          .status(404)
+          .json({ ok: false, code: 'SESSION_UNPAIRED', message: 'Session not found.' });
+        return;
+      }
+      res.status(204).end();
+    });
+
     app.post('/remote/pairing-codes', (req: Request, res: Response) => {
       const identity = identityFromRequest(req, res, config);
       if (!identity) {
@@ -952,12 +1402,17 @@ export class RemoteGateway {
     });
   }
 
-  attachWebSocketServer(server: HttpServer, config?: EnvConfig): void {
+  attachWebSocketServer(
+    server: HttpServer,
+    config?: EnvConfig,
+    canonicalHostedOrigin?: string,
+  ): void {
     if (this.wsAttached) return;
     this.wsAttached = true;
+    this.relayMaxPayloadSize = config?.BRIDGE_MAX_PAYLOAD_SIZE ?? 1_048_576;
     const wss = new WebSocketServer({
       noServer: true,
-      maxPayload: config?.BRIDGE_MAX_PAYLOAD_SIZE ?? 1_048_576,
+      maxPayload: this.relayMaxPayloadSize,
     });
     const attempts = new Map<string, { count: number; expiresAt: number }>();
 
@@ -967,11 +1422,11 @@ export class RemoteGateway {
       const reject = (status: number, reason: string) => {
         socket.end(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\n\r\n`);
       };
-      if (config && !validUpgradeHost(request.headers.host, config)) {
+      if (config && !validUpgradeHost(request.headers.host, config, canonicalHostedOrigin)) {
         reject(400, 'Bad Request');
         return;
       }
-      if (config && !validUpgradeOrigin(request.headers.origin, config)) {
+      if (config && !validUpgradeOrigin(request.headers.origin, config, path)) {
         reject(403, 'Forbidden');
         return;
       }
@@ -1044,6 +1499,24 @@ export class RemoteGateway {
       return false;
     };
 
+    const handleHeartbeat = (heartbeat: {
+      sessionId?: string;
+      source?: string;
+      activeProject?: ExtensionSession['activeProject'] | null;
+    }) => {
+      if (!sessionId || !messageMatchesCurrentSession(heartbeat.sessionId)) return;
+      if (Object.hasOwn(heartbeat, 'activeProject')) {
+        const previousProject = this.router.getSession(sessionId)?.activeProject?.projectId;
+        const incomingProject = heartbeat.activeProject?.projectId;
+        if (previousProject !== incomingProject) this.revokeProjectSessionGrants(sessionId);
+        this.router.updateActiveProject(sessionId, heartbeat.activeProject ?? undefined);
+      } else {
+        this.router.heartbeat(sessionId);
+      }
+      // Only acknowledge extension-sourced heartbeats, never acknowledgements.
+      if (heartbeat.source === 'extension') send({ type: 'heartbeat', source: 'server' });
+    };
+
     const dispatch: RemoteToolDispatcher = async (request) => {
       if (ws.readyState !== ws.OPEN) {
         throw new RemoteSessionUnavailableError(request.sessionId);
@@ -1052,6 +1525,69 @@ export class RemoteGateway {
       return await new Promise<ToolResponseMessage>((resolve, reject) => {
         pending.set(request.messageId, { resolve, reject });
       });
+    };
+
+    const handleRegistration = (
+      registration: RegisterSessionMessage,
+      record: Record<string, unknown>,
+    ): void => {
+      const pairingCode = typeof record.pairingCode === 'string' ? record.pairingCode : undefined;
+      const resumeCredential =
+        typeof registration.resumeCredential === 'string'
+          ? registration.resumeCredential
+          : undefined;
+      // A client must choose precisely one association mechanism. A resume
+      // credential never weakens one-time pairing or origin restrictions.
+      if (pairingCode && resumeCredential) {
+        send({ type: 'error', code: 'BAD_MESSAGE', message: 'Choose pairing or device resume.' });
+        return;
+      }
+      disconnectCurrentSession();
+      const session = this.registerExtension({
+        connectionId,
+        mode: registration.mode,
+        extensionVersion: registration.extensionVersion,
+        activeProject: registration.activeProject,
+        dispatch,
+        requestApproval: async (request) => {
+          if (ws.readyState !== ws.OPEN) throw new Error('Remote relay socket is closed.');
+          ws.send(JSON.stringify(request));
+        },
+        closeConnection: () => {
+          if (ws.readyState === ws.OPEN) ws.close(1011, 'remote_dispatch_timeout');
+        },
+        notifyRevoked: () => {
+          send({
+            type: 'error',
+            code: 'SESSION_REVOKED',
+            message: 'Device access removed by its owner. Generate a new pairing code.',
+          });
+        },
+        pairingCode,
+      });
+      sessionId = session.sessionId;
+      let nextCredential: string | undefined;
+      try {
+        nextCredential = this.issueOrResumeHostedDevice(session, pairingCode, resumeCredential);
+      } catch {
+        // A storage fault must not silently authorize an unrevocable device.
+        send({
+          type: 'error',
+          code: 'DEVICE_RESUME_UNAVAILABLE',
+          message: 'Device pairing could not be safely completed. Reconnect with a new code.',
+        });
+        disconnectCurrentSession();
+        ws.close(1011, 'device_resume_unavailable');
+        return;
+      }
+      send({
+        type: 'session_registered',
+        paired: Boolean(session.userId),
+        maxPayloadSize: this.relayMaxPayloadSize,
+        expiresAt: session.expiresAt.toISOString(),
+        ...(nextCredential ? { resumeCredential: nextCredential } : {}),
+      });
+      return;
     };
 
     ws.on('message', (raw) => {
@@ -1076,28 +1612,7 @@ export class RemoteGateway {
       }
 
       if (message.data.type === 'register_session') {
-        disconnectCurrentSession();
-        const session = this.registerExtension({
-          connectionId,
-          mode: message.data.mode,
-          extensionVersion: message.data.extensionVersion,
-          activeProject: message.data.activeProject,
-          dispatch,
-          requestApproval: async (request) => {
-            if (ws.readyState !== ws.OPEN) throw new Error('Remote relay socket is closed.');
-            ws.send(JSON.stringify(request));
-          },
-          closeConnection: () => {
-            if (ws.readyState === ws.OPEN) ws.close(1011, 'remote_dispatch_timeout');
-          },
-          pairingCode: typeof record.pairingCode === 'string' ? record.pairingCode : undefined,
-        });
-        sessionId = session.sessionId;
-        send({
-          type: 'session_registered',
-          paired: Boolean(session.userId),
-          expiresAt: session.expiresAt.toISOString(),
-        });
+        handleRegistration(message.data, record);
         return;
       }
 
@@ -1111,8 +1626,7 @@ export class RemoteGateway {
       }
 
       if (message.data.type === 'heartbeat') {
-        this.router.heartbeat(sessionId);
-        send({ type: 'heartbeat' });
+        handleHeartbeat(message.data);
         return;
       }
 

@@ -83,9 +83,15 @@ Tunnels provide reachability only. They do not replace authentication, pairing, 
 4. The user pairs the extension session with the remote MCP client or hosted account.
 5. Remote tool calls route to the paired EasyEDA project.
 6. Read operations can run after auth and pairing.
-7. A write/export/destructive call first requests approval in an EasyEDA confirmation dialog.
-8. After approval, the client retries the identical MCP invocation with the returned
-   `remoteApprovalId`; rejection, timeout, changed input, and replay fail closed.
+7. Allowlisted routine project edits and local artifact exports first require a native EasyEDA
+   confirmation scoped to the authenticated OAuth client, paired session and native project UUID,
+   and lasting at most 30 minutes (separate write/export grants). Destructive, high-risk,
+   unrecognized and external operations retain their per-action confirmation.
+8. After the initial approval, the client retries the identical MCP invocation with
+   `remoteApprovalId`. Subsequent eligible routine calls can reuse their short-lived
+   project-session approval without further prompts; rejection, timeout, mismatched client/project,
+   changed input, replay and expired approvals still fail closed. `confirmWrite=true` remains
+   mandatory for design mutation tools.
 
 ## Security responsibilities
 
@@ -108,12 +114,43 @@ Tunnels provide reachability only. They do not replace authentication, pairing, 
 - [ChatGPT app integration plan](./CHATGPT_APP_INTEGRATION.md)
 - [Observability model](./REMOTE_OBSERVABILITY.md)
 
-## Custom Remote in the EasyEDA extension (experimental)
+## Official and Custom Cloud in the EasyEDA extension
 
 The **MCP Bridge** menu is available in the Start Page, schematic and PCB editors:
 
-- **Connect** or **Connect Local** uses the local loopback MCP bridge (the default), including in EasyEDA Pro Web. A locally running MCP server is still required. No domain or Tunnel is needed when both run on the same computer.
+- **Connect Local MCP** uses the local loopback MCP bridge (the default), including in EasyEDA Pro Web. A locally running MCP server is still required. No domain or Tunnel is needed when both run on the same computer.
+- **Connect EasyEDA MCP Pro Cloud** requests a one-time pairing code from the signed-in Cloud portal at https://easyeda-mcp-pro.oaslananka.dev/cloud. Choose **Generate pairing code**, then **Copy code** (or manually select it if clipboard access is unavailable); paste it into the EasyEDA MCP Bridge input. The dashboard shows a countdown and hides expired codes; generate a new one if it expires. While the pairing code is valid, Cloud automatically refreshes the device list every few seconds. When a newly paired device is identified against the previously loaded device list, Cloud stops polling, hides the used one-time code and shows **Connected**. Choose **Use this PCB** or **Use this schematic** for the currently focused document; **Refresh connections** remains available if the automatic refresh fails. If the earlier device list could not be loaded, Cloud must not mistake an existing device for a new pairing. Switching documents within the same project requires selecting the new document again. The official relay endpoint is wss://easyeda-mcp-pro.oaslananka.dev/remote/relay **and is preconfigured**; users never enter this WSS URL for the official Cloud. ChatGPT, MCPJam and other MCP clients instead use https://easyeda-mcp-pro.oaslananka.dev/mcp. **Connect Custom Cloud (WSS)…** accepts a user-supplied secure wss:// endpoint (for example wss://my-cloud.example/remote/relay) plus that server's one-time pairing code; Custom never silently overwrites the official Cloud endpoint. This is an explicit one-editor-session opt-in; Local remains the default. While the same EasyEDA editor process stays open, the extension can reconnect after a Cloud server restart using a rotating, 24-hour owner-bound device credential stored only in its memory and hashed in Hosted Cloud SQLite. This credential does not replace OAuth, owner document selection or EasyEDA write/export approval. Expired or revoked credentials require a fresh pairing code; closing the editor does not persist the credential. A real owner-only 2026-11-14 pilot passed native code pairing, Google login,
+  PKCE `easyeda.read`, owner-selected PCB and a remotely routed MCP read of an
+  **empty** disposable PCB (0 components); consent revocation also passed.
+  A separate populated PCB passed 33/33 reads in **Local mode**, and
+  a subsequent real Hosted WSS / OAuth `easyeda.read` pilot using the
+  same disposable design returned **33/33 actual components with IDs
+  and coordinates**. Wrong-project and missing-authentication calls
+  were rejected; grant revocation also invalidated the old bearer token.
+  Cross-owner/multi-client isolation, document switching/reconnect and
+  GitHub login remain unverified; the public rollout is on HOLD.
 - **Connect Custom Remote... (Experimental)** requests a self-hosted WSS Relay URL and a short-lived EDA-XXXXXXXX pairing code previously obtained from an authenticated Relay gateway. This uses the existing remote session/approval protocol; it does **not** accept a public MCP /mcp URL as a WebSocket Relay endpoint.
-- **Disconnect Remote Relay**, **Remote Relay Status...** and **Connect Local** let the user inspect or return from the experimental mode. Switching modes closes the previous transport. The pairing code is never persisted in extension settings or placed in the Relay URL. Remote mode does not automatically resume after editor restart.
+- **Disconnect Remote Relay**, **Remote Relay Status...** and **Connect Local** let the user inspect or return from the experimental mode. Switching modes closes the previous transport. The pairing code is never persisted in extension settings or placed in the Relay URL. After explicit disconnection or an editor restart, the one-time code cannot be reused: generate a fresh code in Cloud and choose Connect Cloud again. Transient relay disconnects while the editor stays open instead use a rotating short-lived device credential; an expired or revoked credential still fails closed. Remote mode does not automatically resume after editor restart.
 
-Only endpoints with the secure WSS scheme, a hostname, optional valid port and path are accepted; credential-bearing URLs, fragments and query parameters are rejected. A working gateway, pairing, compatible runtime WebSocket implementation and real project-specific live acceptance are still needed. The earlier local Web PCB tests do not constitute hosted Remote Relay acceptance. If the EasyEDA runtime cannot show the configuration input prompt or cannot create an outbound WebSocket, the extension leaves Local available and reports the limitation.
+**After installing or updating MCP Pro Bridge:** save any unsaved EasyEDA edits and reload the editor tab before pairing. EasyEDA may keep the previous extension code running until the editor is reopened, even if Extension Manager displays the newly imported version. After reloading, generate a fresh one-time Cloud pairing code and select the active PCB or schematic again.
+
+Only endpoints with the secure WSS scheme, a hostname, optional valid port and path are accepted; credential-bearing URLs, fragments and query parameters are rejected. The extension first uses EasyEDA's native `sys_Dialog.showInputDialog` for the one-time code, and `sys_WebSocket.register/send/close` for the outbound WSS connection; neither requires browser `prompt()` or a browser `WebSocket` constructor in the main extension process. `showInputDialog` is a version-sensitive **beta API** and is capability-checked; older browser-based test clients may use their native browser fallback. A cancelled code dialog or one whose answer arrives after switching to Local never connects. External Interactions permission must be enabled in the EasyEDA Extension Manager; if permission is rejected, the extension returns to Local selection instead of endlessly retrying.
+
+EasyEDA Pro 3.2.209's native WebSocket uses the fixed desktop Origin https://client. The gateway accepts only this exact native Origin on the /remote/relay endpoint, not on the generic /session path. Other external origins still require an explicit allowlist and a valid Host. This is transport compatibility, not authentication: an unpaired session cannot read or mutate a project, and owner identity, single-use pairing, scopes, selected native document and approvals remain mandatory.
+
+The official Cloud currently runs as an **owner-restricted Oracle Always Free
+pilot**, not a general-availability service. Real EasyEDA Pro 3.2.209
+acceptance verified native WSS pairing, Google sign-in, selected-PCB reads
+(33/33 components), an approved disposable schematic write with saved
+read-back, and a per-action-approved native Gerber export. The exported ZIP
+contained 13 nonempty files; an independently rejected export failed closed.
+The same live device rejected read requests naming two non-active project UUIDs
+with a project-identity mismatch; neither response disclosed PCB components.
+This does **not** establish manufacturability or general release readiness.
+See [the acceptance record](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057#issuecomment-6933371245)
+and [Remote Relay maturity](./REMOTE_RELAY_STATUS.md).
+
+Real standalone Electron revocation/no-retry and cold restart, the GitHub
+provider callback, genuine independent second-account isolation, and
+historic OAuth credential disposition remain unverified for public
+launch. Existing local MCP remains account-free and the default.

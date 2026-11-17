@@ -50,7 +50,9 @@ Local design mutation and remote approval are separate controls.
 - Tools that require `confirmWrite` must continue to reject apply/mutation requests without the
   explicit acknowledgment required by their policy.
 - Remote `write`, `export`, and `destructive` operations must still pass the remote gateway
-  authorization/approval boundary.
+  authorization/approval boundary. Only reviewed routine project edits and local artifact
+  exports can reuse a short-lived same-client/same-device/same-native-project approval.
+  Never derive this eligibility from an untrusted MCP input, tool name prefix, or group.
 - Do not treat local `confirmWrite=true` as a substitute for remote approval.
 - Do not make artifact export silently bypass remote export approval merely because it does not
   mutate the EasyEDA design.

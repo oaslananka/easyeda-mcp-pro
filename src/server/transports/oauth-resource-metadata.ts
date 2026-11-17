@@ -41,8 +41,12 @@ export function getMcpResourceUrl(req: Request, config: EnvConfig): string {
   return `${inferRequestOrigin(req, config)}/mcp`;
 }
 
-export function getProtectedResourceMetadataUrl(req: Request, config: EnvConfig): string {
-  return `${inferRequestOrigin(req, config)}/.well-known/oauth-protected-resource/mcp`;
+export function getProtectedResourceMetadataUrl(
+  req: Request,
+  config: EnvConfig,
+  canonicalOrigin?: string,
+): string {
+  return `${canonicalOrigin ?? inferRequestOrigin(req, config)}/.well-known/oauth-protected-resource/mcp`;
 }
 
 export function createProtectedResourceMetadata(req: Request, config: EnvConfig) {
@@ -60,9 +64,18 @@ export function setProtectedResourceChallenge(
   res: Response,
   config: EnvConfig,
   code: string,
+  canonicalOrigin?: string,
+  scope?: string,
 ): void {
   const scheme = ['Bear', 'er'].join('');
   const headerName = ['WWW', 'Authenticate'].join('-');
-  const metadataUrl = getProtectedResourceMetadataUrl(req, config);
-  res.setHeader(headerName, `${scheme} resource_metadata="${metadataUrl}", error="${code}"`);
+  const metadataUrl = getProtectedResourceMetadataUrl(req, config, canonicalOrigin);
+  // Configured scope tokens are server-owned; never echo arbitrary untrusted
+  // values into an HTTP header.
+  const safeScope =
+    scope && scope.split(' ').every((item) => /^[a-zA-Z0-9._:-]+$/.test(item)) ? scope : undefined;
+  res.setHeader(
+    headerName,
+    `${scheme} resource_metadata="${metadataUrl}", error="${code}"${safeScope ? `, scope="${safeScope}"` : ''}`,
+  );
 }

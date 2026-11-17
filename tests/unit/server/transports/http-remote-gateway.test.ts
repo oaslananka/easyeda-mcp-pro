@@ -192,3 +192,141 @@ describe('HTTP remote gateway endpoints', () => {
     });
   });
 });
+
+describe('Cloud connected extensions — owner management acceptance', () => {
+  it('shows only the signed-in owner’s paired extension and revokes it without affecting another account', async () => {
+    await withRemoteServer(3994, async (baseUrl, transport) => {
+      const user = (userId: string) => ({
+        'x-remote-user-id': userId,
+        'x-remote-scopes': 'easyeda.read',
+      });
+      const makeSession = (name: string, onClose?: () => void) =>
+        transport.gateway.registerExtension({
+          connectionId: `device-${name}`,
+          mode: 'hosted',
+          extensionVersion: '1.15.4',
+          activeProject: { projectName: `Demo-${name}`, documentType: 'pcb' },
+          closeConnection: onClose,
+          dispatch: async (request) => ({
+            protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+            type: 'tool_response' as const,
+            messageId: `result-${request.messageId}`,
+            sessionId: request.sessionId,
+            requestMessageId: request.messageId,
+            timestamp: new Date().toISOString(),
+            ok: true,
+            result: { name },
+            durationMs: 1,
+          }),
+        });
+      let closedA = 0;
+      const sessionA = makeSession('a', () => {
+        closedA += 1;
+      });
+      const sessionB = makeSession('b');
+      makeSession('unpaired');
+      for (const [id, session] of [
+        ['owner-a', sessionA],
+        ['owner-b', sessionB],
+      ] as const) {
+        const identity = { userId: id, scopes: ['easyeda.read'] as const };
+        const code = transport.gateway.createPairingCode({
+          identity,
+          sessionId: session.sessionId,
+        });
+        expect(
+          transport.gateway.completePairing({ identity, code, sessionId: session.sessionId }),
+        ).toBe(true);
+      }
+
+      const unauthenticated = await fetch(`${baseUrl}/remote/sessions`);
+      expect(unauthenticated.status).toBe(401);
+
+      const ownerList = await fetch(`${baseUrl}/remote/sessions`, {
+        headers: user('owner-a'),
+      });
+      expect(ownerList.status).toBe(200);
+      const ownerView = (await ownerList.json()) as {
+        sessions: Record<string, unknown>[];
+      };
+      expect(ownerView.sessions).toHaveLength(1);
+      expect(ownerView.sessions[0]).toMatchObject({
+        sessionId: sessionA.sessionId,
+        extensionVersion: '1.15.4',
+        connected: true,
+        activeProject: { projectName: 'Demo-a' },
+      });
+      expect(ownerView.sessions[0]).not.toHaveProperty('connectionId');
+      expect(ownerView.sessions[0]).not.toHaveProperty('userId');
+
+      const wrongOwner = await fetch(`${baseUrl}/remote/sessions/${sessionA.sessionId}`, {
+        method: 'DELETE',
+        headers: user('owner-b'),
+      });
+      expect(wrongOwner.status).toBe(404);
+      expect(closedA).toBe(0);
+
+      const ownerRevoke = await fetch(`${baseUrl}/remote/sessions/${sessionA.sessionId}`, {
+        method: 'DELETE',
+        headers: user('owner-a'),
+      });
+      expect(ownerRevoke.status).toBe(204);
+      expect(closedA).toBe(1);
+
+      const ownerAfterRevoke = await fetch(`${baseUrl}/remote/sessions`, {
+        headers: user('owner-a'),
+      });
+      await expect(ownerAfterRevoke.json()).resolves.toMatchObject({ sessions: [] });
+      const repeatedRevoke = await fetch(`${baseUrl}/remote/sessions/${sessionA.sessionId}`, {
+        method: 'DELETE',
+        headers: user('owner-a'),
+      });
+      expect(repeatedRevoke.status).toBe(404);
+
+      const otherOwner = await fetch(`${baseUrl}/remote/sessions`, {
+        headers: user('owner-b'),
+      });
+      await expect(otherOwner.json()).resolves.toMatchObject({
+        sessions: [expect.objectContaining({ sessionId: sessionB.sessionId })],
+      });
+
+      await expect(
+        transport.gateway.routeToolRequest({
+          identity: { userId: 'owner-a', scopes: ['easyeda.read'] },
+          sessionId: sessionA.sessionId,
+          toolName: 'easyeda_pcb_read',
+          riskLevel: 'read',
+        }),
+      ).resolves.toMatchObject({ ok: false, code: 'SESSION_UNPAIRED' });
+    });
+  });
+
+  it('rejects missing, expired, or insufficient owner identity when listing or revoking extensions', async () => {
+    await withRemoteServer(3995, async (baseUrl) => {
+      for (const [headers, expectedStatus] of [
+        [{}, 401],
+        [{ 'x-remote-user-id': 'a', 'x-remote-scopes': 'easyeda.write' }, 403],
+        [
+          {
+            'x-remote-user-id': 'a',
+            'x-remote-scopes': 'easyeda.read',
+            'x-remote-expires-at': '2021-01-01T00:00:00.000Z',
+          },
+          401,
+        ],
+      ] as const) {
+        expect((await fetch(`${baseUrl}/remote/sessions`, { headers })).status).toBe(
+          expectedStatus,
+        );
+        expect(
+          (
+            await fetch(`${baseUrl}/remote/sessions/sess_notowned`, {
+              method: 'DELETE',
+              headers,
+            })
+          ).status,
+        ).toBe(expectedStatus);
+      }
+    });
+  });
+});

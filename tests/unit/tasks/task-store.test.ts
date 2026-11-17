@@ -104,6 +104,7 @@ describe('durable task state substrate (not yet wired to MCP)', () => {
     expect(store.get('owner', task.id)?.status).toBe('working');
   });
 
+  // One hundred real SQLite commits can exceed Vitest's 5s default on Windows CI storage.
   it('enforces per-owner quotas, bounded listings and durable retention', () => {
     const { store } = open();
     for (let i = 0; i < 100; i++) store.create('owner', 'easyeda_bom_generate', { i });
@@ -113,5 +114,5 @@ describe('durable task state substrate (not yet wired to MCP)', () => {
     expect(store.create('another-owner', 'easyeda_bom_generate', {}).status).toBe('working');
     currentTime += 3600001;
     expect(store.create('owner', 'easyeda_bom_generate', {}).status).toBe('working');
-  });
+  }, 20_000);
 });

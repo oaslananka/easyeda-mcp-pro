@@ -51,9 +51,11 @@ fallback that silently downgrades an approval failure into a read or local-only 
 Keep runtime authorization aligned with tool metadata and `docs/TOOL_APPROVAL_POLICY.md`.
 
 - read operations may proceed after authentication/pairing when scopes permit;
-- write operations require approval;
-- export operations require approval independently of local design-mutation confirmation;
-- destructive operations require the stronger policy or remain disabled.
+- allowlisted routine project writes and local artifact exports may reuse a first native
+  approval for one verified OAuth client, device session and native project UUID (max 30 minutes);
+- current OAuth scopes, exact selected native document and per-tool confirmWrite checks still apply;
+- all other writes, destructive actions and external operations require individual approval
+  or remain disabled; mismatched, expired and replayed approvals fail closed.
 
 Do not infer risk from a documentation group alone.
 

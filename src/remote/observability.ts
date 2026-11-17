@@ -4,6 +4,7 @@ export type RemoteAuditEventName =
   | 'remote.session.registered'
   | 'remote.session.paired'
   | 'remote.session.disconnected'
+  | 'remote.session.revoked'
   | 'remote.tool.requested'
   | 'remote.tool.dispatched'
   | 'remote.tool.completed'
@@ -43,7 +44,10 @@ export function redactRemotePayload(value: unknown): unknown {
 export class RemoteAuditLog {
   private events: RemoteAuditEvent[] = [];
 
-  constructor(private readonly maxEvents = 200) {}
+  constructor(
+    private readonly maxEvents = 200,
+    private readonly onRecord?: (event: RemoteAuditEvent) => void,
+  ) {}
 
   record(event: Omit<RemoteAuditEvent, 'observedAt'> & { observedAt?: string }): RemoteAuditEvent {
     const stored: RemoteAuditEvent = {
@@ -52,6 +56,7 @@ export class RemoteAuditLog {
     };
     this.events.push(stored);
     if (this.events.length > this.maxEvents) this.events = this.events.slice(-this.maxEvents);
+    this.onRecord?.(stored);
     return stored;
   }
 

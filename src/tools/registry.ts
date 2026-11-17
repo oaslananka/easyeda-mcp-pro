@@ -12,7 +12,7 @@ import { type ToolProfile, getEnabledProfiles } from '../config/profiles.js';
 import { z, ZodError } from 'zod';
 import { SERVER_VERSION } from '../config/version.js';
 import { getGlobalMetricsCollector, type ObservabilityCategory } from '../observability/index.js';
-import { type RemoteIdentity } from '../remote/scope.js';
+import { requiredScopeForRisk, type RemoteIdentity } from '../remote/scope.js';
 import { type RemoteRiskLevel } from '../remote/protocol.js';
 import { type RemoteGatewayToolResult } from '../remote/gateway.js';
 
@@ -121,7 +121,16 @@ type RemoteGatewayFailure = Extract<RemoteGatewayToolResult, { ok: false }>;
 
 class RemoteRelayRouteError extends Error {
   constructor(readonly failure: RemoteGatewayFailure) {
-    super(`Remote relay ${failure.code}: ${failure.message}`);
+    // Some MCP clients display only text content and drop structuredContent.
+    // The short-lived approval ID is still bound to the exact user, session,
+    // tool and input hash; exposing it enables a normal approved retry.
+    const retryId =
+      failure.code === 'APPROVAL_REQUIRED' &&
+      typeof failure.approvalId === 'string' &&
+      /^appr_[A-Za-z0-9_-]+$/.test(failure.approvalId)
+        ? ` Use remoteApprovalId="${failure.approvalId}" when retrying the same tool call.`
+        : '';
+    super(`Remote relay ${failure.code}: ${failure.message}${retryId}`);
     this.name = 'RemoteRelayRouteError';
   }
 }
@@ -336,6 +345,43 @@ function handlerHeaders(extra: McpHandlerExtra | undefined): unknown {
   return extra?.requestInfo?.headers ?? extra?.http?.req?.headers;
 }
 
+/** Explicit native workflows eligible for a temporary, verified project edit grant.
+ *  Keep new tools fail-closed until their side effects have been reviewed. */
+const ROUTINE_PROJECT_WRITES = new Set([
+  'easyeda_schematic_place_component',
+  'easyeda_schematic_add_wire',
+  'easyeda_schematic_add_text',
+  'easyeda_schematic_add_rectangle',
+  'easyeda_schematic_add_circle',
+  'easyeda_schematic_add_polygon',
+  'easyeda_schematic_modify_primitive',
+  'easyeda_schematic_set_pin_no_connect',
+  'easyeda_schematic_create_net_flag',
+  'easyeda_schematic_create_net_port',
+  'easyeda_schematic_connect_pin_to_net',
+  'easyeda_schematic_connect_pins_by_net',
+  'easyeda_schematic_set_title_block',
+  'easyeda_project_save',
+  'easyeda_pcb_add_text',
+  'easyeda_pcb_add_track',
+  'easyeda_pcb_modify_component',
+  'easyeda_pcb_add_silkscreen_line',
+]);
+
+export function projectSessionConsentEligible(tool: ToolDefinition): boolean {
+  if (tool.risk === 'high' || tool.annotations.destructiveHint) return false;
+  const effect = sideEffectForTool(tool);
+  if (remoteRiskForTool(tool) === 'export') {
+    return effect === 'artifact-write';
+  }
+  return (
+    tool.risk === 'medium' &&
+    tool.confirmWrite &&
+    effect === 'design-mutation' &&
+    ROUTINE_PROJECT_WRITES.has(tool.name)
+  );
+}
+
 function remoteIdentityFromExtra(extra: unknown): RemoteIdentity | undefined {
   const handlerExtra = extra as McpHandlerExtra | undefined;
   const auth = handlerAuthInfo(handlerExtra);
@@ -347,6 +393,7 @@ function remoteIdentityFromExtra(extra: unknown): RemoteIdentity | undefined {
     if (!userId) return undefined;
     return {
       userId,
+      clientId: auth.clientId,
       scopes: (auth.scopes ?? []).map(normalizeRemoteScope) as RemoteIdentity['scopes'],
       expiresAt: auth.expiresAt ? new Date(auth.expiresAt * 1000) : undefined,
     };
@@ -358,6 +405,8 @@ function remoteIdentityFromExtra(extra: unknown): RemoteIdentity | undefined {
   const expiresAtHeader = readHeader(headers, 'x-remote-expires-at');
   return {
     userId,
+    // Self-hosted header identities do not prove a separate OAuth client;
+    // retain per-action approval rather than guessing a trusted client ID.
     scopes: parseRemoteScopes(readHeader(headers, 'x-remote-scopes') ?? 'easyeda.read'),
     expiresAt: expiresAtHeader ? new Date(expiresAtHeader) : undefined,
   };
@@ -410,6 +459,32 @@ export function remoteRiskForTool(tool: ToolDefinition): RemoteRiskLevel {
 interface PreparedToolContext {
   context: ToolContext;
   release?: () => void;
+  /** Critical relay failures must survive domain tools' best-effort read fallbacks. */
+  getTerminalRelayFailure?: () => RemoteRelayRouteError | undefined;
+}
+
+const TERMINAL_RELAY_CODES = new Set([
+  'IDENTITY_MISSING',
+  'IDENTITY_EXPIRED',
+  'SCOPE_MISSING',
+  'SESSION_UNPAIRED',
+  'SESSION_DISCONNECTED',
+  'SESSION_EXPIRED',
+  'SESSION_AMBIGUOUS',
+  'PROJECT_INACTIVE',
+  'REMOTE_EXTENSION_TIMEOUT',
+]);
+
+function remoteResultOrThrow<TResult>(
+  result: RemoteGatewayToolResult,
+  recordTerminalFailure: (failure: RemoteRelayRouteError) => void,
+): TResult {
+  if (!result.ok) {
+    const error = new RemoteRelayRouteError(result);
+    if (TERMINAL_RELAY_CODES.has(result.code)) recordTerminalFailure(error);
+    throw error;
+  }
+  return result.result as TResult;
 }
 
 async function contextForRemoteRelay(
@@ -439,6 +514,7 @@ async function contextForRemoteRelay(
   const identity = remoteIdentityFromExtra(extra);
   const riskLevel = remoteRiskForTool(tool);
   let grantId: string | undefined;
+  let terminalRelayFailure: RemoteRelayRouteError | undefined;
 
   if (riskLevel !== 'read') {
     const authorization = await gateway.authorizeToolInvocation({
@@ -448,6 +524,7 @@ async function contextForRemoteRelay(
       riskLevel,
       input: parsed,
       approvalId,
+      sessionApprovalEligible: projectSessionConsentEligible(tool),
     });
     if (!authorization.ok) throw new RemoteRelayRouteError(authorization);
     sessionId = authorization.sessionId;
@@ -460,7 +537,12 @@ async function contextForRemoteRelay(
       bridge: {
         ...context.bridge,
         get connected() {
-          return true;
+          // Ordinary tools still dispatch through the relay so its precise
+          // SESSION_UNPAIRED/PROJECT_INACTIVE errors survive. Diagnostics must
+          // not claim the editor is connected just because MCP OAuth succeeded.
+          return tool.group === 'diagnostics'
+            ? gateway.hasRoutableSession(identity, sessionId)
+            : true;
         },
         call: async <TParams, TResult>(
           method: string,
@@ -476,12 +558,14 @@ async function contextForRemoteRelay(
             grantId,
             deadlineMs: opts?.timeoutMs,
           });
-          if (!result.ok) throw new RemoteRelayRouteError(result);
-          return result.result as TResult;
+          return remoteResultOrThrow<TResult>(result, (error) => {
+            terminalRelayFailure ??= error;
+          });
         },
       },
     },
     release: grantId ? () => void gateway.revokeInvocationGrant(grantId) : undefined,
+    getTerminalRelayFailure: () => terminalRelayFailure,
   };
 }
 
@@ -539,6 +623,11 @@ function confirmWriteResponse(tool: ToolDefinition, raw: Record<string, unknown>
     message: `Tool "${tool.name}" can mutate design state and requires confirmWrite=true.`,
     details: { toolName: tool.name, toolGroup: tool.group, risk: tool.risk },
   });
+}
+
+function assertNoTerminalRelayFailure(prepared: PreparedToolContext): void {
+  const failure = prepared.getTerminalRelayFailure?.();
+  if (failure) throw failure;
 }
 
 async function executeToolWithMetrics(
@@ -611,6 +700,7 @@ async function executeToolWithMetrics(
           }
         : prepared.context;
     const result = await tool.handler(wrappedContext, parsed);
+    assertNoTerminalRelayFailure(prepared);
     const resultWithTarget =
       targetDocument && result && typeof result === 'object' && !Array.isArray(result)
         ? { ...result, targetDocument }
@@ -667,6 +757,23 @@ function formatToolSuccess(tool: ToolDefinition, result: unknown) {
   };
 }
 
+function hostedOAuthScopes(tool: ToolDefinition): string[] {
+  const scope = requiredScopeForRisk(remoteRiskForTool(tool));
+  // Global Hosted Cloud auth also requires read permission for privileged tools.
+  return scope === 'easyeda.read' ? [scope] : ['easyeda.read', scope];
+}
+
+function hostedOAuthMetadataUrl(context: ToolContext): string | undefined {
+  const resource = context.config.hostedOAuthResource;
+  if (typeof resource !== 'string') return undefined;
+  try {
+    const url = new URL(resource);
+    return `${url.origin}/.well-known/oauth-protected-resource/mcp`;
+  } catch {
+    return undefined;
+  }
+}
+
 function toolFailureResponse(tool: ToolDefinition, context: ToolContext, err: unknown) {
   if (err instanceof ZodError) {
     return structuredErrorResponse({
@@ -677,7 +784,7 @@ function toolFailureResponse(tool: ToolDefinition, context: ToolContext, err: un
   }
 
   if (err instanceof RemoteRelayRouteError) {
-    return structuredErrorResponse({
+    const response = structuredErrorResponse({
       errorCode: ErrorCodes.REMOTE_RELAY,
       message: err.message,
       details: {
@@ -688,6 +795,18 @@ function toolFailureResponse(tool: ToolDefinition, context: ToolContext, err: un
         approvalExpiresAt: err.failure.approvalExpiresAt,
       },
     });
+    if (err.failure.code !== 'SCOPE_MISSING') return response;
+    const metadataUrl = hostedOAuthMetadataUrl(context);
+    if (!metadataUrl) return response;
+    const requestedScopes = hostedOAuthScopes(tool);
+    return {
+      ...response,
+      _meta: {
+        'mcp/www_authenticate': [
+          `Bearer resource_metadata="${metadataUrl}", scope="${requestedScopes.join(' ')}", error="insufficient_scope", error_description="Grant ${requestedScopes.at(-1)} to use this tool"`,
+        ],
+      },
+    };
   }
 
   const msg = err instanceof Error ? err.message : String(err);
@@ -802,6 +921,7 @@ export class ToolRegistry {
    *    - bridge‑disconnected friendly error interception
    */
   registerAllOnServer(server: McpServer, context: ToolContext): void {
+    const hostedMetadata = hostedOAuthMetadataUrl(context);
     for (const tool of this.getEnabledTools()) {
       server.registerTool(
         tool.name,
@@ -811,6 +931,9 @@ export class ToolRegistry {
           inputSchema: registeredInputSchema(tool, context),
           outputSchema: registeredOutputSchema(tool),
           annotations: tool.annotations,
+          ...(hostedMetadata
+            ? { _meta: { securitySchemes: [{ type: 'oauth2', scopes: hostedOAuthScopes(tool) }] } }
+            : {}),
         },
         async (input: unknown, ctx: unknown) => handleRegisteredToolCall(tool, context, input, ctx),
       );

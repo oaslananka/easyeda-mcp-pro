@@ -8,14 +8,21 @@ remain the production gates.
 
 ## Why Compose
 
-The existing Oracle Always Free machine has Docker Compose. Use a
-published, verified immutable GHCR image containing the accepted Hosted Cloud; **do not build on a 1 GB VM**.
-The current stable v1.15.5 image predates the Hosted Cloud code and is not
-suitable for an actual deployment. Do not replace the pinned image placeholder
-until that feature has passed its release gates.
+The existing Oracle Always Free machine has Docker Compose. The owner-restricted
+pilot uses an externally built image whose exact reviewed source SHA and Docker
+image ID were verified on both hosts; **do not build on a 1 GB VM**.
+A public Hosted Cloud release is still subject to the rollout acceptance gates.
 
 The Compose manifest limits memory, CPU, processes, logs and port exposure,
 while keeping the SQLite database in a persistent Docker named volume.
+The exact `https://pro.easyeda.com` Origin is included alongside the canonical
+Cloud origin to support the real browser editor's WebSocket pairing. Do not use
+`ALLOWED_ORIGINS=*`: unauthorized relay upgrades must remain rejected, and
+the existing one-time pairing and owner grants still apply.
+The owner pilot uses a bounded 8 MiB relay frame cap (binary results retain
+a 60% margin) so small native zipped Gerber exports fit; exports that exceed
+this cap must still fail closed. This does not relax OAuth, pairing or
+per-action export approval.
 Leave the existing reverse proxy and unrelated applications untouched.
 
 ## Prepare and start
@@ -40,14 +47,15 @@ Leave the existing reverse proxy and unrelated applications untouched.
    personal CLI authentication to the Oracle VM, invent replacement OAuth
    credentials, or put secret values in Git, issues, logs, Actions, or the
    non-secret .env file. An authorized Doppler CLI session can inject
-   runtime variables via doppler run. Oracle has no Doppler CLI configured
-   yet; this step is intentionally **not** completed by the private smoke.
+   runtime variables via `doppler run`. The owner-restricted Oracle pilot
+   uses a config-scoped read-only service token rather than operator login.
 
 3. With secrets injected into the process environment, run:
 
        docker compose --env-file .env config --quiet
-       docker compose --env-file .env pull
-       docker compose --env-file .env up -d --wait
+       # Verify an existing reviewed image (or pull only if published).
+       docker image inspect "$(docker compose --env-file .env config --images)"
+       docker compose --env-file .env up -d --no-build --wait
        docker compose --env-file .env ps
        curl -fsS http://127.0.0.1:13000/healthz
 
@@ -75,6 +83,9 @@ docker compose down -v or delete this volume.**
 - Resource limits are conservative; 1 GB RAM is **not** a production capacity
   guarantee. Measure CPU/RAM, WebSocket longevity and restart recovery.
 
-The existing Coolify deployment remains stopped and the source of the public
-domain until a separate accepted cutover. This path is a candidate, not a
-completed production rollout.
+Since 2026-11-16 the owner-restricted Cloud pilot has been served from this
+Oracle VM via the existing Cloudflare hostname. Its previous VPS instance
+is stopped with the original data volume and image retained for rollback.
+A live 33-component PCB read and owner revocation from the browser editor
+were verified on 2026-11-16. Native desktop notice/no-retry, independent-user
+isolation, and authorized WRITE/export persistence remain public-release gates.

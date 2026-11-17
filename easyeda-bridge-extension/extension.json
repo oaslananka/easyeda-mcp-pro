@@ -34,46 +34,51 @@
   "headerMenus": {
     "home": [
       {
-        "id": "MCPBridge",
+        "id": "MCPBridgeHome",
         "title": "MCP Bridge",
         "menuItems": [
           {
-            "id": "Connect",
-            "title": "Connect",
+            "id": "ConnectHostedCloudHome",
+            "title": "Connect EasyEDA MCP Pro Cloud",
+            "registerFn": "connectHostedCloud"
+          },
+          {
+            "id": "ConnectCustomRemoteHome",
+            "title": "Connect Custom Cloud (WSS)...",
+            "registerFn": "connectCustomRemote"
+          },
+          {
+            "id": "ConnectHome",
+            "title": "Connect Local MCP",
             "registerFn": "connect"
           },
           {
-            "id": "Disconnect",
+            "id": "DisconnectHome",
             "title": "Disconnect",
             "registerFn": "disconnect"
           },
           {
-            "id": "EnableAutoConnect",
+            "id": "EnableAutoConnectHome",
             "title": "Enable Auto-Connect",
             "registerFn": "enableAutoConnect"
           },
           {
-            "id": "DisableAutoConnect",
+            "id": "DisableAutoConnectHome",
             "title": "Disable Auto-Connect",
             "registerFn": "disableAutoConnect"
           },
           {
-            "id": "ConnectCustomRemote",
-            "title": "Connect Custom Remote... (Experimental)",
-            "registerFn": "connectCustomRemote"
-          },
-          {
-            "id": "DisconnectRemoteRelay",
-            "title": "Disconnect Remote Relay",
+            "id": "DisconnectRemoteRelayHome",
+            "title": "Disconnect Cloud",
             "registerFn": "disconnectRemoteRelay"
           },
           {
-            "id": "RemoteRelayStatus",
-            "title": "Remote Relay Status...",
+            "id": "RemoteRelayStatusHome",
+            "title": "Cloud Connection Status...",
             "registerFn": "showRemoteRelayStatus"
           },
           {
-            "id": "Status",
+            "id": "StatusHome",
             "title": "Status...",
             "registerFn": "showStatus"
           }
@@ -82,31 +87,51 @@
     ],
     "sch": [
       {
-        "id": "MCPBridge",
+        "id": "MCPBridgeSchematic",
         "title": "MCP Bridge",
         "menuItems": [
           {
-            "id": "ConnectLocal",
-            "title": "Connect Local",
-            "registerFn": "connect"
+            "id": "ConnectHostedCloudSchematic",
+            "title": "Connect EasyEDA MCP Pro Cloud",
+            "registerFn": "connectHostedCloud"
           },
           {
-            "id": "ConnectCustomRemote",
-            "title": "Connect Custom Remote... (Experimental)",
+            "id": "ConnectCustomRemoteSchematic",
+            "title": "Connect Custom Cloud (WSS)...",
             "registerFn": "connectCustomRemote"
           },
           {
-            "id": "DisconnectRemoteRelay",
-            "title": "Disconnect Remote Relay",
+            "id": "ConnectSchematic",
+            "title": "Connect Local MCP",
+            "registerFn": "connect"
+          },
+          {
+            "id": "DisconnectSchematic",
+            "title": "Disconnect",
+            "registerFn": "disconnect"
+          },
+          {
+            "id": "EnableAutoConnectSchematic",
+            "title": "Enable Auto-Connect",
+            "registerFn": "enableAutoConnect"
+          },
+          {
+            "id": "DisableAutoConnectSchematic",
+            "title": "Disable Auto-Connect",
+            "registerFn": "disableAutoConnect"
+          },
+          {
+            "id": "DisconnectRemoteRelaySchematic",
+            "title": "Disconnect Cloud",
             "registerFn": "disconnectRemoteRelay"
           },
           {
-            "id": "RemoteRelayStatus",
-            "title": "Remote Relay Status...",
+            "id": "RemoteRelayStatusSchematic",
+            "title": "Cloud Connection Status...",
             "registerFn": "showRemoteRelayStatus"
           },
           {
-            "id": "Status",
+            "id": "StatusSchematic",
             "title": "Status...",
             "registerFn": "showStatus"
           }
@@ -115,31 +140,104 @@
     ],
     "pcb": [
       {
-        "id": "MCPBridge",
+        "id": "MCPBridgePcb",
         "title": "MCP Bridge",
         "menuItems": [
           {
-            "id": "ConnectLocal",
-            "title": "Connect Local",
-            "registerFn": "connect"
+            "id": "ConnectHostedCloudPcb",
+            "title": "Connect EasyEDA MCP Pro Cloud",
+            "registerFn": "connectHostedCloud"
           },
           {
-            "id": "ConnectCustomRemote",
-            "title": "Connect Custom Remote... (Experimental)",
+            "id": "ConnectCustomRemotePcb",
+            "title": "Connect Custom Cloud (WSS)...",
             "registerFn": "connectCustomRemote"
           },
           {
-            "id": "DisconnectRemoteRelay",
-            "title": "Disconnect Remote Relay",
+            "id": "ConnectPcb",
+            "title": "Connect Local MCP",
+            "registerFn": "connect"
+          },
+          {
+            "id": "DisconnectPcb",
+            "title": "Disconnect",
+            "registerFn": "disconnect"
+          },
+          {
+            "id": "EnableAutoConnectPcb",
+            "title": "Enable Auto-Connect",
+            "registerFn": "enableAutoConnect"
+          },
+          {
+            "id": "DisableAutoConnectPcb",
+            "title": "Disable Auto-Connect",
+            "registerFn": "disableAutoConnect"
+          },
+          {
+            "id": "DisconnectRemoteRelayPcb",
+            "title": "Disconnect Cloud",
             "registerFn": "disconnectRemoteRelay"
           },
           {
-            "id": "RemoteRelayStatus",
-            "title": "Remote Relay Status...",
+            "id": "RemoteRelayStatusPcb",
+            "title": "Cloud Connection Status...",
             "registerFn": "showRemoteRelayStatus"
           },
           {
-            "id": "Status",
+            "id": "StatusPcb",
+            "title": "Status...",
+            "registerFn": "showStatus"
+          }
+        ]
+      }
+    ],
+    "pcbView": [
+      {
+        "id": "MCPBridgePcbView",
+        "title": "MCP Bridge",
+        "menuItems": [
+          {
+            "id": "ConnectHostedCloudPcbView",
+            "title": "Connect EasyEDA MCP Pro Cloud",
+            "registerFn": "connectHostedCloud"
+          },
+          {
+            "id": "ConnectCustomRemotePcbView",
+            "title": "Connect Custom Cloud (WSS)...",
+            "registerFn": "connectCustomRemote"
+          },
+          {
+            "id": "ConnectPcbView",
+            "title": "Connect Local MCP",
+            "registerFn": "connect"
+          },
+          {
+            "id": "DisconnectPcbView",
+            "title": "Disconnect",
+            "registerFn": "disconnect"
+          },
+          {
+            "id": "EnableAutoConnectPcbView",
+            "title": "Enable Auto-Connect",
+            "registerFn": "enableAutoConnect"
+          },
+          {
+            "id": "DisableAutoConnectPcbView",
+            "title": "Disable Auto-Connect",
+            "registerFn": "disableAutoConnect"
+          },
+          {
+            "id": "DisconnectRemoteRelayPcbView",
+            "title": "Disconnect Cloud",
+            "registerFn": "disconnectRemoteRelay"
+          },
+          {
+            "id": "RemoteRelayStatusPcbView",
+            "title": "Cloud Connection Status...",
+            "registerFn": "showRemoteRelayStatus"
+          },
+          {
+            "id": "StatusPcbView",
             "title": "Status...",
             "registerFn": "showStatus"
           }

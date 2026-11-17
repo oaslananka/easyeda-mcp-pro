@@ -2,6 +2,8 @@ import type { RemoteRiskLevel, RemoteScope } from './protocol.js';
 
 export interface RemoteIdentity {
   userId: string;
+  /** Verified OAuth client identity; never infer this from an owner ID. */
+  clientId?: string;
   scopes: readonly RemoteScope[];
   expiresAt?: Date;
 }
@@ -33,7 +35,15 @@ export function checkRemoteScope(
   }
   const required = requiredScopeForRisk(riskLevel);
   if (!hasRemoteScope(identity, required)) {
-    return { ok: false, code: 'SCOPE_MISSING', message: `Remote tool requires ${required}.` };
+    const guidance =
+      riskLevel === 'write' || riskLevel === 'export'
+        ? ` Reconnect your MCP client requesting ${required}, then approve the new OAuth permissions. Each ${riskLevel} action still needs approval in EasyEDA.`
+        : '';
+    return {
+      ok: false,
+      code: 'SCOPE_MISSING',
+      message: `Remote tool requires ${required}.${guidance}`,
+    };
   }
   return { ok: true };
 }

@@ -14,6 +14,7 @@ const GLOBAL_KEYS = [
   'showStatus',
   'connectRemoteRelay',
   'connectCustomRemote',
+  'connectHostedCloud',
   'disconnectRemoteRelay',
   'showRemoteRelayStatus',
   'enableAutoConnect',
@@ -104,7 +105,16 @@ async function loadExtension(
     webSocketApi?: Record<string, unknown>;
     prompt?: (text: string, initial?: string) => string | null;
     dialog?: {
-      showConfirmationMessage: (
+      showInputDialog?: (
+        before?: string,
+        after?: string,
+        title?: string,
+        type?: string,
+        value?: string | number,
+        options?: Record<string, unknown>,
+        callback?: (value: unknown) => void,
+      ) => void;
+      showConfirmationMessage?: (
         content: string,
         title?: string,
         approveTitle?: string,
@@ -228,10 +238,12 @@ describe('extension loader lifecycle source', () => {
   it('reports safe local and Remote Relay connection fallbacks without opening remote sockets', async () => {
     const { extension, toasts } = await loadExtension();
     await extension.connectCustomRemote();
-    expect(toasts).toContain('Custom Remote input dialog unavailable; local works.');
+    expect(toasts).toContain('EasyEDA input dialog is unavailable. Local MCP remains available.');
 
     extension.connectRemoteRelay('hosted');
-    expect(toasts).toContain('Remote Relay needs WebSocket in EasyEDA.');
+    expect(toasts.join(' | ')).toContain(
+      'Remote Relay requires EasyEDA WebSocket and External Interactions permission; Local is still available.',
+    );
 
     extension.disconnectRemoteRelay();
     expect(toasts.at(-1)).toBe('Remote Relay off. Use Connect for the local bridge.');
@@ -446,6 +458,7 @@ describe('extension loader lifecycle source', () => {
     expect(local?.closeCalls).toBeGreaterThan(0);
     const remote = latestRemoteSocket();
     remote.open();
+    await flushMicrotasks(); // Native focused-document identity resolves before registration.
     expect(remote.sent).toContainEqual(
       expect.objectContaining({
         type: 'register_session',
@@ -454,7 +467,7 @@ describe('extension loader lifecycle source', () => {
       }),
     );
     extension.showStatus();
-    expect(toasts.at(-1)).toContain('Remote Relay: self_hosted/');
+    expect(toasts.at(-1)).toContain('Custom Cloud: connected');
     expect(storage.autoConnect).toBe(true); // Local preference remains intact for later sessions.
 
     await extension.activate('onStartupFinished');
@@ -470,6 +483,228 @@ describe('extension loader lifecycle source', () => {
     );
     extension.showStatus();
     expect(toasts.at(-1)).toContain('connected to local server');
+  });
+
+  it('does not incorrectly claim an open PCB is missing before remote pairing', async () => {
+    const { extension, toasts } = await loadExtension({
+      withWebSocket: true,
+      prompt: () => 'EDA-ABCDEF12',
+    });
+
+    extension.showRemoteRelayStatus();
+    expect(toasts.at(-1)).toContain('project: not yet reported');
+
+    await extension.connectHostedCloud();
+    extension.showRemoteRelayStatus();
+    expect(toasts.at(-1)).toContain('project: not yet reported');
+    expect(toasts.at(-1)).not.toContain('no active project detected');
+  });
+
+  it('connects to the official hosted relay with a one-time code, keeping Local as the default', async () => {
+    HarnessSocket.localBehavior = 'success';
+    const prompts = ['bad-code', 'eda-abcdef12'];
+    const { extension, toasts, storage } = await loadExtension({
+      autoConnect: true,
+      withWebSocket: true,
+      prompt: () => prompts.shift() ?? null,
+    });
+    await extension.activate('onStartupFinished');
+    await flushMicrotasks();
+    const local = HarnessSocket.instances.find((socket) => socket.url.startsWith('ws://'));
+    expect(local?.readyState).toBe(HarnessSocket.OPEN);
+
+    await extension.connectHostedCloud();
+    expect(local?.closeCalls).toBe(0);
+    expect(
+      HarnessSocket.instances.filter((socket) => socket.url.startsWith('wss://')),
+    ).toHaveLength(0);
+    expect(toasts.join(' | ')).toContain('valid EDA-');
+
+    await extension.connectHostedCloud();
+    const remote = latestRemoteSocket();
+    expect(remote.url).toBe('wss://easyeda-mcp-pro.oaslananka.dev/remote/relay');
+    expect(local?.closeCalls).toBeGreaterThan(0);
+    remote.open();
+    await flushMicrotasks();
+    expect(remote.sent).toContainEqual(
+      expect.objectContaining({
+        type: 'register_session',
+        mode: 'hosted',
+        pairingCode: 'EDA-ABCDEF12',
+      }),
+    );
+    expect(storage.autoConnect).toBe(true);
+    await extension.connect();
+    expect(remote.closeCalls).toBeGreaterThan(0);
+  });
+
+  it('keeps one remote socket for Cloud connect, status and disconnect after an extension hot import', async () => {
+    const { toasts } = await loadExtension({
+      withWebSocket: true,
+      prompt: () => 'EDA-ABCDEF12',
+    });
+    const firstRuntime = (globalThis as any).__easyedaMcpProBridgeRuntime_v8__;
+    vi.resetModules();
+    const reloaded = await import('../src/index.js');
+    expect((globalThis as any).__easyedaMcpProBridgeRuntime_v8__).toBe(firstRuntime);
+
+    await reloaded.connectHostedCloud();
+    const remote = latestRemoteSocket();
+    remote.open();
+    await flushMicrotasks();
+    reloaded.showRemoteRelayStatus();
+    expect(toasts.at(-1)).toContain('EasyEDA MCP Pro Cloud: connected');
+    expect(toasts.at(-1)).not.toContain('disabled/disconnected');
+
+    reloaded.disconnectRemoteRelay();
+    expect(remote.closeCalls).toBeGreaterThan(0);
+  });
+
+  it('cancels a pending Cloud pairing when Disconnect is used after a hot import', async () => {
+    const callbacks: Array<(answer: unknown) => void> = [];
+    await loadExtension({
+      withWebSocket: true,
+      dialog: {
+        showInputDialog: (_before, _after, _title, _type, _value, _options, callback) => {
+          if (callback) callbacks.push(callback);
+        },
+      },
+    });
+    vi.resetModules();
+    const reloaded = await import('../src/index.js');
+
+    const pending = reloaded.connectHostedCloud();
+    expect(callbacks).toHaveLength(1);
+    reloaded.disconnectRemoteRelay();
+    callbacks[0]?.('EDA-ABCDEF12');
+    await pending;
+    expect(
+      HarnessSocket.instances.filter((socket) => socket.url.startsWith('wss://')),
+    ).toHaveLength(0);
+  });
+
+  it('pairs through EasyEDA native input and SYS_WebSocket without browser prompt/WebSocket', async () => {
+    const sent: Array<Record<string, unknown>> = [];
+    let socketId = '';
+    let receiveNative: ((event: unknown) => void) | undefined;
+    const native = {
+      register: vi.fn(
+        (id: string, _url: string, receive: (event: unknown) => void, onOpen: () => void) => {
+          socketId = id;
+          receiveNative = receive;
+          queueMicrotask(onOpen);
+        },
+      ),
+      send: vi.fn((_id: string, data: string) => sent.push(JSON.parse(data))),
+      close: vi.fn(),
+    };
+    const input = vi.fn(
+      (
+        _before?: string,
+        _after?: string,
+        _title?: string,
+        _type?: string,
+        _value?: string | number,
+        _options?: Record<string, unknown>,
+        callback?: (value: unknown) => void,
+      ) => callback?.('eda-abcdef12'),
+    );
+    const { extension, toasts } = await loadExtension({
+      webSocketApi: native,
+      dialog: { showInputDialog: input },
+    });
+    expect(Reflect.has(globalThis, 'WebSocket')).toBe(false);
+    expect(Reflect.has(globalThis, 'prompt')).toBe(false);
+    await extension.connectHostedCloud();
+    await flushMicrotasks();
+
+    expect(input).toHaveBeenCalledTimes(1);
+    expect(input.mock.calls[0]?.[0]).toContain('easyeda-mcp-pro.oaslananka.dev/cloud');
+    expect(input.mock.calls[0]?.[0]).toContain('EDA-XXXXXXXX');
+    expect(native.register).toHaveBeenCalledWith(
+      expect.stringContaining('easyeda-mcp-pro-remote-'),
+      'wss://easyeda-mcp-pro.oaslananka.dev/remote/relay',
+      expect.any(Function),
+      expect.any(Function),
+    );
+    expect(sent).toContainEqual(
+      expect.objectContaining({
+        type: 'register_session',
+        mode: 'hosted',
+        pairingCode: 'EDA-ABCDEF12',
+      }),
+    );
+    expect(native.send).toHaveBeenCalledWith(socketId, expect.any(String));
+    receiveNative?.({
+      data: JSON.stringify({
+        protocolVersion: '2026-07-remote-relay-v1',
+        type: 'session_registered',
+        messageId: 'ack_1',
+        sessionId: 'sess_native',
+        timestamp: new Date().toISOString(),
+        paired: true,
+      }),
+    });
+    extension.showRemoteRelayStatus();
+    expect(toasts.at(-1)).toContain('EasyEDA MCP Pro Cloud: paired');
+    extension.disconnectRemoteRelay();
+    expect(native.close).toHaveBeenCalledWith(socketId);
+  });
+
+  it('does not connect when the native dialog is cancelled or its answer arrives after Local wins', async () => {
+    const native = { register: vi.fn(), send: vi.fn(), close: vi.fn() };
+    const callbacks: Array<(value: unknown) => void> = [];
+    const input = vi.fn(
+      (
+        _before?: string,
+        _after?: string,
+        _title?: string,
+        _type?: string,
+        _value?: string | number,
+        _options?: Record<string, unknown>,
+        callback?: (value: unknown) => void,
+      ) => {
+        if (callback) callbacks.push(callback);
+      },
+    );
+    const { extension } = await loadExtension({
+      webSocketApi: native,
+      dialog: { showInputDialog: input },
+    });
+    const cancelled = extension.connectHostedCloud();
+    callbacks[0]?.(undefined);
+    await cancelled;
+    expect(native.register).not.toHaveBeenCalled();
+    const pending = extension.connectHostedCloud();
+    extension.disconnectRemoteRelay();
+    callbacks[1]?.('EDA-ABCDEF12');
+    await pending;
+    expect(native.register).not.toHaveBeenCalled();
+  });
+
+  it('reports denied native External Interactions once instead of retrying an unusable socket', async () => {
+    const native = {
+      register: vi.fn(() => {
+        throw new Error('external permission denied');
+      }),
+      send: vi.fn(),
+      close: vi.fn(),
+    };
+    const { extension, toasts } = await loadExtension({
+      webSocketApi: native,
+      dialog: {
+        showInputDialog: (_before, _after, _title, _type, _value, _options, callback) =>
+          callback?.('EDA-ABCDEF12'),
+      },
+    });
+    await extension.connectHostedCloud();
+    await flushMicrotasks();
+    expect(native.register).toHaveBeenCalledTimes(1);
+    expect(toasts.join(' | ')).toMatch(/Enable External Interactions/);
+    await vi.advanceTimersByTimeAsync(80_000);
+    expect(native.register).toHaveBeenCalledTimes(1);
+    extension.showStatus();
+    expect(toasts.at(-1)).not.toContain('Remote Relay:');
   });
 
   it('keeps Local connected when Custom Remote dialog is cancelled or unsafe', async () => {
@@ -490,25 +725,67 @@ describe('extension loader lifecycle source', () => {
     expect(toasts.join(' | ')).toMatch(/secure wss|valid EDA-/i);
   });
 
-  it('returns approval timeout when the EasyEDA dialog remains unanswered', async () => {
-    const { extension } = await loadExtension({
+  it('explains approval expiry and ignores late clicks on an unanswered native dialog', async () => {
+    let promptContent = '';
+    let lateCallback: ((approved: boolean) => void) | undefined;
+    const { extension, toasts } = await loadExtension({
       withWebSocket: true,
-      dialog: { showConfirmationMessage: () => undefined },
+      dialog: {
+        showConfirmationMessage: (content, _title, _approve, _reject, callback) => {
+          promptContent = content;
+          lateCallback = callback;
+        },
+      },
     });
     extension.connectRemoteRelay('self_hosted', 'wss://relay.example/session', '123456');
     const socket = latestRemoteSocket();
     socket.open();
     socket.receive(approvalRequest());
 
+    expect(promptContent).toContain('Expires in');
+    expect(promptContent).toContain('Reject');
+
     await vi.advanceTimersByTimeAsync(1_001);
     await flushMicrotasks();
 
+    expect(toasts.some((message) => message.includes('Expired: reject, retry.'))).toBe(true);
     expect(socket.sent).toContainEqual(
       expect.objectContaining({
         type: 'approval_result',
         approvalId: 'approval_1',
         result: 'timeout',
       }),
+    );
+    lateCallback?.(true);
+    await flushMicrotasks();
+    expect(socket.sent.filter((message) => message.type === 'approval_result')).toHaveLength(1);
+  });
+
+  it('refuses approval clicked after its deadline even if the timer callback has not run', async () => {
+    let lateCallback: ((approved: boolean) => void) | undefined;
+    const { extension } = await loadExtension({
+      withWebSocket: true,
+      dialog: {
+        showConfirmationMessage: (_content, _title, _approve, _reject, callback) => {
+          lateCallback = callback;
+        },
+      },
+    });
+    extension.connectRemoteRelay('self_hosted', 'wss://relay.example/session', '123456');
+    const socket = latestRemoteSocket();
+    socket.open();
+    socket.receive(approvalRequest());
+
+    // Advance wall-clock time without running the pending timeout callback.
+    vi.setSystemTime(Date.now() + 1_001);
+    lateCallback?.(true);
+    await flushMicrotasks();
+
+    expect(socket.sent).toContainEqual(
+      expect.objectContaining({ type: 'approval_result', result: 'timeout' }),
+    );
+    expect(socket.sent).not.toContainEqual(
+      expect.objectContaining({ type: 'approval_result', result: 'approved' }),
     );
   });
 
@@ -545,6 +822,7 @@ describe('extension loader lifecycle source', () => {
     extension.connectRemoteRelay('self_hosted', 'wss://relay.example/session', '123456');
     const remoteSocket = latestRemoteSocket();
     remoteSocket.open();
+    await flushMicrotasks();
     expect(vi.getTimerCount()).toBeGreaterThan(0);
 
     extension.deactivate();

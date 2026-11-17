@@ -155,6 +155,22 @@ describe('remote scope checks', () => {
     expect(checkRemoteScope({ userId: 'u1', scopes: ['easyeda.read'] }, 'write')).toMatchObject({
       ok: false,
       code: 'SCOPE_MISSING',
+      message: expect.stringContaining('Reconnect your MCP client requesting easyeda.write'),
+    });
+    const exportDenied = checkRemoteScope({ userId: 'u1', scopes: ['easyeda.read'] }, 'export');
+    expect(exportDenied).toMatchObject({
+      ok: false,
+      code: 'SCOPE_MISSING',
+      message: expect.stringContaining('Reconnect your MCP client requesting easyeda.export'),
+    });
+    expect(exportDenied).toMatchObject({
+      message: expect.stringContaining('needs approval in EasyEDA'),
+    });
+    const highRisk = checkRemoteScope({ userId: 'u1', scopes: ['easyeda.read'] }, 'destructive');
+    expect(highRisk).toMatchObject({
+      ok: false,
+      code: 'SCOPE_MISSING',
+      message: 'Remote tool requires easyeda.project_admin.',
     });
     expect(
       checkRemoteScope({ userId: 'u1', scopes: ['easyeda.project_admin'] }, 'destructive'),

@@ -18,39 +18,38 @@ export function redactSecrets(input: string): string {
   return result;
 }
 
+// Log objects can include nested arrays and native Errors. Preserve useful
+// diagnostic metadata while removing credentials and bounding cyclic inputs.
+function redactObjectValue(value: unknown, seen: WeakSet<object>): unknown {
+  if (typeof value === 'string') return redactSecrets(value);
+  if (!value || typeof value !== 'object') return value;
+  if (seen.has(value)) return '[Circular]';
+  seen.add(value);
+
+  if (value instanceof Error) {
+    return redactObjectValue(
+      { type: value.name, message: value.message, stack: value.stack },
+      seen,
+    );
+  }
+  if (Array.isArray(value)) return value.map((entry) => redactObjectValue(entry, seen));
+  const redacted: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    const lowerKey = key.toLowerCase();
+    redacted[key] =
+      lowerKey.includes('key') ||
+      lowerKey.includes('secret') ||
+      lowerKey.includes('token') ||
+      lowerKey.includes('password') ||
+      lowerKey.includes('credential') ||
+      lowerKey === 'authorization' ||
+      lowerKey === 'cookie'
+        ? '[REDACTED]'
+        : redactObjectValue(item, seen);
+  }
+  return redacted;
+}
+
 export function redactObject<T>(obj: T): T {
-  if (typeof obj === 'string') {
-    return redactSecrets(obj) as unknown as T;
-  }
-  if (obj === null || obj === undefined) {
-    return obj;
-  }
-  if (Array.isArray(obj)) {
-    return obj.map(redactObject) as unknown as T;
-  }
-  if (typeof obj === 'object') {
-    const redacted: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      const lowerKey = key.toLowerCase();
-      if (
-        lowerKey.includes('key') ||
-        lowerKey.includes('secret') ||
-        lowerKey.includes('token') ||
-        lowerKey.includes('password') ||
-        lowerKey.includes('credential') ||
-        lowerKey === 'authorization' ||
-        lowerKey === 'cookie'
-      ) {
-        redacted[key] = '[REDACTED]';
-      } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-        redacted[key] = redactObject(value);
-      } else if (typeof value === 'string') {
-        redacted[key] = redactSecrets(value);
-      } else {
-        redacted[key] = value;
-      }
-    }
-    return redacted as unknown as T;
-  }
-  return obj;
+  return redactObjectValue(obj, new WeakSet<object>()) as T;
 }

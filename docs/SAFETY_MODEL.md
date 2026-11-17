@@ -367,7 +367,9 @@ schematic or PCB state and therefore do not require the local design-mutation pa
 
 This does not make remote exports silent. Remote Relay maps `artifact-write` to the `export` risk
 class, requires the `easyeda.export` scope, and binds a human approval to the identity, session, tool,
-input hash, and expiry before dispatch. Read-only report generators that happen to be organized in
+input hash, and expiry before dispatch. Reviewed local artifact exports may then reuse
+a short-lived, same-client/same-native-project session grant for up to 30 minutes; external
+and destructive operations retain per-action approval. Read-only report generators that happen to be organized in
 the export group are classified `read-only` and do not inherit export risk merely from that group.
 
 ---

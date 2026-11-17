@@ -152,7 +152,11 @@ function registerDiagnosticsCore(
         blocked_by_other_instance: ownershipConflict?.blockedByOtherInstance,
         owner_pid: ownershipConflict?.ownerPid,
         owner_port: ownershipConflict?.ownerPort,
-        status_error: ownershipConflict?.message,
+        status_error:
+          ownershipConflict?.message ??
+          (config.MCP_BRIDGE_BACKEND === 'remote_relay' && !ctx.bridge.connected
+            ? 'No authorized EasyEDA editor is ready. Pair your extension and, for Hosted Cloud, select the focused project.'
+            : undefined),
         ups: process.uptime(),
       };
     },

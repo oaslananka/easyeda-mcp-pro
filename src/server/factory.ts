@@ -33,6 +33,8 @@ import { configureVendorRateLimit } from '../vendors/base-http-client.js';
 
 export interface CreateServerOptions {
   remoteGateway?: RemoteGateway;
+  /** Only the official Hosted Cloud advertises per-tool OAuth requirements. */
+  hostedOAuthResource?: string;
 }
 
 export interface McpServerInstance {
@@ -168,6 +170,7 @@ export async function createServer(
       TOOL_SCOPES: config.TOOL_SCOPES,
       MCP_BRIDGE_BACKEND: config.MCP_BRIDGE_BACKEND,
       MCP_REMOTE_SESSION_ID: config.MCP_REMOTE_SESSION_ID,
+      hostedOAuthResource: options.hostedOAuthResource,
     },
     remote: remoteGateway ? { gateway: remoteGateway } : undefined,
     vendors: {

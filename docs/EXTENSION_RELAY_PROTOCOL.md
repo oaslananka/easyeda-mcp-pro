@@ -58,7 +58,7 @@ Every relay message should include:
 | Type                 | Direction                   | Purpose                                                       |
 | -------------------- | --------------------------- | ------------------------------------------------------------- |
 | `register_session`   | Extension → Gateway         | Register extension version, mode, and active EasyEDA context. |
-| `session_registered` | Gateway → Extension         | Confirm registration and pairing state.                       |
+| `session_registered` | Gateway → Extension         | Confirm pairing and advertise an optional bounded frame cap.  |
 | `heartbeat`          | Both                        | Keep connection alive and measure liveness.                   |
 | `tool_request`       | Gateway → Extension         | Request a tool action after auth, routing, and policy checks. |
 | `tool_response`      | Extension → Gateway         | Return success, structured output, or safe error.             |
@@ -66,6 +66,21 @@ Every relay message should include:
 | `approval_result`    | Extension → Gateway         | Return approve/reject/timeout.                                |
 | `session_closed`     | Both                        | Close a session intentionally.                                |
 | `error`              | Both                        | Return protocol, routing, or execution errors.                |
+
+The gateway may advertise `maxPayloadSize` in `session_registered` (an integer
+between 1 KiB and 10 MiB). The native extension accepts this bound **only**
+after the session is paired; it uses its local default if the field is absent,
+invalid, or the session disconnects. This enables approved binary exports to
+observe the remote transport budget without relaxing OAuth, device pairing,
+project focus, or action-specific approval. Larger payloads still fail closed.
+
+A successful owner-initiated **Remove access** revocation sends the active
+extension an error envelope with SESSION_REVOKED code and the exact
+session ID before closing the relay socket. The extension must immediately
+clear its in-memory resume credential, show a new-pairing-code instruction
+and stop retrying. Revocation remains authoritative even when the old
+socket cannot receive the notification; subsequent resume is rejected.
+Messages for another session ID must not change the current connection.
 
 ## Approval handshake
 
@@ -97,12 +112,58 @@ A `tool_request` should include:
 - `activeProjectHint`
 - `deadlineMs`
 
+## Live project identity and heartbeat compatibility
+
+The current extension sends a heartbeat every 15 seconds with `source: "extension"`
+and its currently visible `activeProject`. It sends `activeProject: null` when
+no editor project is visible. The gateway updates the registered session's
+project context and acknowledges once with `source: "server"`. The extension
+must **not echo this acknowledgement**. The gateway ignores source-less
+heartbeat echoes to avoid an uncontrolled feedback loop. Older clients that
+omit project context do not implicitly clear it.
+
+For official Hosted Cloud, `activeProject` and `activeProjectHint` carry
+the native `projectId` **and** `documentId` returned by the read-only
+EasyEDA Pro focus APIs (`dmt_Project.getCurrentProjectInfo` and
+`dmt_SelectControl.getCurrentDocumentInfo`). These APIs are version-sensitive
+and the latter is documented as beta. A missing API, mismatched parent-project
+UUID, unrecognized document type, or unresolved focus gives no hosted
+selection authority. The gateway refuses project selection unless both
+UUIDs exist. Changing to another document inside the same project requires
+re-selection: the document UUID is part of the selected-project identity.
+Custom Remote retains its legacy title/URL fallback when native APIs are
+unavailable; Local mode needs no Cloud identity.
+
+Before executing a tool, the extension separately checks the gateway's
+`activeProjectHint` against its _current_ editor project, rather than trusting
+a potentially stale registration or heartbeat. Write/export approvals also
+fail without a matching current project. A mismatch returns
+`PROJECT_INACTIVE`; the user must select the correct project again in Cloud.
+
+The EasyEDA main extension sandbox uses the platform's own
+`sys_Dialog.showInputDialog` (beta, capability-checked) and
+`sys_WebSocket.register/send/close` to create authenticated outbound WSS
+sessions; it does not require browser `prompt()` or constructible
+`WebSocket`. Native register may invoke its open callback before return,
+so registration is delivered only after the client installs handlers.
+Distinct native socket IDs are allocated per retry; a 12-second open
+deadline and the normal heartbeat watchdog close stalled sockets.
+A missing/denied native transport is an actionable setup error that does
+not repeatedly reconnect or silently downgrade to cleartext.
+
+Pairing codes are single-use. A dropped connection cannot reuse the same
+code to regain owner access; the extension reports a clear re-pair action
+rather than continually retrying an unpaired session. Cloud is still
+Experimental: these are protocol and simulated-extension guarantees, not
+live **Hosted Cloud** EasyEDA acceptance.
+
 ## Failure handling
 
 The extension and gateway must reject:
 
 - unsupported protocol versions,
 - messages for unknown sessions,
+- hosted device resumes use high-entropy, owner-bound credentials held only in extension process memory and stored as SHA-256 digests in the existing Cloud SQLite database. Each accepted reconnect rotates the credential atomically; the owner can revoke online or offline devices. A resume never restores OAuth access, an explicitly selected design, or a write/export approval. Expired/revoked/replayed credentials fail closed.
 - tool requests before pairing,
 - approval-required actions without a matching invocation grant or legacy direct approval,
 - rejected, timed-out, mismatched, or replayed approval IDs,

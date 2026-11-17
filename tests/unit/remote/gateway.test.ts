@@ -743,3 +743,447 @@ describe('RemoteGateway', () => {
     expect(harness.gateway.approvals.get(pending.approvalId)).toBeUndefined();
   });
 });
+
+describe('Project-session native consent', () => {
+  const identity: RemoteIdentity = {
+    userId: 'owner',
+    clientId: 'trusted-mcp-client',
+    scopes: ['easyeda.write', 'easyeda.export', 'easyeda.project_admin'],
+  };
+  const firstProject = {
+    projectId: 'native-project-1',
+    documentId: 'schematic-page-1',
+    projectName: 'Disposable',
+    documentType: 'schematic' as const,
+  };
+
+  function connected() {
+    const clock = makeGateway();
+    const approvals: Array<{ approvalId: string; actionSummary: string }> = [];
+    const session = clock.gateway.registerExtension({
+      connectionId: 'session-consent-connection',
+      mode: 'hosted',
+      extensionVersion: '1.15.6',
+      activeProject: firstProject,
+      requestApproval: (request) => {
+        approvals.push(request);
+      },
+      dispatch: async (request) => ({
+        protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+        type: 'tool_response',
+        messageId: 'native-response',
+        sessionId: request.sessionId,
+        requestMessageId: request.messageId,
+        timestamp: '2026-07-04T00:00:00.000Z',
+        ok: true,
+        result: { primitiveId: 'verified-text' },
+        durationMs: 1,
+      }),
+    });
+    const code = clock.gateway.createPairingCode({ identity, sessionId: session.sessionId });
+    expect(clock.gateway.completePairing({ identity, code, sessionId: session.sessionId })).toBe(
+      true,
+    );
+    return { ...clock, session, approvals };
+  }
+
+  it('turns one native-approved routine write into a 30 minute project and client-scoped grant', async () => {
+    const { gateway, session, approvals } = connected();
+    const input = {
+      identity,
+      sessionId: session.sessionId,
+      riskLevel: 'write' as const,
+      toolName: 'easyeda_schematic_add_text',
+      input: { text: 'first' },
+      sessionApprovalEligible: true,
+    };
+    const pending = await gateway.authorizeToolInvocation(input);
+    expect(pending).toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
+    if (pending.ok || !pending.approvalId) throw new Error('Missing first native consent');
+    expect(approvals).toHaveLength(1);
+    expect(approvals[0]?.actionSummary).toContain('30 minutes');
+    expect(
+      gateway.resolveApprovalFromExtension({
+        sessionId: session.sessionId,
+        approvalId: pending.approvalId,
+        result: 'approved',
+      }),
+    ).toBe(true);
+    const original = await gateway.authorizeToolInvocation({
+      ...input,
+      approvalId: pending.approvalId,
+    });
+    expect(original).toMatchObject({ ok: true });
+    const next = await gateway.authorizeToolInvocation({
+      ...input,
+      toolName: 'easyeda_schematic_add_wire',
+      input: { wire: 'second' },
+    });
+    expect(next).toMatchObject({ ok: true });
+    expect(approvals).toHaveLength(1);
+    if (original.ok) gateway.revokeInvocationGrant(original.grantId);
+    if (next.ok) gateway.revokeInvocationGrant(next.grantId);
+    // An explicit stale approval ID must still be rejected despite an active project grant.
+    await expect(
+      gateway.authorizeToolInvocation({
+        ...input,
+        approvalId: pending.approvalId,
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_NOT_APPROVED' });
+  });
+
+  it('never bypasses a server-elevated destructive risk through a forged session eligibility flag', async () => {
+    const { gateway, session } = connected();
+    const first = {
+      identity,
+      sessionId: session.sessionId,
+      riskLevel: 'write' as const,
+      toolName: 'easyeda_schematic_add_text',
+      sessionApprovalEligible: true,
+    };
+    const pending = await gateway.authorizeToolInvocation(first);
+    if (pending.ok || !pending.approvalId) throw new Error('Initial approval missing');
+    gateway.resolveApprovalFromExtension({
+      sessionId: session.sessionId,
+      approvalId: pending.approvalId,
+      result: 'approved',
+    });
+    expect(
+      await gateway.authorizeToolInvocation({
+        ...first,
+        approvalId: pending.approvalId,
+      }),
+    ).toMatchObject({ ok: true });
+    const elevated = {
+      ...first,
+      toolName: 'easyeda_schematic_delete_primitive',
+    };
+    // Main branch #1070 independently raises the effective risk to destructive.
+    const result = await gateway.authorizeToolInvocation(elevated);
+    expect(result).toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
+    expect(result.ok ? 'ok' : result.approvalId).toBeTruthy();
+  });
+
+  it('fails closed for other clients, other risk classes and destructive operations', async () => {
+    const { gateway, session } = connected();
+    const request = {
+      identity,
+      sessionId: session.sessionId,
+      toolName: 'easyeda_schematic_add_text',
+      riskLevel: 'write' as const,
+      sessionApprovalEligible: true,
+      input: { note: 'first' },
+    };
+    const pending = await gateway.authorizeToolInvocation(request);
+    if (pending.ok || !pending.approvalId) throw new Error('Expected native approval');
+    gateway.resolveApprovalFromExtension({
+      sessionId: session.sessionId,
+      approvalId: pending.approvalId,
+      result: 'approved',
+    });
+    expect(
+      await gateway.authorizeToolInvocation({
+        ...request,
+        approvalId: pending.approvalId,
+      }),
+    ).toMatchObject({ ok: true });
+    await expect(
+      gateway.authorizeToolInvocation({
+        ...request,
+        identity: { ...identity, clientId: 'another-mcp-client' },
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
+    await expect(
+      gateway.authorizeToolInvocation({
+        ...request,
+        identity: { ...identity, clientId: undefined },
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
+    await expect(
+      gateway.authorizeToolInvocation({
+        ...request,
+        sessionApprovalEligible: false,
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
+    await expect(
+      gateway.authorizeToolInvocation({
+        ...request,
+        riskLevel: 'export',
+        toolName: 'easyeda_export_bom',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
+    await expect(
+      gateway.authorizeToolInvocation({
+        ...request,
+        riskLevel: 'destructive',
+        toolName: 'easyeda_schematic_delete_primitive',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
+  });
+
+  it('expires, revokes, and never authorizes another project after its native selection changes', async () => {
+    const { gateway, session, advance } = connected();
+    const request = {
+      identity,
+      sessionId: session.sessionId,
+      riskLevel: 'write' as const,
+      toolName: 'easyeda_schematic_add_text',
+      sessionApprovalEligible: true,
+    };
+    const initial = await gateway.authorizeToolInvocation(request);
+    if (initial.ok || !initial.approvalId) throw new Error('Expected native approval');
+    gateway.resolveApprovalFromExtension({
+      sessionId: session.sessionId,
+      approvalId: initial.approvalId,
+      result: 'approved',
+    });
+    expect(
+      await gateway.authorizeToolInvocation({
+        ...request,
+        approvalId: initial.approvalId,
+      }),
+    ).toMatchObject({ ok: true });
+    advance(30 * 60_000 + 1);
+    await expect(gateway.authorizeToolInvocation(request)).resolves.toMatchObject({
+      ok: false,
+      code: 'APPROVAL_REQUIRED',
+    });
+    gateway.router.updateActiveProject(session.sessionId, {
+      ...firstProject,
+      projectId: 'native-project-2',
+      documentId: 'schematic-page-2',
+    });
+    await expect(gateway.authorizeToolInvocation(request)).resolves.toMatchObject({
+      ok: false,
+      code: 'APPROVAL_REQUIRED',
+    });
+    gateway.disconnect(session.sessionId);
+    await expect(gateway.authorizeToolInvocation(request)).resolves.toMatchObject({
+      ok: false,
+      code: 'SESSION_DISCONNECTED',
+    });
+  });
+
+  it('survives OAuth token refresh for the same client but not an expired token', async () => {
+    const { gateway, session, advance } = connected();
+    const before = { ...identity, expiresAt: new Date('2026-07-04T00:05:00.000Z') };
+    const request = {
+      identity: before,
+      sessionId: session.sessionId,
+      riskLevel: 'write' as const,
+      toolName: 'easyeda_schematic_add_text',
+      sessionApprovalEligible: true,
+    };
+    const pending = await gateway.authorizeToolInvocation(request);
+    if (pending.ok || !pending.approvalId) throw new Error('Expected native approval');
+    gateway.resolveApprovalFromExtension({
+      sessionId: session.sessionId,
+      approvalId: pending.approvalId,
+      result: 'approved',
+    });
+    expect(
+      await gateway.authorizeToolInvocation({ ...request, approvalId: pending.approvalId }),
+    ).toMatchObject({ ok: true });
+    advance(6 * 60_000);
+    await expect(gateway.authorizeToolInvocation(request)).resolves.toMatchObject({
+      ok: false,
+      code: 'IDENTITY_EXPIRED',
+    });
+    await expect(
+      gateway.authorizeToolInvocation({
+        ...request,
+        identity: { ...identity, expiresAt: new Date('2026-07-04T01:00:00.000Z') },
+      }),
+    ).resolves.toMatchObject({ ok: true });
+  });
+
+  it('does not carry a still-valid grant to another native project', async () => {
+    const { gateway, session, approvals } = connected();
+    const request = {
+      identity,
+      sessionId: session.sessionId,
+      riskLevel: 'write' as const,
+      toolName: 'easyeda_schematic_add_text',
+      sessionApprovalEligible: true,
+    };
+    const first = await gateway.authorizeToolInvocation(request);
+    if (first.ok || !first.approvalId) throw new Error('Expected native approval');
+    gateway.resolveApprovalFromExtension({
+      sessionId: session.sessionId,
+      approvalId: first.approvalId,
+      result: 'approved',
+    });
+    expect(
+      await gateway.authorizeToolInvocation({
+        ...request,
+        approvalId: first.approvalId,
+      }),
+    ).toMatchObject({ ok: true });
+
+    gateway.router.updateActiveProject(session.sessionId, {
+      ...firstProject,
+      projectId: 'native-project-2',
+      documentId: 'schematic-page-2',
+    });
+    expect(await gateway.authorizeToolInvocation(request)).toMatchObject({
+      ok: false,
+      code: 'APPROVAL_REQUIRED',
+    });
+    expect(approvals).toHaveLength(2);
+
+    // A different native page inside the same selected project shares the grant.
+    gateway.router.updateActiveProject(session.sessionId, {
+      ...firstProject,
+      documentId: 'schematic-page-3',
+    });
+    expect(await gateway.authorizeToolInvocation(request)).toMatchObject({ ok: true });
+  });
+
+  it('requires a new native approval after revoking a paired session', async () => {
+    const { gateway, session } = connected();
+    const request = {
+      identity,
+      sessionId: session.sessionId,
+      riskLevel: 'write' as const,
+      toolName: 'easyeda_schematic_add_text',
+      sessionApprovalEligible: true,
+    };
+    const first = await gateway.authorizeToolInvocation(request);
+    if (first.ok || !first.approvalId) throw new Error('Expected approval');
+    gateway.resolveApprovalFromExtension({
+      sessionId: session.sessionId,
+      approvalId: first.approvalId,
+      result: 'approved',
+    });
+    expect(
+      await gateway.authorizeToolInvocation({ ...request, approvalId: first.approvalId }),
+    ).toMatchObject({ ok: true });
+    expect(gateway.revokePairedExtension(identity, session.sessionId)).toBe(true);
+    await expect(gateway.authorizeToolInvocation(request)).resolves.toMatchObject({
+      ok: false,
+    });
+  });
+
+  it('does not upgrade a one-action prompt into a 30-minute grant', async () => {
+    const { gateway, session } = connected();
+    const request = {
+      identity,
+      sessionId: session.sessionId,
+      riskLevel: 'write' as const,
+      toolName: 'easyeda_schematic_add_text',
+      input: { text: 'one-action' },
+    };
+    const pending = await gateway.routeToolRequest(request);
+    if (pending.ok || !pending.approvalId) throw new Error('Expected native one-action approval');
+    gateway.resolveApprovalFromExtension({
+      sessionId: session.sessionId,
+      approvalId: pending.approvalId,
+      result: 'approved',
+    });
+    expect(
+      await gateway.authorizeToolInvocation({
+        ...request,
+        sessionApprovalEligible: true,
+        approvalId: pending.approvalId,
+      }),
+    ).toMatchObject({ ok: true });
+    await expect(
+      gateway.authorizeToolInvocation({
+        ...request,
+        sessionApprovalEligible: true,
+        input: { text: 'second' },
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_REQUIRED' });
+  });
+
+  it('cannot consume another OAuth client approval on the same owner and native session', async () => {
+    const { gateway, session } = connected();
+    const request = {
+      identity,
+      sessionId: session.sessionId,
+      riskLevel: 'write' as const,
+      toolName: 'easyeda_schematic_add_text',
+      sessionApprovalEligible: true,
+      input: { text: 'first' },
+    };
+    const pending = await gateway.authorizeToolInvocation(request);
+    if (pending.ok || !pending.approvalId) throw new Error('Expected approval');
+    gateway.resolveApprovalFromExtension({
+      sessionId: session.sessionId,
+      approvalId: pending.approvalId,
+      result: 'approved',
+    });
+    await expect(
+      gateway.authorizeToolInvocation({
+        ...request,
+        identity: { ...identity, clientId: 'different-oauth-client' },
+        approvalId: pending.approvalId,
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_NOT_APPROVED' });
+    expect(
+      await gateway.authorizeToolInvocation({
+        ...request,
+        approvalId: pending.approvalId,
+      }),
+    ).toMatchObject({ ok: true });
+  });
+
+  it('rejects even the original native approval when the document has switched since prompting', async () => {
+    const { gateway, session } = connected();
+    const request = {
+      identity,
+      sessionId: session.sessionId,
+      riskLevel: 'write' as const,
+      toolName: 'easyeda_schematic_add_text',
+      sessionApprovalEligible: true,
+    };
+    const pending = await gateway.authorizeToolInvocation(request);
+    if (pending.ok || !pending.approvalId) throw new Error('Expected approval');
+    gateway.resolveApprovalFromExtension({
+      sessionId: session.sessionId,
+      approvalId: pending.approvalId,
+      result: 'approved',
+    });
+    gateway.router.updateActiveProject(session.sessionId, {
+      ...firstProject,
+      documentId: 'another-document',
+    });
+    await expect(
+      gateway.authorizeToolInvocation({
+        ...request,
+        approvalId: pending.approvalId,
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_NOT_APPROVED' });
+  });
+
+  it('never remembers a grant without verified native project UUID or client identity', async () => {
+    const clock = makeGateway();
+    const session = registerFakeExtension(clock.gateway);
+    const code = clock.gateway.createPairingCode({ identity, sessionId: session.sessionId });
+    clock.gateway.completePairing({ identity, code, sessionId: session.sessionId });
+    const request = {
+      identity,
+      sessionId: session.sessionId,
+      riskLevel: 'write' as const,
+      toolName: 'easyeda_schematic_add_text',
+      sessionApprovalEligible: true,
+    };
+    const pending = await clock.gateway.authorizeToolInvocation(request);
+    if (pending.ok || !pending.approvalId) throw new Error('Expected approval');
+    clock.gateway.resolveApprovalFromExtension({
+      sessionId: session.sessionId,
+      approvalId: pending.approvalId,
+      result: 'approved',
+    });
+    expect(
+      await clock.gateway.authorizeToolInvocation({
+        ...request,
+        approvalId: pending.approvalId,
+      }),
+    ).toMatchObject({ ok: true });
+    await expect(clock.gateway.authorizeToolInvocation(request)).resolves.toMatchObject({
+      ok: false,
+      code: 'APPROVAL_REQUIRED',
+    });
+  });
+});

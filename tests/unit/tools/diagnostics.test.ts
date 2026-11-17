@@ -76,6 +76,27 @@ describe('Diagnostics Tools', () => {
     expect(result?.bridge_connected).toBe(false);
   });
 
+  it('explains how to recover an unavailable Remote Relay editor without claiming readiness', async () => {
+    const remoteRegistry = new ToolRegistry();
+    registerDiagnosticsCore(
+      remoteRegistry,
+      EnvSchema.parse({ NODE_ENV: 'test', MCP_BRIDGE_BACKEND: 'remote_relay' }),
+    );
+    const tool = remoteRegistry.get('easyeda_health_check');
+    const result = await tool?.handler(
+      { ...context, bridge: { connected: false, call: bridgeCall } },
+      {},
+    );
+
+    expect(result).toMatchObject({
+      status: 'degraded',
+      bridge_connected: false,
+      status_error: expect.stringContaining('Pair your extension'),
+    });
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
   it('easyeda_health_check surfaces EasyEDA version and extension version mismatch', async () => {
     const tool = registry.get('easyeda_health_check');
 

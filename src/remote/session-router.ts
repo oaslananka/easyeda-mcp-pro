@@ -14,6 +14,17 @@ export interface ExtensionSession {
   expiresAt: Date;
 }
 
+export type ManagedExtensionSession = Pick<
+  ExtensionSession,
+  | 'sessionId'
+  | 'mode'
+  | 'extensionVersion'
+  | 'activeProject'
+  | 'connected'
+  | 'lastSeenAt'
+  | 'expiresAt'
+>;
+
 interface PairingCode {
   code: string;
   userId: string;
@@ -108,6 +119,26 @@ export class RemoteSessionRouter {
     return true;
   }
 
+  /**
+   * Bind a newly registered socket after the hosted store has atomically
+   * redeemed a persisted owner/device credential. Never call from a relay
+   * message before the store authenticates the credential.
+   */
+  bindResumedOwner(sessionId: string, ownerId: string): boolean {
+    const session = this.sessions.get(sessionId);
+    if (
+      !session ||
+      session.userId ||
+      !ownerId ||
+      !session.connected ||
+      session.expiresAt.getTime() <= this.now().getTime()
+    )
+      return false;
+    session.userId = ownerId;
+    session.lastSeenAt = this.now();
+    return true;
+  }
+
   heartbeat(sessionId: string): boolean {
     const session = this.sessions.get(sessionId);
     if (!session || !session.connected) return false;
@@ -188,6 +219,34 @@ export class RemoteSessionRouter {
       };
     }
     return { ok: true, session };
+  }
+
+  listPairedSessions(userId: string): ManagedExtensionSession[] {
+    return [...this.sessions.values()]
+      .filter((session) => session.userId === userId)
+      .map(
+        ({
+          sessionId,
+          mode,
+          extensionVersion,
+          activeProject,
+          connected,
+          lastSeenAt,
+          expiresAt,
+        }) => ({
+          sessionId,
+          mode,
+          extensionVersion,
+          activeProject,
+          connected,
+          lastSeenAt,
+          expiresAt,
+        }),
+      );
+  }
+
+  forgetSession(sessionId: string): boolean {
+    return this.sessions.delete(sessionId);
   }
 
   getSession(sessionId: string): ExtensionSession | undefined {

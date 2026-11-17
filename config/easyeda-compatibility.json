@@ -107,6 +107,100 @@
       ]
     },
     {
+      "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-14-3c47d37-v1155-cloud-native-readonly",
+      "status": "live-validated",
+      "validatedAt": "2026-11-14T15:22:41Z",
+      "reviewBy": "2027-02-12",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-43-generic",
+        "nodeVersion": "24.22.3"
+      },
+      "easyedaPro": {
+        "version": "3.2.209.8a704eab",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113",
+        "editorVersionSource": "Locally installed EasyEDA vendor package.json version and native GUI title bar; isolated Extensions Manager confirmed installed candidate manifest 1.15.5.",
+        "electronVersionProvenance": "Previously recorded metadata for identical installed vendor EasyEDA 3.2.209 build; not independently measured during this session.",
+        "chromiumVersionProvenance": "Previously recorded metadata for identical installed vendor EasyEDA 3.2.209 build; not independently measured during this session."
+      },
+      "server": {
+        "validationPackageVersion": "1.15.5",
+        "releaseContainingFixes": "1.15.5",
+        "commit": "3c47d37619c469d7b97d2985794800a789853b0f",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "2552cdc4b16882b75bf162f734cb9fe0548ba227",
+            "src/bridge": "aac8648451155bf529b651b5515a6b32315540fa",
+            "src/remote": "1788ec3eef8a052f6ed91277c7e76a921579c488",
+            "src/server/transports": "0f6cdc3f0d5bb90e64dd0d18df94cb58aa7d6584",
+            "src/tools": "e24208f9da663b4f8e879a4750cfce27f34257e0",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.15.5",
+        "versionConfirmedBy": "Official native Extensions Manager imported exact locally built .eext, confirmed v1.15.5 upgrade successful and enabled in isolated EasyEDA profile. This preview binary differs from public v1.15.5 release.",
+        "packageSha256": "1df98a6a9e51845ac7f37cc30ef4432af9d92135e967ce41cd7e89e25fb0a3d0",
+        "packageSizeBytes": 233148,
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "activeDispatcher": "baked",
+        "loaderReportedVersion": "1.15.5",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "f71f5e22b7fec5db",
+        "registryHashProvenance": "Calculated from exact merge source dist/bridge/types.js EasyedaApiMethodSchema options using the same deterministic SHA-256 sorted-method-list algorithm as BridgeManager. 79 supported methods."
+      },
+      "fixture": {
+        "project": "Disposable copy of public Quick Start example PCB and schematic (33 PCB, 34 schematic components)",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "3c47d37-native-import",
+          "name": "Exact Cloud-merged feature candidate imports and pairs to local MCP",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Official EasyEDA Pro Extensions Manager imported the exact 233148-byte .eext, enabled it with isolated profile external interaction and after restart established a real local MCP loopback connection against exact merged candidate source.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/1057/files"]
+        },
+        {
+          "id": "3c47d37-pcb-read",
+          "name": "Native PCB component read and correct project/document UUID",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Real local MCP easyeda_pcb_components on disposable populated PCB returned 33/33 components, 33 IDs and 33 coordinates, valid project/document UUID parent match, native PCB document type 3, no error.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/1057/files"]
+        },
+        {
+          "id": "3c47d37-schematic-read",
+          "name": "Native schematic reselect/read on same real project",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Real EasyEDA GUI switched from PCB to schematic. New real local MCP easyeda_schematic_components read returned 34/34 components and correct schematic document type 1, parent project UUID matched; no error.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/1057/files"]
+        },
+        {
+          "id": "3c47d37-integrity",
+          "name": "Fixture integrity and isolated extension rollback",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Original and disposable copied project SHA-256 values matched before and after both reads with zero design writes, saves or exports. Reimported original 1.15.4 extension and visually confirmed manager v1.15.4 enabled; isolated editor closed.",
+          "evidence": ["https://github.com/oaslananka/easyeda-mcp-pro/pull/1057/files"]
+        }
+      ],
+      "knownLimitations": [
+        "THIS IS ONLY THE DRAFT CLOUD FEATURE BRANCH BINARY. Although its manifest says 1.15.5, it is a distinct 233148-byte preview extension, NOT the published stable 1.15.5 artifact (230597 bytes). The published release must not be reidentified or overwritten.",
+        "Only Local MCP bridge native read-only evidence was obtained against this merged feature source. Earlier verified Hosted OAuth WSS 33/33 read happened against previous Cloud PR source; the merged version has NOT undergone another genuine Hosted owner/second-owner or reconnect acceptance.",
+        "Tests ran only on isolated Ubuntu 24.04.5 EasyEDA Pro 3.2.209.8a704eab. No Windows/macOS editor runtime proof was collected here.",
+        "No live design write, save, export, production deployment, manufacturing qualification, electrical/ERC or fabrication sign-off."
+      ]
+    },
+    {
       "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-14-fca847d-v1155-native-readonly",
       "status": "live-validated",
       "validatedAt": "2026-11-14T14:32:47Z",

@@ -139,6 +139,14 @@ export const EnvSchema = EnvObjectSchema.transform((config) => deriveStoragePath
 export type EnvConfig = z.infer<typeof EnvSchema>;
 
 const KNOWN_NON_SCHEMA_ENV_VARS = new Set([
+  // Hosted Cloud is opt-in and deployment-private (never MCP Registry defaults).
+  'CLOUD_HOSTED_ENABLED',
+  'CLOUD_HOSTED_ORIGIN',
+  'CLOUD_AUTH_SECRET',
+  'CLOUD_GITHUB_CLIENT_ID',
+  'CLOUD_GITHUB_CLIENT_SECRET',
+  'CLOUD_GOOGLE_CLIENT_ID',
+  'CLOUD_GOOGLE_CLIENT_SECRET',
   'EASYEDA_BRIDGE',
   'EASYEDA_CDP_ALLOW_UNMAPPED_WRITES',
   'EASYEDA_CDP_ALLOW_WRITES',
@@ -162,6 +170,7 @@ const KNOWN_NON_SCHEMA_ENV_VARS = new Set([
 ]);
 
 const PROJECT_VAR_PREFIXES = [
+  'CLOUD_',
   'NODE_ENV',
   'LOG_LEVEL',
   'TOOL_PROFILE',

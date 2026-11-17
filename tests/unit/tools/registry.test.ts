@@ -6,6 +6,7 @@ import {
   ToolRegistry,
   ErrorCodes,
   remoteRiskForTool,
+  projectSessionConsentEligible,
   sideEffectForTool,
   getRequiredToolScopes,
 } from '../../../src/tools/registry.js';
@@ -709,6 +710,67 @@ describe('ToolRegistry', () => {
     });
   });
 
+  describe('project-scoped native consent eligibility', () => {
+    it('uses an explicit allowlist for routine design writes and local exports', () => {
+      registerBuiltinTools(registry, TEST_CONFIG);
+      const eligible = (name: string) => {
+        const tool = registry.get(name);
+        if (!tool) throw new Error(`Unknown tool: ${name}`);
+        return projectSessionConsentEligible(tool);
+      };
+      for (const name of [
+        'easyeda_schematic_add_text',
+        'easyeda_schematic_add_wire',
+        'easyeda_schematic_place_component',
+        'easyeda_schematic_modify_primitive',
+        'easyeda_project_save',
+        'easyeda_pcb_add_text',
+        'easyeda_pcb_add_track',
+        'easyeda_pcb_modify_component',
+        'easyeda_export_pdf',
+        'easyeda_export_gerbers',
+      ])
+        expect(eligible(name), name).toBe(true);
+
+      for (const name of [
+        'easyeda_schematic_delete_primitive',
+        'easyeda_schematic_batch_write',
+        'easyeda_schematic_sync_to_pcb',
+        'easyeda_pcb_add_via',
+        'easyeda_pcb_delete_component',
+        'easyeda_api_call',
+      ])
+        expect(eligible(name), name).toBe(false);
+
+      expect(
+        projectSessionConsentEligible(
+          createMockTool('future_unknown_write', 'core', {
+            risk: 'medium',
+            confirmWrite: true,
+          }),
+        ),
+      ).toBe(false);
+      expect(
+        projectSessionConsentEligible(
+          createMockTool('external-action', 'core', {
+            risk: 'medium',
+            sideEffect: 'external-action',
+            confirmWrite: true,
+          }),
+        ),
+      ).toBe(false);
+      expect(
+        projectSessionConsentEligible(
+          createMockTool('destructive-export', 'core', {
+            risk: 'medium',
+            sideEffect: 'artifact-write',
+            annotations: { destructiveHint: true },
+          }),
+        ),
+      ).toBe(false);
+    });
+  });
+
   describe('remote risk policy', () => {
     it('derives legacy side effects from confirmWrite when metadata is absent', () => {
       expect(sideEffectForTool(createMockTool('read'))).toBe('read-only');
@@ -765,6 +827,16 @@ describe('ToolRegistry', () => {
       expect(remoteRiskForTool(tool)).toBe(expected);
     });
 
+    it('classifies ordinary PCB trace and reversible component moves as writes', () => {
+      registerBuiltinTools(registry, TEST_CONFIG);
+      for (const name of ['easyeda_pcb_add_track', 'easyeda_pcb_modify_component']) {
+        const tool = registry.get(name);
+        expect(tool, name).toBeDefined();
+        expect(remoteRiskForTool(tool!), name).toBe('write');
+        expect(requiredScopeForRisk(remoteRiskForTool(tool!)), name).toBe('easyeda.write');
+      }
+    });
+
     it('enumerates every built-in high-risk tool and classifies non-export tools as destructive', () => {
       registerBuiltinTools(registry, TEST_CONFIG);
       const highRiskTools = registry
@@ -775,13 +847,11 @@ describe('ToolRegistry', () => {
       expect(highRiskTools.map((tool) => tool.name)).toEqual([
         'easyeda_api_call',
         'easyeda_pcb_add_region',
-        'easyeda_pcb_add_track',
         'easyeda_pcb_add_via',
         'easyeda_pcb_add_zone',
         'easyeda_pcb_autoroute',
         'easyeda_pcb_delete_component',
         'easyeda_pcb_floorplan',
-        'easyeda_pcb_modify_component',
         'easyeda_pcb_place_batch',
         'easyeda_pcb_place_component',
         'easyeda_pcb_place_component_group',

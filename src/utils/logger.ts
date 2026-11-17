@@ -1,5 +1,6 @@
 import pino from 'pino';
 import { type EnvConfig } from '../config/env.js';
+import { redactObject, redactSecrets } from './redaction.js';
 
 let loggerInstance: pino.Logger | null = null;
 
@@ -43,6 +44,23 @@ export function createLogger(config: Pick<EnvConfig, 'LOG_LEVEL' | 'NODE_ENV'>):
     serializers: {
       err: pino.stdSerializers.err,
       error: pino.stdSerializers.err,
+    },
+    formatters: {
+      log: (value) => redactObject(value),
+    },
+    hooks: {
+      logMethod(inputArgs, method) {
+        // Pino's field redaction doesn't sanitize an interpolated log
+        // message. Keep runtime diagnostics while masking bearer strings.
+        method.apply(
+          this,
+          inputArgs.map((arg) => (typeof arg === 'string' ? redactSecrets(arg) : arg)) as [
+            obj: unknown,
+            msg?: string,
+            ...args: unknown[],
+          ],
+        );
+      },
     },
   };
 

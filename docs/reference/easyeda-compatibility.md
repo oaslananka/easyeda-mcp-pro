@@ -34,6 +34,7 @@ A record can remain historically valid while being stale for a new release candi
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.6               | 1.15.6                | 1.15.6            | Live validated  | 2026-11-15 | 2027-02-13 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.5               | 1.15.5                | 1.15.5            | Live validated  | 2026-11-14 | 2027-02-12 |
+| 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.5               | 1.15.5                | 1.15.5            | Live validated  | 2026-11-14 | 2027-02-12 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.3               | 1.15.3                | 1.15.3            | Live validated  | 2026-11-13 | 2027-02-11 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.2               | 1.15.2                | 1.15.2            | Live validated  | 2026-11-13 | 2027-02-11 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.0               | 1.15.0                | 1.15.0            | Live validated  | 2026-11-13 | 2027-02-11 |
@@ -120,6 +121,52 @@ The installed extension package and loader both reported version `1.15.6` during
 - No external ChatGPT/Claude OAuth application, second real owner, or production Cloud server was accepted in this validation; PR #1057 remains Draft and #850 HOLD.
 - Tested Ubuntu 24.04.5 EasyEDA Pro 3.2.209 only; no Windows/macOS editor-runtime acceptance.
 - Results do not constitute electrical/ERC, DRC, supplier or fabrication approval.
+
+## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-14-3c47d37-v1155-cloud-native-readonly
+
+Record ID: `easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-14-3c47d37-v1155-cloud-native-readonly`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                                                                           |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `3.2.209.8a704eab`                                                                                                                                    |
+| Electron                                 | `36.3.1`                                                                                                                                              |
+| Chromium                                 | `136.0.7103.113` (Previously recorded metadata for identical installed vendor EasyEDA 3.2.209 build; not independently measured during this session.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                                                                    |
+| Kernel                                   | `7.0.0-43-generic`                                                                                                                                    |
+| Architecture                             | `x86_64`                                                                                                                                              |
+| Node.js used by validation server        | `24.22.3`                                                                                                                                             |
+| Validation package version               | `1.15.5`                                                                                                                                              |
+| Fix version represented by evidence      | `1.15.5`                                                                                                                                              |
+| Compatibility-sensitive base commit      | `3c47d37619c469d7b97d2985794800a789853b0f`                                                                                                            |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                                                              |
+| Installed extension package metadata     | `1.15.5`                                                                                                                                              |
+| Live-validated extension package SHA-256 | `1df98a6a9e51845ac7f37cc30ef4432af9d92135e967ce41cd7e89e25fb0a3d0`                                                                                    |
+| Live-validated extension package size    | `233148 bytes`                                                                                                                                        |
+| Loader-reported version                  | `1.15.5`                                                                                                                                              |
+| Bridge contract                          | `1.0.0`                                                                                                                                               |
+| Dispatcher                               | `baked`                                                                                                                                               |
+| Method registry hash                     | `f71f5e22b7fec5db`                                                                                                                                    |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                                                                     |
+
+The installed extension package and loader both reported version `1.15.5` during this validation.
+
+### Capability evidence
+
+| Capability                                                          | Level  | Status   | Result                                                                                                                                                                                                                                            | Evidence                                                                  |
+| ------------------------------------------------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Exact Cloud-merged feature candidate imports and pairs to local MCP | `live` | `passed` | Official EasyEDA Pro Extensions Manager imported the exact 233148-byte .eext, enabled it with isolated profile external interaction and after restart established a real local MCP loopback connection against exact merged candidate source.     | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057/files) |
+| Native PCB component read and correct project/document UUID         | `live` | `passed` | Real local MCP easyeda_pcb_components on disposable populated PCB returned 33/33 components, 33 IDs and 33 coordinates, valid project/document UUID parent match, native PCB document type 3, no error.                                           | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057/files) |
+| Native schematic reselect/read on same real project                 | `live` | `passed` | Real EasyEDA GUI switched from PCB to schematic. New real local MCP easyeda_schematic_components read returned 34/34 components and correct schematic document type 1, parent project UUID matched; no error.                                     | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057/files) |
+| Fixture integrity and isolated extension rollback                   | `live` | `passed` | Original and disposable copied project SHA-256 values matched before and after both reads with zero design writes, saves or exports. Reimported original 1.15.4 extension and visually confirmed manager v1.15.4 enabled; isolated editor closed. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057/files) |
+
+### Known limitations
+
+- THIS IS ONLY THE DRAFT CLOUD FEATURE BRANCH BINARY. Although its manifest says 1.15.5, it is a distinct 233148-byte preview extension, NOT the published stable 1.15.5 artifact (230597 bytes). The published release must not be reidentified or overwritten.
+- Only Local MCP bridge native read-only evidence was obtained against this merged feature source. Earlier verified Hosted OAuth WSS 33/33 read happened against previous Cloud PR source; the merged version has NOT undergone another genuine Hosted owner/second-owner or reconnect acceptance.
+- Tests ran only on isolated Ubuntu 24.04.5 EasyEDA Pro 3.2.209.8a704eab. No Windows/macOS editor runtime proof was collected here.
+- No live design write, save, export, production deployment, manufacturing qualification, electrical/ERC or fabrication sign-off.
 
 ## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-14-fca847d-v1155-native-readonly
 

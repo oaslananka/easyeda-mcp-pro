@@ -53,6 +53,27 @@ describe('redactObject', () => {
     expect(result.config.host).toBe('localhost');
   });
 
+  it('recursively redacts nested objects in arrays and native Error messages', () => {
+    const value = {
+      requests: [{ authorization: 'Bearer FAKE_ARRAY_TOKEN' }],
+      err: new Error('Bearer FAKE_ERROR_TOKEN'),
+    };
+    const result = redactObject(value) as {
+      requests: { authorization: string }[];
+      err: { message: string; stack: string };
+    };
+    expect(result.requests[0]?.authorization).toBe('[REDACTED]');
+    expect(result.err.message).toContain('[REDACTED]');
+    expect(result.err.stack).toContain('[REDACTED]');
+    expect(result.err.stack).not.toContain('FAKE_ERROR_TOKEN');
+  });
+
+  it('bounds cycles without changing safe sibling fields', () => {
+    const value: { name: string; next?: unknown } = { name: 'safe' };
+    value.next = value;
+    expect(redactObject(value)).toEqual({ name: 'safe', next: '[Circular]' });
+  });
+
   it('should return primitives as-is', () => {
     expect(redactObject('hello')).toBe('hello');
     expect(redactObject(42)).toBe(42);
