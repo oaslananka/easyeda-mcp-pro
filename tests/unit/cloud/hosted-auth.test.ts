@@ -20,6 +20,7 @@ describe('Hosted Cloud OAuth provider (opt-in)', () => {
       const auth = createHostedAuth(settings(database));
       const migrations = await getMigrations(auth.options);
       await migrations.runMigrations();
+      await auth.ready();
       auth.installGrantProtection();
       auth.installGrantProtection(); // Restart-safe, idempotent initialization.
       const trigger = database

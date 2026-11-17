@@ -141,7 +141,9 @@ export interface HostedAuth {
   ): Promise<{ name: string; redirectUri?: string } | null>;
 }
 
-export function createHostedAuth(settings: HostedAuthSettings): HostedAuth {
+export function createHostedAuth(
+  settings: HostedAuthSettings,
+): HostedAuth & { ready(): Promise<void> } {
   validateHostedAuthSettings(settings);
   const provider = betterAuth({
     baseURL: settings.origin,
@@ -175,6 +177,12 @@ export function createHostedAuth(settings: HostedAuthSettings): HostedAuth {
   return {
     origin: settings.origin,
     options: provider.options,
+    // The OAuth plugin performs asynchronous initialization (including any
+    // resource seeding). Await it after schema migrations so shutdown cannot
+    // close the database while the provider is still initializing.
+    async ready() {
+      await provider.$context;
+    },
     installGrantProtection() {
       // A SQLite trigger survives process restarts and catches Better Auth's
       // own consent deletion, not only our browser's Revoke button.

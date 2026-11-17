@@ -18,6 +18,7 @@ describe('explicitly hosted HTTP auth', () => {
     });
     const migration = await getMigrations(auth.options);
     await migration.runMigrations();
+    await auth.ready();
     const config = EnvSchema.parse({
       NODE_ENV: 'test',
       TRANSPORT: 'http',
@@ -91,7 +92,7 @@ describe('explicitly hosted HTTP auth', () => {
     }
   });
 
-  it('refuses to enable hosted Cloud when MCP bearer-token authentication is disabled', () => {
+  it('refuses to enable hosted Cloud when MCP bearer-token authentication is disabled', async () => {
     const database = new DatabaseSync(':memory:');
     try {
       const auth = createHostedAuth({
@@ -101,6 +102,7 @@ describe('explicitly hosted HTTP auth', () => {
         github: { clientId: 'fake-github', clientSecret: 'fake-secret' },
         google: { clientId: 'fake-google', clientSecret: 'fake-secret' },
       });
+      await auth.ready();
       const unsafe = EnvSchema.parse({
         NODE_ENV: 'test',
         TRANSPORT: 'http',
