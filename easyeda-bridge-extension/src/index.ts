@@ -661,7 +661,7 @@ function requestRemoteApproval(prompt: RemoteApprovalPrompt): Promise<RemoteAppr
 
     try {
       dialog.showConfirmationMessage?.(
-        `${prompt.actionSummary}\nTool: ${prompt.toolName} (${prompt.riskLevel})\nProject: ${prompt.activeProject?.projectName ?? 'project'}\nHash: ${prompt.inputHash.slice(0, 12)}\nExpires in ${Math.ceil((expiresAtMs - Date.now()) / 1000)}s. Reject if expired.`,
+        `${prompt.actionSummary}\nTool: ${prompt.toolName} (${prompt.riskLevel})\nProject: ${prompt.activeProject?.projectName ?? 'project'}\nHash: ${prompt.inputHash.slice(0, 12)}\nValid for ${Math.ceil((expiresAtMs - Date.now()) / 1000)}s. Reject after expiry.`,
         'Remote MCP Approval',
         'Approve',
         'Reject',
