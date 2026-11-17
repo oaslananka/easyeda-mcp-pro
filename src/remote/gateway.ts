@@ -287,32 +287,15 @@ export function allowRelayUpgradeAttempt(
   return current.count <= rateLimit;
 }
 
+const DESTRUCTIVE_TOOL_RE =
+  /^(?:easyeda_execute|api\.execute)$|delete|hotswap|hot_swap|regression/i;
+const WRITE_TOOL_RE = /place|add|create|set|update|write|route|apply|remove|clear/i;
+const EXPORT_TOOL_RE = /export/i;
+
 function defaultToolRiskHeuristic(toolName: string): RemoteRiskLevel | undefined {
-  const lower = toolName.toLowerCase();
-  if (lower === 'easyeda_execute' || lower === 'api.execute') return 'destructive';
-  if (
-    lower.includes('delete') ||
-    lower.includes('hotswap') ||
-    lower.includes('hot_swap') ||
-    lower.includes('regression')
-  ) {
-    return 'destructive';
-  }
-  if (
-    lower.includes('place') ||
-    lower.includes('add') ||
-    lower.includes('create') ||
-    lower.includes('set') ||
-    lower.includes('update') ||
-    lower.includes('write') ||
-    lower.includes('route') ||
-    lower.includes('apply') ||
-    lower.includes('remove') ||
-    lower.includes('clear')
-  ) {
-    return 'write';
-  }
-  if (lower.includes('export')) return 'export';
+  if (DESTRUCTIVE_TOOL_RE.test(toolName)) return 'destructive';
+  if (WRITE_TOOL_RE.test(toolName)) return 'write';
+  if (EXPORT_TOOL_RE.test(toolName)) return 'export';
   return undefined;
 }
 

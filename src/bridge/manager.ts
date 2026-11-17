@@ -144,6 +144,10 @@ interface PairingEntry {
 
 export type BridgeState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
+const EASYEDA_HOST_RE = /^(?:.+\.)?(?:easyeda\.com|lceda\.cn)$/i;
+const EXTENSION_PROTOCOL_RE = /^(?:chrome-extension|moz-extension):$/;
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
 export class BridgeManager extends EventEmitter {
   public state: BridgeState = 'disconnected';
   public hello: BridgeHello | null = null;
@@ -472,25 +476,13 @@ export class BridgeManager extends EventEmitter {
     if (this.config.CORS_ORIGIN && this.config.CORS_ORIGIN === origin) return true;
     try {
       const parsed = new URL(origin);
-      if (
-        (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
-        ['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname)
-      ) {
+      if (['http:', 'https:'].includes(parsed.protocol) && LOOPBACK_HOSTS.has(parsed.hostname)) {
         return true;
       }
-      if (
-        parsed.protocol === 'https:' &&
-        (parsed.hostname.endsWith('.easyeda.com') ||
-          parsed.hostname === 'easyeda.com' ||
-          parsed.hostname.endsWith('.lceda.cn') ||
-          parsed.hostname === 'lceda.cn')
-      ) {
+      if (parsed.protocol === 'https:' && EASYEDA_HOST_RE.test(parsed.hostname)) {
         return true;
       }
-      if (parsed.protocol === 'chrome-extension:' || parsed.protocol === 'moz-extension:') {
-        return true;
-      }
-      return false;
+      return EXTENSION_PROTOCOL_RE.test(parsed.protocol);
     } catch {
       return false;
     }
@@ -586,6 +578,22 @@ export class BridgeManager extends EventEmitter {
       }
     };
 
+    const canAcceptAssembly = (assemblyId: string): boolean => {
+      if (chunkAssemblies.size < MAX_CHUNK_ASSEMBLIES) return true;
+      const now = Date.now();
+      for (const [key, entry] of chunkAssemblies) {
+        if (now - entry.startedAt > CHUNK_ASSEMBLY_TTL_MS) chunkAssemblies.delete(key);
+      }
+      if (chunkAssemblies.size >= MAX_CHUNK_ASSEMBLIES) {
+        logger.warn(
+          { id: assemblyId, activeAssemblies: chunkAssemblies.size },
+          'too many active chunk assemblies, dropping',
+        );
+        return false;
+      }
+      return true;
+    };
+
     const handleChunk = (data: Record<string, unknown>): void => {
       const id = typeof data.id === 'string' ? data.id : '';
       const seq = typeof data.seq === 'number' ? data.seq : -1;
@@ -597,19 +605,7 @@ export class BridgeManager extends EventEmitter {
       }
       let assembly = chunkAssemblies.get(id);
       if (!assembly) {
-        if (chunkAssemblies.size >= MAX_CHUNK_ASSEMBLIES) {
-          const now = Date.now();
-          for (const [key, entry] of chunkAssemblies) {
-            if (now - entry.startedAt > CHUNK_ASSEMBLY_TTL_MS) chunkAssemblies.delete(key);
-          }
-          if (chunkAssemblies.size >= MAX_CHUNK_ASSEMBLIES) {
-            logger.warn(
-              { id, activeAssemblies: chunkAssemblies.size },
-              'too many active chunk assemblies, dropping',
-            );
-            return;
-          }
-        }
+        if (!canAcceptAssembly(id)) return;
         assembly = {
           chunks: new Array<string | undefined>(total),
           total,
