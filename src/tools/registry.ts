@@ -336,6 +336,43 @@ function handlerHeaders(extra: McpHandlerExtra | undefined): unknown {
   return extra?.requestInfo?.headers ?? extra?.http?.req?.headers;
 }
 
+/** Explicit native workflows eligible for a temporary, verified project edit grant.
+ *  Keep new tools fail-closed until their side effects have been reviewed. */
+const ROUTINE_PROJECT_WRITES = new Set([
+  'easyeda_schematic_place_component',
+  'easyeda_schematic_add_wire',
+  'easyeda_schematic_add_text',
+  'easyeda_schematic_add_rectangle',
+  'easyeda_schematic_add_circle',
+  'easyeda_schematic_add_polygon',
+  'easyeda_schematic_modify_primitive',
+  'easyeda_schematic_set_pin_no_connect',
+  'easyeda_schematic_create_net_flag',
+  'easyeda_schematic_create_net_port',
+  'easyeda_schematic_connect_pin_to_net',
+  'easyeda_schematic_connect_pins_by_net',
+  'easyeda_schematic_set_title_block',
+  'easyeda_project_save',
+  'easyeda_pcb_add_text',
+  'easyeda_pcb_add_track',
+  'easyeda_pcb_modify_component',
+  'easyeda_pcb_add_silkscreen_line',
+]);
+
+export function projectSessionConsentEligible(tool: ToolDefinition): boolean {
+  if (tool.risk === 'high' || tool.annotations.destructiveHint) return false;
+  const effect = sideEffectForTool(tool);
+  if (remoteRiskForTool(tool) === 'export') {
+    return effect === 'artifact-write';
+  }
+  return (
+    tool.risk === 'medium' &&
+    tool.confirmWrite &&
+    effect === 'design-mutation' &&
+    ROUTINE_PROJECT_WRITES.has(tool.name)
+  );
+}
+
 function remoteIdentityFromExtra(extra: unknown): RemoteIdentity | undefined {
   const handlerExtra = extra as McpHandlerExtra | undefined;
   const auth = handlerAuthInfo(handlerExtra);
@@ -347,6 +384,7 @@ function remoteIdentityFromExtra(extra: unknown): RemoteIdentity | undefined {
     if (!userId) return undefined;
     return {
       userId,
+      clientId: auth.clientId,
       scopes: (auth.scopes ?? []).map(normalizeRemoteScope) as RemoteIdentity['scopes'],
       expiresAt: auth.expiresAt ? new Date(auth.expiresAt * 1000) : undefined,
     };
@@ -358,6 +396,8 @@ function remoteIdentityFromExtra(extra: unknown): RemoteIdentity | undefined {
   const expiresAtHeader = readHeader(headers, 'x-remote-expires-at');
   return {
     userId,
+    // Self-hosted header identities do not prove a separate OAuth client;
+    // retain per-action approval rather than guessing a trusted client ID.
     scopes: parseRemoteScopes(readHeader(headers, 'x-remote-scopes') ?? 'easyeda.read'),
     expiresAt: expiresAtHeader ? new Date(expiresAtHeader) : undefined,
   };
@@ -475,6 +515,7 @@ async function contextForRemoteRelay(
       riskLevel,
       input: parsed,
       approvalId,
+      sessionApprovalEligible: projectSessionConsentEligible(tool),
     });
     if (!authorization.ok) throw new RemoteRelayRouteError(authorization);
     sessionId = authorization.sessionId;

@@ -83,9 +83,15 @@ Tunnels provide reachability only. They do not replace authentication, pairing, 
 4. The user pairs the extension session with the remote MCP client or hosted account.
 5. Remote tool calls route to the paired EasyEDA project.
 6. Read operations can run after auth and pairing.
-7. A write/export/destructive call first requests approval in an EasyEDA confirmation dialog.
-8. After approval, the client retries the identical MCP invocation with the returned
-   `remoteApprovalId`; rejection, timeout, changed input, and replay fail closed.
+7. Allowlisted routine project edits and local artifact exports first require a native EasyEDA
+   confirmation scoped to the authenticated OAuth client, paired session and native project UUID,
+   and lasting at most 30 minutes (separate write/export grants). Destructive, high-risk,
+   unrecognized and external operations retain their per-action confirmation.
+8. After the initial approval, the client retries the identical MCP invocation with
+   `remoteApprovalId`. Subsequent eligible routine calls can reuse their short-lived
+   project-session approval without further prompts; rejection, timeout, mismatched client/project,
+   changed input, replay and expired approvals still fail closed. `confirmWrite=true` remains
+   mandatory for design mutation tools.
 
 ## Security responsibilities
 

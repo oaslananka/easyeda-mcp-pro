@@ -670,7 +670,7 @@ describe('Hosted Cloud browser recovery', () => {
     const fullInfo = cards[1].children[0].children;
     expect(fullInfo[1].textContent).toBe('Read · Write · Export');
     expect(fullInfo[1].className).not.toContain('limited');
-    expect(fullInfo[2].textContent).toContain('requires your approval in EasyEDA');
+    expect(fullInfo[2].textContent).toContain('once per project session for routine edits');
     const readAccess = cards[0].children[1].children;
     expect(readAccess[0].textContent).toBe('Manage access');
     expect(readAccess[1].children.map((x: { textContent: string }) => x.textContent)).toEqual([
@@ -679,7 +679,7 @@ describe('Hosted Cloud browser recovery', () => {
       'Export —',
       'Admin —',
     ]);
-    expect(readAccess[2].textContent).toContain('reconnect from the MCP client');
+    expect(readAccess[2].textContent).toContain('reconnect your MCP client');
     expect(readAccess[3].textContent).toBe('Revoke access');
   });
 
@@ -854,9 +854,13 @@ describe('Hosted Cloud browser portal', () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain('Request design changes');
-      expect(html).toContain('Each write requires a separate approval in EasyEDA.');
+      expect(html).toContain(
+        'Routine edits need one EasyEDA project-session approval for up to 30 minutes',
+      );
       expect(html).toContain('Export design files');
-      expect(html).toContain('Each export requires a separate approval in EasyEDA.');
+      expect(html).toContain(
+        'Local artifact exports can share a separate 30-minute EasyEDA project-session approval',
+      );
       expect(html).toContain('Request high-risk project actions');
       expect(html).toContain(
         'Destructive operations require stronger approval; unsupported actions remain blocked.',

@@ -4,6 +4,7 @@ import { EnvSchema } from '../../../../src/config/env.js';
 import {
   createHttpTransport,
   isOAuthAccessTokenTypeAllowed,
+  verifiedOAuthClientId,
 } from '../../../../src/server/transports/http.js';
 
 function createTestConfig(port: number) {
@@ -40,6 +41,21 @@ describe('hosted MCP access-token type boundary', () => {
   it('preserves the existing JWT contract outside hosted Cloud', () => {
     expect(isOAuthAccessTokenTypeAllowed('JWT', false)).toBe(true);
     expect(isOAuthAccessTokenTypeAllowed(undefined, false)).toBe(true);
+  });
+});
+
+describe('verified OAuth client identity', () => {
+  it('uses the signed authorized-party claim rather than the owner as the hosted client ID', () => {
+    const claims = { sub: 'same-owner', azp: 'independent-agent', scope: 'easyeda.write' };
+    expect(verifiedOAuthClientId(claims, true)).toBe('independent-agent');
+    expect(verifiedOAuthClientId({ ...claims, azp: 'different-agent' }, true)).toBe(
+      'different-agent',
+    );
+    expect(verifiedOAuthClientId({ ...claims, client_id: 'untrusted-other' }, true)).toBe(
+      'independent-agent',
+    );
+    expect(verifiedOAuthClientId({ sub: 'owner-no-client' }, true)).toBeUndefined();
+    expect(verifiedOAuthClientId({ sub: 'owner', client_id: 'legacy' }, false)).toBe('legacy');
   });
 });
 

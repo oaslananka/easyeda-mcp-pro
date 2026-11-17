@@ -119,7 +119,7 @@ const account = (): string =>
 <section class="panel clients-panel" aria-labelledby="clients-title">
 <div class="section-heading"><div><p class="section-kicker">PERMISSIONS</p><h2 id="clients-title">Authorized MCP clients</h2></div>
 <button class="btn subtle small" id="refresh-clients" type="button">↻ Refresh</button></div>
-<p class="section-description">Review each client's permissions. Each MCP client has its own Read, Write, Export and Admin permissions. Select Manage access to review or revoke a client. To grant additional permissions, reconnect that client and approve its new request. EasyEDA still asks before changes or exports.</p>
+<p class="section-description">Review each client's permissions. Each MCP client has its own Read, Write, Export and Admin permissions. Manage access here. For verified clients and selected projects, EasyEDA asks once to allow routine edits or local exports for up to 30 minutes; high-risk actions still need individual approval. Revoke client access here to stop its future calls.</p>
 <p class="section-description">MCP client URL: <code class="endpoint">https://easyeda-mcp-pro.oaslananka.dev/mcp</code>. This is for ChatGPT and other MCP clients, not the extension WSS address.</p>
 <div id="clients" aria-live="polite"><div class="empty">Checking authorizations…</div></div></section>
 <div class="account-actions"><button id="sign-out" class="btn subtle small" type="button">Sign out</button></div>`,
@@ -130,11 +130,17 @@ const PERMISSION_DETAILS = new Map<string, readonly [title: string, detail: stri
   ['easyeda.read', ['Read your selected design', 'No editing is permitted by this scope.']],
   [
     'easyeda.write',
-    ['Request design changes', 'Each write requires a separate approval in EasyEDA.'],
+    [
+      'Request design changes',
+      'Routine edits need one EasyEDA project-session approval for up to 30 minutes; high-risk actions require separate approval.',
+    ],
   ],
   [
     'easyeda.export',
-    ['Export design files', 'Each export requires a separate approval in EasyEDA.'],
+    [
+      'Export design files',
+      'Local artifact exports can share a separate 30-minute EasyEDA project-session approval; external actions remain individually guarded.',
+    ],
   ],
   [
     'easyeda.project_admin',

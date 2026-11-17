@@ -330,8 +330,8 @@ export const CLOUD_JS = String.raw`
           info.appendChild(el('p', 'client-permission-help', absent.length
             ? 'To enable ' + (absent.length === 2 ? 'write and export' : (canWrite ? 'export' : 'write')) +
               ', reconnect from your MCP client requesting ' + absent.join(' and ') +
-              '. Approve the new permissions when prompted. Each action still needs approval in EasyEDA.'
-            : 'Write and export are authorized for this client, but each action still requires your approval in EasyEDA.'));
+              '. Approve the new permissions when prompted. Eligible routine operations need one native approval per 30-minute project session.'
+            : 'Write and export are authorized. EasyEDA asks once per project session for routine edits and local exports (separate grants, max 30 min). High-risk actions still require individual approval.'));
           card.appendChild(info);
           const manage = el('details', 'client-manage');
           manage.appendChild(el('summary', '', 'Manage access'));
@@ -341,7 +341,7 @@ export const CLOUD_JS = String.raw`
           });
           manage.appendChild(permissions);
           manage.appendChild(el('p', 'client-permission-help',
-            'To change permissions: revoke this authorization, then reconnect from the MCP client and approve the requested permissions. Design writes and exports still require EasyEDA approval.'));
+            'To change scopes, revoke this authorization and reconnect your MCP client. Revoking the client or device ends effective access. Native session approvals only cover verified, selected projects for up to 30 minutes; high-risk actions always ask again.'));
           if (typeof consent.id === 'string') {
             const revoke = el('button', 'btn danger small', 'Revoke access');
             revoke.type = 'button';

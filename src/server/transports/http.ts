@@ -154,6 +154,19 @@ function rejectJwtValidationError(
   }
 }
 
+/** The signed OAuth authorized-party claim, not the shared owner, identifies
+ *  an MCP client. Hosted access tokens without azp fail validation upstream. */
+export function verifiedOAuthClientId(
+  claims: Record<string, unknown>,
+  hosted: boolean,
+): string | undefined {
+  if (hosted) {
+    return typeof claims.azp === 'string' && claims.azp.trim() ? claims.azp : undefined;
+  }
+  if (typeof claims.client_id === 'string') return claims.client_id;
+  return typeof claims.sub === 'string' ? claims.sub : 'oauth-client';
+}
+
 /** Enforce grant and scope policy after JWT signature, audience and type checks. */
 function completeVerifiedOAuthRequest(
   req: Request,
@@ -209,9 +222,11 @@ function completeVerifiedOAuthRequest(
   }
 
   const claims = payload as Record<string, unknown>;
-  const subject = typeof claims.sub === 'string' ? claims.sub : undefined;
-  const clientId =
-    typeof claims.client_id === 'string' ? claims.client_id : (subject ?? 'oauth-client');
+  const clientId = verifiedOAuthClientId(claims, Boolean(hostedAuth));
+  if (!clientId) {
+    tokenError(req, res, config, 'OAuth client identity was not verified.');
+    return;
+  }
   (req as AuthenticatedExpressRequest).auth = {
     token,
     clientId,

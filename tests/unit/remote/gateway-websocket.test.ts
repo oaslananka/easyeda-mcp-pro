@@ -493,6 +493,67 @@ describe('RemoteGateway WebSocket relay', () => {
     ).resolves.toMatchObject({ ok: false, code: 'PROJECT_INACTIVE' });
   });
 
+  it('clears the short-lived project consent if the editor changes projects and comes back', async () => {
+    const harness = await createHarness();
+    const identity: RemoteIdentity = {
+      userId: readIdentity.userId,
+      clientId: 'verified-app',
+      scopes: ['easyeda.read', 'easyeda.write'],
+    };
+    const sessionId = await registerSession(harness, identity);
+    expect(harness.gateway.selectPairedProject(identity, sessionId)).toBe(true);
+    const request = {
+      identity,
+      sessionId,
+      toolName: 'easyeda_schematic_add_text',
+      riskLevel: 'write' as const,
+      sessionApprovalEligible: true,
+    };
+    const first = await harness.gateway.authorizeToolInvocation(request);
+    if (first.ok || !first.approvalId) throw new Error('Expected first native consent');
+    expect(
+      harness.gateway.resolveApprovalFromExtension({
+        sessionId,
+        approvalId: first.approvalId,
+        result: 'approved',
+      }),
+    ).toBe(true);
+    expect(
+      await harness.gateway.authorizeToolInvocation({
+        ...request,
+        approvalId: first.approvalId,
+      }),
+    ).toMatchObject({ ok: true });
+    expect(await harness.gateway.authorizeToolInvocation(request)).toMatchObject({ ok: true });
+    for (const projectId of ['other-project', 'relay-project']) {
+      const priorReplies = harness.client.messages.filter(
+        (msg) => msg.type === 'heartbeat' && msg.source === 'server',
+      ).length;
+      harness.client.send(
+        envelope('heartbeat', {
+          sessionId,
+          source: 'extension',
+          activeProject: {
+            projectId,
+            documentId: 'relay-schematic',
+            projectName: projectId,
+            documentType: 'schematic',
+          },
+        }),
+      );
+      await waitForCondition(
+        () =>
+          harness.client.messages.filter(
+            (msg) => msg.type === 'heartbeat' && msg.source === 'server',
+          ).length > priorReplies,
+      );
+    }
+    await expect(harness.gateway.authorizeToolInvocation(request)).resolves.toMatchObject({
+      ok: false,
+      code: 'APPROVAL_REQUIRED',
+    });
+  });
+
   it('re-pairs with a fresh owner code after a real socket drop, never replaying an old code', async () => {
     const harness = await createHarness();
     harness.gateway.requireExplicitProjectSelection();

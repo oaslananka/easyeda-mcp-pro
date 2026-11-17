@@ -156,6 +156,7 @@ export interface RemoteGatewayOptions {
   hashInput?: (value: unknown) => string;
   approvalTtlMs?: number;
   invocationGrantTtlMs?: number;
+  projectSessionGrantTtlMs?: number;
 }
 
 function stableStringify(value: unknown): string {
@@ -400,6 +401,8 @@ export class RemoteGateway {
   private readonly hashInput: (value: unknown) => string;
   private readonly approvalTtlMs: number;
   private readonly invocationGrants: RemoteInvocationGrantStore;
+  private readonly projectSessionGrantTtlMs: number;
+  private readonly projectSessionGrants = new Map<string, number>();
   private readonly dispatchQueue = new SessionDispatchQueue();
   private wsAttached = false;
   private relayMaxPayloadSize = 1_048_576;
@@ -416,6 +419,7 @@ export class RemoteGateway {
     this.makeId = options.makeId ?? (() => randomUUID());
     this.hashInput = options.hashInput ?? defaultHashInput;
     this.approvalTtlMs = options.approvalTtlMs ?? 60_000;
+    this.projectSessionGrantTtlMs = options.projectSessionGrantTtlMs ?? 30 * 60_000;
     this.router = options.router ?? new RemoteSessionRouter(this.now, this.makeId);
     this.approvals = options.approvals ?? new ApprovalStore();
     this.audit = options.audit ?? new RemoteAuditLog();
@@ -423,6 +427,80 @@ export class RemoteGateway {
       this.makeId,
       options.invocationGrantTtlMs ?? 300_000,
     );
+  }
+
+  /** A native owner approval can cover routine changes only for one paired,
+   *  authenticated client and native project. It is never a bearer credential. */
+  private projectGrantKey(
+    identity: RemoteIdentity,
+    session: ExtensionSession,
+    riskLevel: RemoteRiskLevel,
+  ): string | undefined {
+    if (
+      !identity.clientId ||
+      !session.activeProject?.projectId ||
+      (riskLevel !== 'write' && riskLevel !== 'export')
+    )
+      return undefined;
+    return JSON.stringify([
+      identity.userId,
+      identity.clientId,
+      session.sessionId,
+      session.activeProject.projectId,
+      riskLevel,
+    ]);
+  }
+
+  private hasProjectSessionGrant(
+    identity: RemoteIdentity,
+    session: ExtensionSession,
+    riskLevel: RemoteRiskLevel,
+    now: Date,
+  ): boolean {
+    const key = this.projectGrantKey(identity, session, riskLevel);
+    if (!key) return false;
+    const expiry = this.projectSessionGrants.get(key);
+    if (expiry === undefined) return false;
+    if (expiry <= now.getTime()) {
+      this.projectSessionGrants.delete(key);
+      return false;
+    }
+    return true;
+  }
+
+  private allowProjectSession(
+    identity: RemoteIdentity,
+    session: ExtensionSession,
+    riskLevel: RemoteRiskLevel,
+    now: Date,
+  ): void {
+    const key = this.projectGrantKey(identity, session, riskLevel);
+    if (!key) return;
+    // Fixed duration, no sliding renewal, bounded by the native session.
+    // Token expiry is checked on every call; refreshing an OAuth token for
+    // the same verified client must not force another native prompt.
+    const expiry = Math.min(
+      now.getTime() + this.projectSessionGrantTtlMs,
+      session.expiresAt.getTime(),
+    );
+    if (expiry <= now.getTime()) return;
+    if (this.projectSessionGrants.size >= 512) {
+      for (const [entry, deadline] of this.projectSessionGrants) {
+        if (deadline <= now.getTime()) this.projectSessionGrants.delete(entry);
+      }
+      if (this.projectSessionGrants.size >= 512) {
+        const oldest = this.projectSessionGrants.keys().next().value;
+        if (oldest !== undefined) this.projectSessionGrants.delete(oldest);
+      }
+    }
+    this.projectSessionGrants.set(key, expiry);
+  }
+
+  private revokeProjectSessionGrants(sessionId: string): void {
+    for (const key of this.projectSessionGrants.keys()) {
+      const values = JSON.parse(key) as string[];
+      if (values[2] === sessionId) this.projectSessionGrants.delete(key);
+    }
   }
 
   private resolveOwnerSelection(
@@ -511,6 +589,7 @@ export class RemoteGateway {
     now: Date;
     actionLabel: string;
     retryMessage: string;
+    sessionApprovalEligible?: boolean;
   }): Promise<RemoteGatewayFailure> {
     if (!input.connection.requestApproval) {
       return gatewayError(
@@ -522,6 +601,8 @@ export class RemoteGateway {
 
     const existing = this.approvals.findPending({
       userId: input.identity.userId,
+      clientId: input.identity.clientId,
+      activeProject: input.session.activeProject,
       sessionId: input.session.sessionId,
       toolName: input.toolName,
       inputHash: input.inputHash,
@@ -535,10 +616,20 @@ export class RemoteGateway {
         input.session.activeProject?.projectName
           ? ` on ${input.session.activeProject.projectName}`
           : ''
+      }${
+        input.sessionApprovalEligible &&
+        this.projectGrantKey(input.identity, input.session, input.riskLevel)
+          ? `. Approve routine ${input.riskLevel} actions from this MCP client on this project for 30 minutes; destructive actions always need a separate approval.`
+          : ''
       }`;
       this.approvals.request({
         approvalId,
         userId: input.identity.userId,
+        clientId: input.identity.clientId,
+        allowsProjectSession: Boolean(
+          input.sessionApprovalEligible &&
+          this.projectGrantKey(input.identity, input.session, input.riskLevel),
+        ),
         sessionId: input.session.sessionId,
         toolName: input.toolName,
         riskLevel: input.riskLevel,
@@ -601,6 +692,8 @@ export class RemoteGateway {
     const approved = this.approvals.consumeApproved({
       approvalId: input.approvalId,
       userId: input.identity.userId,
+      clientId: input.identity.clientId,
+      activeProject: input.session.activeProject,
       sessionId: input.session.sessionId,
       toolName: input.toolName,
       inputHash: input.inputHash,
@@ -781,6 +874,9 @@ export class RemoteGateway {
     ) {
       return false;
     }
+    const previousSelection = this.selectedProjects.get(identity.userId);
+    // Explicitly selecting even the same project starts a fresh native consent epoch.
+    if (previousSelection) this.revokeProjectSessionGrants(previousSelection.sessionId);
     this.selectedProjects.set(identity.userId, {
       sessionId,
       projectKey,
@@ -842,6 +938,7 @@ export class RemoteGateway {
     this.connections.delete(sessionId);
     this.approvals.deleteForSession(sessionId);
     this.invocationGrants.deleteForSession(sessionId);
+    this.revokeProjectSessionGrants(sessionId);
     if (session) {
       this.audit.record({
         event: 'remote.session.disconnected',
@@ -898,6 +995,8 @@ export class RemoteGateway {
     riskLevel: Exclude<RemoteRiskLevel, 'read'>;
     input?: unknown;
     approvalId?: string;
+    /** Trusted tool-registry metadata, never a client-supplied MCP argument. */
+    sessionApprovalEligible?: boolean;
   }): Promise<RemoteGatewayAuthorizationResult> {
     const scope = checkRemoteScope(input.identity, input.riskLevel, this.now());
     if (!scope.ok) {
@@ -915,7 +1014,11 @@ export class RemoteGateway {
 
     const now = this.now();
     const inputHash = this.hashInput(input.input);
-    if (!input.approvalId) {
+    const reusable = Boolean(
+      input.sessionApprovalEligible &&
+      this.hasProjectSessionGrant(identity, route.session, input.riskLevel, now),
+    );
+    if (!input.approvalId && !reusable) {
       return await this.requestRemoteApproval({
         identity,
         session: route.session,
@@ -925,21 +1028,32 @@ export class RemoteGateway {
         inputHash,
         now,
         actionLabel: 'MCP tool',
+        sessionApprovalEligible: input.sessionApprovalEligible,
         retryMessage:
           'Approval was requested in EasyEDA. Retry the same MCP tool call with remoteApprovalId after the user decides.',
       });
     }
 
-    const approvalFailure = this.consumeRemoteApproval({
-      approvalId: input.approvalId,
-      identity,
-      session: route.session,
-      toolName: input.toolName,
-      inputHash,
-      now,
-      mismatchTarget: 'MCP tool',
-    });
-    if (approvalFailure) return approvalFailure;
+    if (input.approvalId) {
+      const nativeApproval = this.approvals.get(input.approvalId);
+      const approvalFailure = this.consumeRemoteApproval({
+        approvalId: input.approvalId,
+        identity,
+        session: route.session,
+        toolName: input.toolName,
+        inputHash,
+        now,
+        mismatchTarget: 'MCP tool',
+      });
+      if (approvalFailure) return approvalFailure;
+      if (
+        input.sessionApprovalEligible &&
+        nativeApproval?.allowsProjectSession &&
+        nativeApproval.clientId === identity.clientId
+      ) {
+        this.allowProjectSession(identity, route.session, input.riskLevel, now);
+      }
+    }
 
     const grantId = this.invocationGrants.issue(
       {
@@ -1363,6 +1477,9 @@ export class RemoteGateway {
     }) => {
       if (!sessionId || !messageMatchesCurrentSession(heartbeat.sessionId)) return;
       if (Object.hasOwn(heartbeat, 'activeProject')) {
+        const previousProject = this.router.getSession(sessionId)?.activeProject?.projectId;
+        const incomingProject = heartbeat.activeProject?.projectId;
+        if (previousProject !== incomingProject) this.revokeProjectSessionGrants(sessionId);
         this.router.updateActiveProject(sessionId, heartbeat.activeProject ?? undefined);
       } else {
         this.router.heartbeat(sessionId);
