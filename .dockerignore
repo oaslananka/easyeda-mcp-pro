@@ -10,6 +10,11 @@
 !package.json
 !pnpm-lock.yaml
 !pnpm-workspace.yaml
+
+# Include only the reviewed pnpm security patch used at dependency install.
+!patches/
+patches/**
+!patches/picomatch@4.0.7.patch
 !tsconfig.json
 !tsconfig.build.json
 
