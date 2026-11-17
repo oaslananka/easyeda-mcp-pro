@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  picomatch: file:./vendor/picomatch
   fast-uri: 3.1.9
   hono: 4.13.18
   '@hono/node-server': 2.1.8
@@ -1937,8 +1938,8 @@ packages:
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
-  picomatch@4.0.7:
-    resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
+  picomatch@file:vendor/picomatch:
+    resolution: {directory: vendor/picomatch, type: directory}
     engines: {node: '>=12'}
 
   pino-abstract-transport@3.0.0:
@@ -3823,9 +3824,9 @@ snapshots:
 
   fast-levenshtein@2.0.6: {}
 
-  fdir@6.5.0(picomatch@4.0.7):
-    optionalDependencies:
-      picomatch: 4.0.7
+  fdir@6.5.0:
+    dependencies:
+      picomatch: file:vendor/picomatch
 
   file-entry-cache@11.1.5:
     dependencies:
@@ -4182,7 +4183,7 @@ snapshots:
 
   picocolors@1.1.1: {}
 
-  picomatch@4.0.7: {}
+  picomatch@file:vendor/picomatch: {}
 
   pino-abstract-transport@3.0.0:
     dependencies:
@@ -4516,8 +4517,8 @@ snapshots:
 
   tinyglobby@0.2.17:
     dependencies:
-      fdir: 6.5.0(picomatch@4.0.7)
-      picomatch: 4.0.7
+      fdir: 6.5.0
+      picomatch: file:vendor/picomatch
 
   tinyrainbow@3.2.0: {}
 
@@ -4608,8 +4609,8 @@ snapshots:
   vite@7.3.8(@types/node@24.19.2)(tsx@4.23.15):
     dependencies:
       esbuild: 0.28.2
-      fdir: 6.5.0(picomatch@4.0.7)
-      picomatch: 4.0.7
+      fdir: 6.5.0
+      picomatch: file:vendor/picomatch
       postcss: 8.5.33
       rollup: 4.64.6
       tinyglobby: 0.2.17
@@ -4685,7 +4686,7 @@ snapshots:
       magic-string: 0.30.21
       obug: 2.2.1
       pathe: 2.0.3
-      picomatch: 4.0.7
+      picomatch: file:vendor/picomatch
       std-env: 4.3.0
       tinybench: 2.9.0
       tinyexec: 1.3.1

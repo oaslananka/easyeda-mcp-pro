@@ -17,3 +17,6 @@ proje-ymlenmesi/
 
 # Project-local package-manager stores
 .pnpm-store/
+
+# Third-party MIT source pinned locally for CVE-2026-112366; preserve upstream formatting.
+vendor/picomatch/
