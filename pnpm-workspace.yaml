@@ -10,7 +10,6 @@ trustLockfile: false
 blockExoticSubdeps: true
 
 overrides:
-  picomatch: file:./vendor/picomatch
   fast-uri: 3.1.9
   hono: 4.13.18
   '@hono/node-server': 2.1.8
@@ -30,3 +29,6 @@ overrides:
   'undici@6.27.0': 6.29.1
   follow-redirects: 1.16.3
   minimatch: 11.0.8
+
+patchedDependencies:
+  picomatch@4.0.7: patches/picomatch@4.0.7.patch

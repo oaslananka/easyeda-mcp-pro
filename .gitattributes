@@ -1,0 +1,2 @@
+# Unified patch context lines deliberately contain whitespace-only diff markers.
+patches/*.patch -whitespace
