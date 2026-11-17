@@ -490,12 +490,73 @@ describe('Hosted Cloud browser recovery', () => {
     await history.dispatch('toggle');
     await result.elements.get('refresh-extensions').dispatch('click');
     expect(list.children[1].open).toBe(true);
-    await list.children[1].children[2].children[1].dispatch('click');
+    const removeOld = list.children[1].children[2].children[1];
+    await removeOld.dispatch('click');
+    expect(removed).toEqual([]);
+    expect(removeOld.textContent).toBe('Confirm removal');
+    await removeOld.dispatch('click');
     expect(removed).toEqual(['old-a']);
     expect(list.children[1].children[0].textContent).toBe('Previous connections (1)');
     expect(list.children[1].open).toBe(true);
     expect(result.elements.get('device-count').textContent).toBe('1 connected');
     expect(result.redirects).toEqual([]);
+  });
+
+  it('requires a deliberate second step to revoke a live device, and permits cancellation', async () => {
+    const removed: string[] = [];
+    let sessions = [
+      {
+        sessionId: 'live',
+        connected: true,
+        mode: 'hosted',
+        extensionVersion: '1.15.7',
+        activeProject: {
+          projectId: 'pcb',
+          documentId: 'doc',
+          projectName: 'Disposable PCB',
+          documentType: 'pcb',
+        },
+      },
+    ];
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Fixture Owner' } }) };
+      if (url === '/cloud/api/extensions')
+        return { ok: true, status: 200, json: async () => ({ sessions, selection: null }) };
+      if (url === '/cloud/api/clients')
+        return { ok: true, status: 200, json: async () => ({ clients: [] }) };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ total: 0, succeeded: 0, failed: 0, lastCallAt: null }),
+        };
+      if (url === '/cloud/api/extensions/live') {
+        removed.push('live');
+        sessions = [];
+        return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      }
+      throw Error('Unexpected request: ' + url);
+    });
+    const list = result.elements.get('extensions');
+    const activeDevice = list.children[0];
+    const remove = activeDevice.children[2];
+    expect(remove.textContent).toBe('Remove access');
+    await remove.dispatch('click');
+    expect(removed).toEqual([]);
+    expect(remove.textContent).toBe('Confirm removal');
+    const confirmation = activeDevice.children[3];
+    expect(confirmation.hidden).toBe(false);
+    expect(confirmation.children[0].textContent).toContain('disconnect');
+    await confirmation.children[1].dispatch('click');
+    expect(remove.textContent).toBe('Remove access');
+    expect(confirmation.hidden).toBe(true);
+    expect(removed).toEqual([]);
+    await remove.dispatch('click');
+    await remove.dispatch('click');
+    expect(removed).toEqual(['live']);
+    expect(list.children[0].textContent).toContain('No devices connected');
+    expect(result.notice.textContent).toBe('Extension access removed.');
   });
 
   it('shows reconnect guidance before collapsed old sessions when every device is offline', async () => {

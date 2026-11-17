@@ -28,7 +28,7 @@ footer{padding:29px 0 38px;display:flex;align-items:center;justify-content:space
 .workspace-grid{display:grid;grid-template-columns:minmax(0,1.22fr) minmax(320px,.78fr);align-items:start;gap:22px}.panel{padding:27px;max-width:none}.panel h2{font-size:19px;letter-spacing:-.035em;margin:0;line-height:1.35}.section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.section-kicker{margin:0 0 6px;color:#83c9ec;letter-spacing:.15em;font-size:10px;font-weight:800}.section-description{color:#a9b9cf;font-size:13px;line-height:1.65;margin:12px 0 22px}.count{display:inline-flex;vertical-align:middle;margin-left:7px;padding:3px 8px;border:1px solid #45627e;border-radius:7px;color:#b8d4f3;font-size:12px;font-weight:700}
 .device-history{border:1px solid #344963;border-radius:14px;padding:9px 12px;background:#0e1b2c}.device-history>summary{cursor:pointer;color:#c6e3ff;font-weight:720;font-size:13px;padding:9px 6px;min-height:42px}.device-history>summary:focus-visible{outline:3px solid #7dc9ff;outline-offset:2px}.device-history[open]{display:grid;gap:11px}.device-history .session{margin-top:4px}.device-history-note{color:#aabed6;font-size:12px;line-height:1.55;margin:4px 6px 8px}
 .device-list{display:grid;gap:12px}.empty{padding:28px 20px;background:#0c1625;border:1px dashed #39516a;border-radius:15px;color:#b3c4db;font-size:13px;line-height:1.6}.device-list .empty{min-height:138px;display:flex;align-items:center;justify-content:center;text-align:center}
-.session{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;background:#111e30;border:1px solid #344963;border-radius:15px;padding:18px}.session strong{font-size:13px;word-break:break-word}.session p{color:#9cafc8;font-size:12px;margin:6px 0}.session>div{min-width:0}.client-permission{display:inline-flex;align-items:center;border:1px solid #356e61;background:#163a34;color:#baf5df;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:750;margin:9px 0 2px}.client-permission.limited{border-color:#655333;background:#352d1d;color:#f7dca0}.session p.client-permission-help{line-height:1.55;max-width:560px;color:#bdcfe5;margin-top:8px}.session-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.session .btn{min-height:37px;font-size:12px;padding:8px 12px}.status{display:inline-flex;gap:6px;align-items:center;font-size:11px;font-weight:720;padding:4px 10px;border:1px solid #315f55;border-radius:999px;background:#173b38;color:#8fe8cd}.status.off{border-color:#604655;background:#3b2c3b;color:#f4c4d3}
+.session{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;background:#111e30;border:1px solid #344963;border-radius:15px;padding:18px}.session strong{font-size:13px;word-break:break-word}.session p{color:#9cafc8;font-size:12px;margin:6px 0}.session>div{min-width:0}.session-revoke-confirm{flex:1 0 100%;border-top:1px solid #344963;padding-top:12px}.session-revoke-confirm p{margin:0 0 11px;color:#e1c8d2;font-size:12px;line-height:1.6}.client-permission{display:inline-flex;align-items:center;border:1px solid #356e61;background:#163a34;color:#baf5df;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:750;margin:9px 0 2px}.client-permission.limited{border-color:#655333;background:#352d1d;color:#f7dca0}.session p.client-permission-help{line-height:1.55;max-width:560px;color:#bdcfe5;margin-top:8px}.session-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.session .btn{min-height:37px;font-size:12px;padding:8px 12px}.status{display:inline-flex;gap:6px;align-items:center;font-size:11px;font-weight:720;padding:4px 10px;border:1px solid #315f55;border-radius:999px;background:#173b38;color:#8fe8cd}.status.off{border-color:#604655;background:#3b2c3b;color:#f4c4d3}
 .setup-steps{display:grid;gap:0;margin:18px 0}.setup-steps p{display:flex;align-items:center;gap:13px;border-bottom:1px solid #2a3e55;margin:0;padding:14px 0;font-size:12px;color:#b5c8df}.setup-steps strong{color:#e0ecfd;font-weight:700}.setup-steps p>span{border:1px solid #385773;background:#172d44;color:#aad7f4;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex-shrink:0;font-weight:800}.pair-button{width:100%;justify-content:space-between;padding:14px 17px;margin:7px 0 16px}.pairing-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}.code{display:inline-flex;align-items:center;justify-content:center;max-width:100%;letter-spacing:.12em;font-size:23px;font-weight:850;color:#dbefff;background:#091322;border:1px solid #3d5672;border-radius:10px;min-height:52px;padding:8px 15px;margin:0;user-select:all;word-break:break-all}.muted,.meta{color:#a7b7cb;font-size:12px}.pairing-panel .muted{line-height:1.65}.usage-panel{margin-top:22px}.usage-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.usage-stat{padding:18px;background:#0e1a2b;border:1px solid #334a65;border-radius:14px}.usage-stat strong{display:block;font-size:32px;line-height:1.1;letter-spacing:-.05em;color:#e6f5ff;font-variant-numeric:tabular-nums}.usage-stat span{display:block;color:#abc0d9;font-size:12px;margin-top:9px}.usage-panel .muted{margin:14px 0 0}.clients-panel{margin-top:22px}.clients-panel .empty{padding:18px}.account-actions{display:flex;justify-content:flex-end;margin-top:24px}
 .notice{background:#162a3e;border:1px solid #41607c;color:#cde3f9;border-radius:12px;padding:13px 16px;font-size:13px}.notice.error{background:#3b2638;border-color:#94576e;color:#ffdbec}
 .scopes{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;list-style:none;padding:0;margin:18px 0}.scopes li{border:1px solid #3b526c;border-radius:10px;padding:12px 14px;background:#19273b;font-size:13px}.scopes li strong,.scopes li small,.scopes li code{display:block}
@@ -204,15 +204,39 @@ export const CLOUD_JS = String.raw`
       }
       const revoke = el('button','btn danger', 'Remove access');
       revoke.type = 'button';
+      const confirmation = el('div','session-revoke-confirm');
+      confirmation.hidden = true;
+      confirmation.appendChild(el('p','',
+        s.connected
+          ? 'This disconnects the device from Cloud. Pair it again to reconnect. Your EasyEDA designs are not deleted.'
+          : 'This removes the saved Cloud pairing. Your EasyEDA designs are not deleted.'));
+      const keep = el('button','btn secondary small','Keep access');
+      keep.type = 'button';
+      keep.addEventListener('click', () => {
+        confirmingRemoval = false;
+        revoke.textContent = 'Remove access';
+        confirmation.hidden = true;
+      });
+      confirmation.appendChild(keep);
+      let confirmingRemoval = false;
       revoke.addEventListener('click', async () => {
+        if (revoke.disabled) return;
+        if (!confirmingRemoval) {
+          confirmingRemoval = true;
+          revoke.textContent = 'Confirm removal';
+          confirmation.hidden = false;
+          return;
+        }
         revoke.disabled = true;
+        keep.disabled = true;
         try {
           await request('/cloud/api/extensions/' + encodeURIComponent(s.sessionId), { method: 'DELETE' });
           await refreshExtensions();
           setText('notice','Extension access removed.');
-        } catch (error) { fail(error); revoke.disabled = false; }
+        } catch (error) { fail(error); revoke.disabled = false; keep.disabled = false; }
       });
       card.appendChild(revoke);
+      card.appendChild(confirmation);
       return card;
     };
     const refreshExtensions = async () => {
