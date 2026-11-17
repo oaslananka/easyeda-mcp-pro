@@ -65,12 +65,13 @@ async function main() {
 
   const config = loadEnvConfig();
   const hostedCloud = await createHostedCloudRuntime(config);
+  const registeredHostedToolNames = new Set<string>();
   const remoteGateway =
     config.MCP_BRIDGE_BACKEND === 'remote_relay'
       ? new RemoteGateway(
           hostedCloud
             ? {
-                audit: createHostedUsageAuditLog(hostedCloud.usage),
+                audit: createHostedUsageAuditLog(hostedCloud.usage, registeredHostedToolNames),
                 resumeStore: hostedCloud.devices,
               }
             : {},
@@ -80,6 +81,10 @@ async function main() {
     remoteGateway,
     hostedOAuthResource: hostedCloud ? config.OAUTH_AUDIENCE : undefined,
   });
+
+  // Populate the display-only allowlist from registered tools before HTTP
+  // starts. Local mode does not use the Hosted Cloud audit callback.
+  instance.registry.getEnabledTools().forEach((tool) => registeredHostedToolNames.add(tool.name));
 
   if (config.TRANSPORT === 'http') {
     const httpTransport = createHttpTransport(config, {

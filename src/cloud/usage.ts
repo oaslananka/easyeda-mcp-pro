@@ -63,7 +63,10 @@ export class HostedUsageStore {
 }
 
 /** One safe terminal line and a durable counter per completed Hosted MCP relay call. */
-export function createHostedUsageAuditLog(usage: HostedUsageStore): RemoteAuditLog {
+export function createHostedUsageAuditLog(
+  usage: HostedUsageStore,
+  registeredTools: ReadonlySet<string> = new Set(),
+): RemoteAuditLog {
   return new RemoteAuditLog(200, (event) => {
     if (
       event.mode !== 'hosted' ||
@@ -74,9 +77,13 @@ export function createHostedUsageAuditLog(usage: HostedUsageStore): RemoteAuditL
     try {
       const totals = usage.record(event);
       if (!totals) return;
-      // Tool name is an identifier, never log its user-supplied arguments.
+      // Remote toolName originates in the client's request. Only display a
+      // name from this server's registered MCP tool list, never arbitrary
+      // caller-controlled text, OAuth credentials or design payloads.
       const tool =
-        event.toolName && /^[a-zA-Z0-9_.-]{1,100}$/.test(event.toolName)
+        event.toolName &&
+        registeredTools.has(event.toolName) &&
+        /^[a-zA-Z0-9_.-]{1,100}$/.test(event.toolName)
           ? event.toolName
           : 'unknown-tool';
       const ok = event.event === 'remote.tool.completed';

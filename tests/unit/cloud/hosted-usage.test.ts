@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { RemoteAuditLog } from '../../../src/remote/observability.js';
 import { RemoteGateway } from '../../../src/remote/gateway.js';
 import { REMOTE_RELAY_PROTOCOL_VERSION } from '../../../src/remote/protocol.js';
@@ -86,6 +86,41 @@ describe('Hosted Cloud relay accounting integration', () => {
       });
       expect(usage.totals('owner-b').total).toBe(0);
     } finally {
+      database.close();
+    }
+  });
+});
+
+describe('Hosted Cloud terminal log safety', () => {
+  it('displays only actual registered tool names, never an arbitrary client tool label', () => {
+    const database = new DatabaseSync(':memory:');
+    const output = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      const audit = createHostedUsageAuditLog(
+        new HostedUsageStore(database),
+        new Set(['easyeda_pcb_components']),
+      );
+      audit.record({
+        event: 'remote.tool.failed',
+        mode: 'hosted',
+        userId: 'disposable-test-owner',
+        toolName: 'ACCESS_TOKEN_FAKE_NEVER_LOG_THIS',
+        durationMs: 2,
+      });
+      audit.record({
+        event: 'remote.tool.completed',
+        mode: 'hosted',
+        userId: 'disposable-test-owner',
+        toolName: 'easyeda_pcb_components',
+        durationMs: 3,
+      });
+      const printed = output.mock.calls.map(([value]) => String(value)).join('');
+      expect(printed).not.toContain('ACCESS_TOKEN_FAKE_NEVER_LOG_THIS');
+      expect(printed).toContain('unknown-tool');
+      expect(printed).toContain('easyeda_pcb_components');
+      expect(printed).toContain('call #2');
+    } finally {
+      output.mockRestore();
       database.close();
     }
   });
