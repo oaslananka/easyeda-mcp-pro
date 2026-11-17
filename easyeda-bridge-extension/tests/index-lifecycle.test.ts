@@ -742,7 +742,7 @@ describe('extension loader lifecycle source', () => {
     socket.open();
     socket.receive(approvalRequest());
 
-    expect(promptContent).toContain('Expires in');
+    expect(promptContent).toMatch(/Valid for \d+s\. Reject after expiry\./);
     expect(promptContent).toContain('Reject');
 
     await vi.advanceTimersByTimeAsync(1_001);

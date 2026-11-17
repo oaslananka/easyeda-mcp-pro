@@ -541,6 +541,9 @@ describe('build.mjs hot-swap define', () => {
       rejectTitle: 'Reject',
     });
     expect(confirmations[0].content).toContain('easyeda_schematic_add_text');
+    // The duration is a fixed window, not a live countdown. Late approval is ignored.
+    expect(confirmations[0].content).toMatch(/Valid for \d+s\. Reject after expiry\./);
+    expect(confirmations[0].content).not.toContain('Expires in ');
 
     confirmations[0].callback?.(true);
     await Promise.resolve();
