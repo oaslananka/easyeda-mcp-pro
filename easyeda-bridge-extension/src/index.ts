@@ -640,56 +640,39 @@ let remoteRelayClient: RemoteRelayClient | null = null;
 function requestRemoteApproval(prompt: RemoteApprovalPrompt): Promise<RemoteApprovalDecision> {
   const dialog = readPath<EasyedaDialogApi>(getGlobal(), 'sys_Dialog');
   const expiresAtMs = Date.parse(prompt.expiresAt);
-  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
+  if (!(expiresAtMs > Date.now())) {
     return Promise.resolve('timeout');
   }
-  const showConfirmationMessage = dialog?.showConfirmationMessage?.bind(dialog);
-  if (!showConfirmationMessage) {
-    log('Remote approval dialog unavailable', { toolName: prompt.toolName });
-    showToast('Remote approval dialog is unavailable; request rejected.');
+  if (typeof dialog?.showConfirmationMessage !== 'function') {
+    log('No approval UI');
+    showToast('No approval UI.');
     return Promise.resolve('rejected');
   }
 
   return new Promise<RemoteApprovalDecision>((resolve) => {
     let settled = false;
-    const timer = setTimeout(() => finish('timeout'), Math.max(0, expiresAtMs - Date.now()));
+    const timer = setTimeout(() => finish('timeout'), expiresAtMs - Date.now());
     function finish(decision: RemoteApprovalDecision): void {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      if (decision === 'timeout') {
-        showToast('Remote approval expired. Choose Reject to dismiss the old dialog, then retry.');
-      }
+      if (decision === 'timeout') showToast('Expired: reject, retry.');
       resolve(decision);
     }
 
-    const project = prompt.activeProject?.projectName ?? 'current EasyEDA project';
-    const summary = [
-      prompt.actionSummary,
-      `Method: ${prompt.toolName}`,
-      `Risk: ${prompt.riskLevel}`,
-      `Project: ${project}`,
-      `Input hash: ${prompt.inputHash.slice(0, 12)}`,
-      `Expires in ${Math.max(1, Math.ceil((expiresAtMs - Date.now()) / 1000))}s. After expiry, choose Reject to dismiss this dialog and request a fresh approval.`,
-    ].join('\n');
     try {
-      showConfirmationMessage(
-        summary,
-        'Remote MCP Approval',
+      dialog.showConfirmationMessage?.(
+        `${prompt.actionSummary}\nTool: ${prompt.toolName} (${prompt.riskLevel})\nProject: ${prompt.activeProject?.projectName ?? 'project'}\nHash: ${prompt.inputHash.slice(0, 12)}\nExpires in ${Math.ceil((expiresAtMs - Date.now()) / 1000)}s. Reject after expiry.`,
+        'MCP Approval',
         'Approve',
         'Reject',
-        (mainButtonClicked) => {
-          // A blocked event loop may deliver the click after its deadline
-          // but before the timeout callback. An expired click never approves.
-          if (Date.now() >= expiresAtMs) {
-            finish('timeout');
-            return;
-          }
-          finish(mainButtonClicked ? 'approved' : 'rejected');
-        },
+        (mainButtonClicked) =>
+          finish(
+            Date.now() >= expiresAtMs ? 'timeout' : mainButtonClicked ? 'approved' : 'rejected',
+          ),
       );
     } catch (error) {
-      log('Remote approval dialog failed', error);
+      log('Approval error', error);
       finish('rejected');
     }
   });

@@ -748,7 +748,7 @@ describe('extension loader lifecycle source', () => {
     await vi.advanceTimersByTimeAsync(1_001);
     await flushMicrotasks();
 
-    expect(toasts.some((message) => message.includes('Remote approval expired'))).toBe(true);
+    expect(toasts.some((message) => message.includes('Expired: reject, retry.'))).toBe(true);
     expect(socket.sent).toContainEqual(
       expect.objectContaining({
         type: 'approval_result',
