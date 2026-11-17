@@ -434,7 +434,7 @@ describe('BridgeManager - origin validation', () => {
     manager.disconnect('test complete');
   });
 
-  it('accepts connection with authorized loopback or EasyEDA origin', async () => {
+  it('accepts connection with authorized loopback, extension, or EasyEDA origin', async () => {
     const port = await getFreePort();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
@@ -443,16 +443,65 @@ describe('BridgeManager - origin validation', () => {
     const manager = new BridgeManager(config);
     await manager.connect();
 
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`, {
-      headers: { Origin: 'https://pro.easyeda.com' },
-    });
+    for (const origin of [
+      'https://pro.easyeda.com',
+      'https://easyeda.com',
+      'https://lceda.cn',
+      'chrome-extension://abcdefghijklmno',
+      'moz-extension://abcdefghijklmno',
+    ]) {
+      const ws = new WebSocket(`ws://127.0.0.1:${port}`, {
+        headers: { Origin: origin },
+      });
 
+      await new Promise<void>((resolve, reject) => {
+        ws.once('open', resolve);
+        ws.once('error', reject);
+      });
+
+      expect(ws.readyState).toBe(WebSocket.OPEN);
+      ws.close();
+    }
+
+    // Invalid url origin is rejected
+    const badWs = new WebSocket(`ws://127.0.0.1:${port}`, {
+      headers: { Origin: ':::not-a-valid-url:::' },
+    });
+    const badResult = await new Promise<string>((resolve) => {
+      badWs.once('error', (err) => resolve(err.message));
+      badWs.once('close', (code) => resolve(String(code)));
+    });
+    expect(badResult).toMatch(/403|Forbidden|unexpected server response/i);
+
+    manager.disconnect('test complete');
+  });
+
+  it('drops chunk assemblies when capacity limit is reached', async () => {
+    const port = await getFreePort();
+    const config = createTestConfig({
+      BRIDGE_HOST: '127.0.0.1',
+      BRIDGE_PORT_SCAN: String(port),
+    });
+    const manager = new BridgeManager(config);
+    await manager.connect();
+
+    const ws = new WebSocket(`ws://127.0.0.1:${port}`);
     await new Promise<void>((resolve, reject) => {
       ws.once('open', resolve);
       ws.once('error', reject);
     });
 
-    expect(ws.readyState).toBe(WebSocket.OPEN);
+    // Send 128 different assembly starts
+    for (let i = 0; i < 128; i++) {
+      ws.send(JSON.stringify({ type: 'chunk', id: `stream-${i}`, seq: 0, total: 5, data: 'part' }));
+    }
+
+    // The 129th assembly should be rejected due to MAX_CHUNK_ASSEMBLIES (128)
+    ws.send(
+      JSON.stringify({ type: 'chunk', id: 'stream-overflow', seq: 0, total: 5, data: 'part' }),
+    );
+
+    await new Promise((r) => setTimeout(r, 50));
     ws.close();
     manager.disconnect('test complete');
   });

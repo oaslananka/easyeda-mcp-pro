@@ -860,6 +860,11 @@ describe('ToolRegistry', () => {
     if (regression) {
       expect(getRequiredToolScopes(regression)).toEqual(['diagnostics:write']);
     }
+    const mockDiagnosticsWrite = createMockTool('custom_diag_tool', 'core', {
+      group: 'diagnostics',
+      confirmWrite: true,
+    });
+    expect(getRequiredToolScopes(mockDiagnosticsWrite)).toEqual(['diagnostics:write']);
     const bridgeCall = vi.fn().mockResolvedValue({
       path: 'PCB_PrimitiveVia.getAll',
       result: [{ state: { PrimitiveId: 'via-a' } }],
