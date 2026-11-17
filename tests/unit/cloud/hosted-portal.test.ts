@@ -773,6 +773,7 @@ describe('Hosted Cloud browser portal', () => {
       expect(dashboardHtml).toMatch(/id="copy-pairing"[^>]*disabled hidden/);
       expect(dashboardHtml).toContain('id="pairing-hint"');
       expect(dashboardHtml).toContain('Allow interactive with external');
+      expect(dashboardHtml).toContain('save your work and reload the EasyEDA tab');
 
       const codeRes = await send('/cloud/api/pairing-code', 'POST', 'session=owner-a');
       expect(codeRes.status).toBe(200);

@@ -98,7 +98,7 @@ const account = (): string =>
 </section>
 <section class="panel pairing-panel" aria-labelledby="pair-title">
 <div class="section-heading"><div><p class="section-kicker">ADD A DEVICE</p><h2 id="pair-title">Connect EasyEDA</h2></div><span class="step-indicator">SETUP</span></div>
-<div class="setup-steps"><p><span>1</span>Install <strong>MCP Pro Bridge</strong> in EasyEDA Pro, then enable <strong>Allow interactive with external</strong> in Extension Manager.</p>
+<div class="setup-steps"><p><span>1</span>Install <strong>MCP Pro Bridge</strong>, enable <strong>Allow interactive with external</strong> in Extension Manager, then <strong>save your work and reload the EasyEDA tab</strong> to activate the installed or updated extension.</p>
 <p><span>2</span>Open a PCB or schematic and choose <strong>MCP Bridge → Connect EasyEDA MCP Pro Cloud</strong>.</p>
 <p><span>3</span>Enter the code shown below. No WSS address is required.</p></div>
 <button class="btn pair-button" id="generate-pairing" type="button">Generate pairing code <span aria-hidden="true">↗</span></button>
