@@ -32,13 +32,28 @@ This proves transport and permission behavior, **not** PCB correctness,
 manufacturing readiness, a public stable extension release or a complete
 standalone desktop acceptance.
 
-**Still not verified:** a genuinely independent second owner's data and
-permission isolation; standalone Electron desktop revoke/no-retry, cold
-restart and live timeout behavior; and disposition of historically exposed
-OAuth credentials. Two separate browsers signing in as the **same owner**
-do not establish a two-user test. Keep remote relay maturity Experimental
-and do not publish a general Cloud release on the strength of these
-owner-only results.
+**Real second-account portal and MCP READ isolation: PASS, bounded scope.**
+A second, separately authenticated GitHub identity opened a separate Cloud
+workspace with **zero** paired devices, MCP consent grants or tool calls;
+the original owner retained six device registrations, two MCP clients and
+56 completed calls. With that second identity, a temporary native OAuth
+client requested **easyeda.read only** through the real Hosted provider
+and PKCE flow. Its issued bearer returned **zero** Cloud relay sessions;
+a real MCP `tools/call` read targeting the first owner's disposable PCB
+returned an error without component disclosure. The second owner's temporary
+consent was explicitly revoked (HTTP 200), the old token then returned
+HTTP **401**, and the account's consent list was empty. The first owner's
+device, consent and usage counts were unchanged. No native mutation,
+write/export permission, or production release occurred. This proves real
+two-identity portal isolation, bounded remote read denial, and revoke
+behavior; it is **not** two independent human operators or exhaustive
+cross-owner security certification.
+
+**Still not verified:** standalone Electron desktop revoke/no-retry, cold
+restart and live approval-timeout behavior; disposition and rotation of
+historically exposed OAuth credentials; and any remaining independent
+real-user acceptance. Keep remote relay maturity **Experimental** and
+public rollout #850 **HOLD** until those gates close.
 
 ### First-party Cloud identity foundation (owner-only live pilot, not public release)
 

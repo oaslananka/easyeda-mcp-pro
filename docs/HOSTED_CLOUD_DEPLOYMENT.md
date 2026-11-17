@@ -17,6 +17,24 @@
 > SQLite writer and do not create another Cloud instance or add paid services.
 > This is **not** a general-release or multi-user acceptance claim.
 
+## Oracle image-secret check — 2026-11-17
+
+Read-only operator inspection confirmed that the currently running Oracle
+Cloud container has all three required Hosted OAuth secrets in its **runtime**
+environment. Both locally retained EasyEDA Cloud application images were
+checked for matches against those current values in full Docker image
+history and image configuration; **zero matches** were found. No secret
+values or image-history contents were emitted, and the current Cloud
+container and persistent SQLite data were not changed.
+
+This finding covers only the inspected **current Oracle images and current
+secret values**. It does **not** prove that historically exposed Coolify
+credentials were rotated, that all former builder caches or registries were
+purged, or that old credential copies are inaccessible. Treat the original
+2026-11-15 build-time exposure as an **open public-release gate**, not a
+resolved incident. Check credential-rotation disposition before issue #850
+is released; never print or paste secret values in evidence.
+
 ## Historical Coolify deployment path — retired 2026-11-16
 
 The following Coolify/Doppler instructions are retained for provenance and
