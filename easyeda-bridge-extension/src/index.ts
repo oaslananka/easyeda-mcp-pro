@@ -657,6 +657,9 @@ function requestRemoteApproval(prompt: RemoteApprovalPrompt): Promise<RemoteAppr
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      if (decision === 'timeout') {
+        showToast('Remote approval expired. Choose Reject to dismiss the old dialog, then retry.');
+      }
       resolve(decision);
     }
 
@@ -667,6 +670,7 @@ function requestRemoteApproval(prompt: RemoteApprovalPrompt): Promise<RemoteAppr
       `Risk: ${prompt.riskLevel}`,
       `Project: ${project}`,
       `Input hash: ${prompt.inputHash.slice(0, 12)}`,
+      `Expires in ${Math.max(1, Math.ceil((expiresAtMs - Date.now()) / 1000))}s. After expiry, choose Reject to dismiss this dialog and request a fresh approval.`,
     ].join('\n');
     try {
       showConfirmationMessage(
@@ -674,7 +678,15 @@ function requestRemoteApproval(prompt: RemoteApprovalPrompt): Promise<RemoteAppr
         'Remote MCP Approval',
         'Approve',
         'Reject',
-        (mainButtonClicked) => finish(mainButtonClicked ? 'approved' : 'rejected'),
+        (mainButtonClicked) => {
+          // A blocked event loop may deliver the click after its deadline
+          // but before the timeout callback. An expired click never approves.
+          if (Date.now() >= expiresAtMs) {
+            finish('timeout');
+            return;
+          }
+          finish(mainButtonClicked ? 'approved' : 'rejected');
+        },
       );
     } catch (error) {
       log('Remote approval dialog failed', error);

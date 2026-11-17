@@ -725,25 +725,67 @@ describe('extension loader lifecycle source', () => {
     expect(toasts.join(' | ')).toMatch(/secure wss|valid EDA-/i);
   });
 
-  it('returns approval timeout when the EasyEDA dialog remains unanswered', async () => {
-    const { extension } = await loadExtension({
+  it('explains approval expiry and ignores late clicks on an unanswered native dialog', async () => {
+    let promptContent = '';
+    let lateCallback: ((approved: boolean) => void) | undefined;
+    const { extension, toasts } = await loadExtension({
       withWebSocket: true,
-      dialog: { showConfirmationMessage: () => undefined },
+      dialog: {
+        showConfirmationMessage: (content, _title, _approve, _reject, callback) => {
+          promptContent = content;
+          lateCallback = callback;
+        },
+      },
     });
     extension.connectRemoteRelay('self_hosted', 'wss://relay.example/session', '123456');
     const socket = latestRemoteSocket();
     socket.open();
     socket.receive(approvalRequest());
 
+    expect(promptContent).toContain('Expires in');
+    expect(promptContent).toContain('Reject');
+
     await vi.advanceTimersByTimeAsync(1_001);
     await flushMicrotasks();
 
+    expect(toasts.some((message) => message.includes('Remote approval expired'))).toBe(true);
     expect(socket.sent).toContainEqual(
       expect.objectContaining({
         type: 'approval_result',
         approvalId: 'approval_1',
         result: 'timeout',
       }),
+    );
+    lateCallback?.(true);
+    await flushMicrotasks();
+    expect(socket.sent.filter((message) => message.type === 'approval_result')).toHaveLength(1);
+  });
+
+  it('refuses approval clicked after its deadline even if the timer callback has not run', async () => {
+    let lateCallback: ((approved: boolean) => void) | undefined;
+    const { extension } = await loadExtension({
+      withWebSocket: true,
+      dialog: {
+        showConfirmationMessage: (_content, _title, _approve, _reject, callback) => {
+          lateCallback = callback;
+        },
+      },
+    });
+    extension.connectRemoteRelay('self_hosted', 'wss://relay.example/session', '123456');
+    const socket = latestRemoteSocket();
+    socket.open();
+    socket.receive(approvalRequest());
+
+    // Advance wall-clock time without running the pending timeout callback.
+    vi.setSystemTime(Date.now() + 1_001);
+    lateCallback?.(true);
+    await flushMicrotasks();
+
+    expect(socket.sent).toContainEqual(
+      expect.objectContaining({ type: 'approval_result', result: 'timeout' }),
+    );
+    expect(socket.sent).not.toContainEqual(
+      expect.objectContaining({ type: 'approval_result', result: 'approved' }),
     );
   });
 
