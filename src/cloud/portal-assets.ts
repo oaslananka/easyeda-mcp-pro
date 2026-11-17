@@ -244,20 +244,24 @@ export const CLOUD_JS = String.raw`
       selected = data.selection;
       visibleSessionIds = new Set((Array.isArray(data.sessions) ? data.sessions : []).map((session) => session.sessionId));
       hasLoadedSessionList = true;
-      // A remembered pairing is not a live connection. Keep the setup status
-      // in sync when an extension disconnects, without erasing a live code.
-      const connected = data.sessions?.some((session) => session.connected);
-      const pairingStatus = get('pairing-code');
-      if (!connected && pairingStatus?.textContent === 'Connected') {
-        setText('pairing-code', 'Disconnected');
-        setText('pairing-hint', 'EasyEDA is offline. Generate a new pairing code and reconnect from MCP Bridge.');
-      } else if (connected && pairingStatus?.textContent === 'Disconnected') {
-        setText('pairing-code', 'Connected');
-        setText('pairing-hint', 'Your EasyEDA device is connected. Choose its schematic or PCB to allow MCP access.');
-      }
+      // A remembered pairing is not a live connection or an authorized document.
       const sessions = Array.isArray(data.sessions) ? data.sessions : [];
       const online = sessions.filter((session) => session.connected);
       const offline = sessions.filter((session) => !session.connected);
+      const selectedOnline = online.some((session) =>
+        selected?.sessionId === session.sessionId &&
+        selected.projectId === session.activeProject?.projectId &&
+        selected.documentId === session.activeProject?.documentId);
+      const pairingStatus = get('pairing-code');
+      if (!online.length && pairingStatus?.textContent === 'Connected') {
+        setText('pairing-code', 'Disconnected');
+        setText('pairing-hint', 'EasyEDA is offline. An existing Cloud pairing can reconnect automatically. Generate a new code only if access was removed or pairing expired.');
+      } else if (online.length && (pairingStatus?.textContent === 'Disconnected' || pairingStatus?.textContent === 'Connected')) {
+        setText('pairing-code', 'Connected');
+        setText('pairing-hint', selectedOnline
+          ? 'Your EasyEDA device and selected design are ready for MCP calls.'
+          : 'Your EasyEDA device is connected, but MCP access needs a project selection. Choose "Use this schematic" or "Use this PCB" on its device card; no new pairing code is needed.');
+      }
       const workspaceGrid = get('workspace-grid');
       if (workspaceGrid) workspaceGrid.dataset.empty = online.length ? 'false' : 'true';
       setText('device-count', online.length + ' connected');
