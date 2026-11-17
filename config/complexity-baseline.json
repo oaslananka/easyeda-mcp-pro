@@ -60,7 +60,6 @@
     "src/tools/L2_schematic_layout.ts": [16],
     "src/tools/L2_workflows.ts": [26],
     "src/tools/schematic-helpers.ts": [29],
-    "src/utils/redaction.ts": [18],
     "src/vendors/digikey/client.ts": [19],
     "src/vendors/lcsc/client.ts": [17],
     "src/vendors/mouser/client.ts": [16],

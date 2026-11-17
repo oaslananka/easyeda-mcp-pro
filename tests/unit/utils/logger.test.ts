@@ -1,7 +1,37 @@
+import { spawnSync } from 'node:child_process';
 import { describe, it, expect, vi } from 'vitest';
 import { createLogger, getLogger } from '../../../src/utils/logger.js';
 
 describe('Logger Utility', () => {
+  it('never writes nested credentials or bearer tokens embedded in error messages', () => {
+    // Isolate the Pino singleton and exercise the real production logger,
+    // without a live credential or an external logging service.
+    const script = `
+      import { createLogger } from './src/utils/logger.ts';
+      const logger = createLogger({ LOG_LEVEL: 'info', NODE_ENV: 'production' });
+      logger.error({
+        nested: { accessToken: 'FAKE_NESTED_CREDENTIAL_849' },
+        attempts: [{ authorization: 'Bearer FAKE_ARRAY_CREDENTIAL_849' }],
+        err: new Error('Bearer FAKE_ERROR_CREDENTIAL_849'),
+        tool: 'easyeda_pcb_components',
+      }, 'rejected credential-bearing request');
+      logger.warn('Bearer FAKE_MESSAGE_CREDENTIAL_849');
+    `;
+    const result = spawnSync(
+      process.execPath,
+      ['--import', 'tsx', '--input-type=module', '--eval', script],
+      { cwd: process.cwd(), encoding: 'utf8', timeout: 15_000 },
+    );
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).not.toContain('FAKE_NESTED_CREDENTIAL_849');
+    expect(result.stdout).not.toContain('FAKE_ARRAY_CREDENTIAL_849');
+    expect(result.stdout).not.toContain('FAKE_ERROR_CREDENTIAL_849');
+    expect(result.stdout).not.toContain('FAKE_MESSAGE_CREDENTIAL_849');
+    expect(result.stdout).toContain('[REDACTED]');
+    expect(result.stdout).toContain('easyeda_pcb_components');
+    expect(result.stdout).toContain('stack');
+  });
+
   it('createLogger creates a pino logger instance', () => {
     const logger = createLogger({ LOG_LEVEL: 'info', NODE_ENV: 'test' });
 
