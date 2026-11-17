@@ -6,12 +6,16 @@ import {
 import { RemoteGateway } from '../../../src/remote/gateway.js';
 import type { RemoteIdentity } from '../../../src/remote/scope.js';
 
-function makeGateway(start = new Date('2026-07-04T00:00:00.000Z')) {
+function makeGateway(
+  start = new Date('2026-07-04T00:00:00.000Z'),
+  options?: Partial<RemoteGatewayOptions>,
+) {
   let now = start;
   let counter = 0;
   const gateway = new RemoteGateway({
     now: () => now,
     makeId: () => `id-${++counter}`,
+    ...options,
   });
   return {
     gateway,
@@ -84,6 +88,73 @@ describe('RemoteGateway', () => {
       toolName: 'easyeda_board_read',
       riskLevel: 'read',
       requiresApproval: false,
+    });
+  });
+
+  it('rejects client risk-level downgrade for mutating tools', async () => {
+    const { gateway } = makeGateway();
+    const dispatches: ToolRequestMessage[] = [];
+    const session = registerFakeExtension(gateway, dispatches);
+    const code = gateway.createPairingCode({
+      identity: readIdentity,
+      sessionId: session.sessionId,
+    });
+
+    expect(
+      gateway.completePairing({ identity: readIdentity, code, sessionId: session.sessionId }),
+    ).toBe(true);
+
+    const result = await gateway.routeToolRequest({
+      identity: readIdentity,
+      toolName: 'schematic.deleteComponent',
+      riskLevel: 'read',
+      input: { componentId: 'U1' },
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'SCOPE_MISSING',
+    });
+    expect(dispatches).toHaveLength(0);
+
+    // Test export tool risk resolution
+    const exportResult = await gateway.routeToolRequest({
+      identity: readIdentity,
+      toolName: 'project.exportBOM',
+      riskLevel: 'read',
+      input: {},
+    });
+    expect(exportResult).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'SCOPE_MISSING',
+    });
+
+    // Test custom toolRiskResolver
+    const { gateway: customGateway } = makeGateway(undefined, {
+      toolRiskResolver: (name) => (name === 'custom_safe' ? 'read' : 'destructive'),
+    });
+    const customSession = registerFakeExtension(customGateway, dispatches);
+    const customCode = customGateway.createPairingCode({
+      identity: readIdentity,
+      sessionId: customSession.sessionId,
+    });
+    customGateway.completePairing({
+      identity: readIdentity,
+      code: customCode,
+      sessionId: customSession.sessionId,
+    });
+    const customResult = await customGateway.routeToolRequest({
+      identity: readIdentity,
+      toolName: 'custom_mutating',
+      riskLevel: 'read',
+      input: {},
+    });
+    expect(customResult).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'SCOPE_MISSING',
     });
   });
 

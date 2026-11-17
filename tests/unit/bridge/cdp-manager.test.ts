@@ -188,6 +188,27 @@ describe('CdpBridgeManager transport lifecycle', () => {
     expect(manager.hello).toBeNull();
   });
 
+  it('fails closed when targets only contain non-EasyEDA browser tabs', async () => {
+    const harness = await createHarness({
+      targets: [
+        {
+          id: 'target-external',
+          type: 'page',
+          title: 'Corporate Intranet',
+          url: 'https://internal.example.com',
+          webSocketDebuggerUrl: 'ws://127.0.0.1:9222/devtools/page/target-external',
+        },
+      ],
+    });
+    activeHarnesses.add(harness);
+    process.env.EASYEDA_CDP_URL = harness.baseUrl;
+    const manager = createManager();
+    activeManagers.add(manager);
+
+    await expect(manager.connect()).rejects.toThrow('could not find an EasyEDA editor page target');
+    expect(manager.state).toBe('error');
+  });
+
   it('cleans up and enters the error state when the CDP WebSocket upgrade is rejected', async () => {
     const harness = await createHarness();
     harness.rejectUpgrade = true;

@@ -400,7 +400,7 @@ describe('createOriginValidator', () => {
     expect(next).toHaveBeenCalled();
   });
 
-  it.each(['http://localhost:5173', 'http://localhost', 'null'])(
+  it.each(['http://localhost:5173', 'http://localhost'])(
     'should allow loopback-safe origin %s without reflecting request input',
     (origin) => {
       const { res, next } = validateLoopbackOrigin(origin, '');
@@ -409,6 +409,17 @@ describe('createOriginValidator', () => {
       expect(next).toHaveBeenCalled();
     },
   );
+
+  it('should reject origin "null" by default on loopback without explicit allowlist', () => {
+    const { res, next } = validateLoopbackOrigin('null', '');
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'Origin not allowed',
+      code: 'origin_not_allowed',
+    });
+    expect(res.setHeader).not.toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
+    expect(next).not.toHaveBeenCalled();
+  });
 
   it('should reject non-loopback Host header while bound to loopback', () => {
     const config = EnvSchema.parse({
