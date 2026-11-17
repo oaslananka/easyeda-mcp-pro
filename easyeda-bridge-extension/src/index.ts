@@ -35,8 +35,7 @@ import { isRecord, log, readPath, type JsonValue } from './utils.js';
 declare const eda: EasyedaGlobal | undefined;
 declare const EDA: unknown | undefined;
 declare const api: unknown | undefined;
-declare const ESYS_ToastMessageType:
-  { INFO?: unknown; WARN?: unknown; ERROR?: unknown } | undefined;
+declare const ESYS_ToastMessageType: { INFO?: unknown } | undefined;
 declare const SYS_WebSocket: EasyedaWebSocketApi | undefined;
 declare const SYS_Message: EasyedaMessageApi | undefined;
 
@@ -68,21 +67,10 @@ function getSysMessage(): EasyedaMessageApi | undefined {
     : readPath<EasyedaMessageApi>(getGlobal(), 'sys_Message');
 }
 
-export type ToastLevel = 'info' | 'warn' | 'error';
-
-function getToastType(level: ToastLevel = 'info'): string {
-  if (typeof ESYS_ToastMessageType !== 'undefined') {
-    if (level === 'error' && typeof ESYS_ToastMessageType.ERROR === 'string') {
-      return ESYS_ToastMessageType.ERROR;
-    }
-    if (level === 'warn' && typeof ESYS_ToastMessageType.WARN === 'string') {
-      return ESYS_ToastMessageType.WARN;
-    }
-    if (typeof ESYS_ToastMessageType.INFO === 'string') {
-      return ESYS_ToastMessageType.INFO;
-    }
-  }
-  return level;
+function getInfoToastType(): string {
+  const info =
+    typeof ESYS_ToastMessageType !== 'undefined' ? ESYS_ToastMessageType.INFO : undefined;
+  return typeof info === 'string' ? info : 'info';
 }
 
 type ConnectMode = 'manual' | 'auto';
@@ -263,9 +251,9 @@ function localConnectionDiagnosticSuffix(): string {
   return ` — ${lastLocalConnectionDiagnostic.message}`;
 }
 
-function showToast(message: string, level: ToastLevel = 'info'): void {
+function showToast(message: string): void {
   const safeMessage = String(message);
-  const messageType = getToastType(level);
+  const messageType = getInfoToastType();
 
   const sysMessage = getSysMessage();
   if (sysMessage?.showToastMessage) {
@@ -295,7 +283,7 @@ function showExternalInteractionHintOnce(error?: unknown): void {
   log(message, error);
   if (externalInteractionWarningShown) return;
   externalInteractionWarningShown = true;
-  showToast(message, 'warn');
+  showToast(message);
 }
 
 // ── Dispatcher wiring ────────────────────────────────────────────────────────
@@ -614,7 +602,7 @@ async function handleLoaderMethod(
       await refreshMethodListHash();
       if (wasPushed) {
         log('reverted to baked dispatcher');
-        showToast('MCP Bridge: reverted to baked dispatcher', 'warn');
+        showToast('MCP Bridge: reverted to baked dispatcher');
       }
       return {
         handled: true,
@@ -639,7 +627,7 @@ function requestRemoteApproval(prompt: RemoteApprovalPrompt): Promise<RemoteAppr
   const showConfirmationMessage = dialog?.showConfirmationMessage?.bind(dialog);
   if (!showConfirmationMessage) {
     log('Remote approval dialog unavailable', { toolName: prompt.toolName });
-    showToast('Remote approval dialog is unavailable; request rejected.', 'error');
+    showToast('Remote approval dialog is unavailable; request rejected.');
     return Promise.resolve('rejected');
   }
 
