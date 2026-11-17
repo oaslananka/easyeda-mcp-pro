@@ -10,6 +10,8 @@ WORKDIR /app
 # Copy root workspace and package manifests
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY easyeda-bridge-extension/package.json ./easyeda-bridge-extension/
+# Provide the pinned patch before frozen dependency installation.
+COPY patches/picomatch@4.0.7.patch ./patches/
 COPY config/runtime-policy.json ./config/runtime-policy.json
 COPY scripts/check-runtime.mjs ./scripts/check-runtime.mjs
 
