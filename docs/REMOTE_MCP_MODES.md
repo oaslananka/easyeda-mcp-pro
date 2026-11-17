@@ -132,11 +132,19 @@ Only endpoints with the secure WSS scheme, a hostname, optional valid port and p
 
 EasyEDA Pro 3.2.209's native WebSocket uses the fixed desktop Origin https://client. The gateway accepts only this exact native Origin on the /remote/relay endpoint, not on the generic /session path. Other external origins still require an explicit allowlist and a valid Host. This is transport compatibility, not authentication: an unpaired session cannot read or mutate a project, and owner identity, single-use pairing, scopes, selected native document and approvals remain mandatory.
 
-Two short owner-operated pilots verified gateway HTTPS, native WSS
-pairing, Google OAuth and real MCP reads of both an **empty PCB
-(0 components)** and a **populated PCB (33 components)**, then rolled
-back. There is **no currently deployed public Hosted service**.
-Cross-owner/client isolation, project/document switching,
-disconnect/reconnect and other release gates still require real
-acceptance; successful read-only calls and native-API simulations
-do **not** prove those remaining Hosted capabilities.
+The official Cloud currently runs as an **owner-restricted Oracle Always Free
+pilot**, not a general-availability service. Real EasyEDA Pro 3.2.209
+acceptance verified native WSS pairing, Google sign-in, selected-PCB reads
+(33/33 components), an approved disposable schematic write with saved
+read-back, and a per-action-approved native Gerber export. The exported ZIP
+contained 13 nonempty files; an independently rejected export failed closed.
+The same live device rejected read requests naming two non-active project UUIDs
+with a project-identity mismatch; neither response disclosed PCB components.
+This does **not** establish manufacturability or general release readiness.
+See [the acceptance record](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057#issuecomment-6933371245)
+and [Remote Relay maturity](./REMOTE_RELAY_STATUS.md).
+
+Real standalone Electron revocation/no-retry and cold restart, the GitHub
+provider callback, genuine independent second-account isolation, and
+historic OAuth credential disposition remain unverified for public
+launch. Existing local MCP remains account-free and the default.

@@ -1,17 +1,28 @@
-# Official hosted Cloud — Coolify + Doppler
+# Official hosted Cloud — owner-only Oracle pilot
 
-> **Maturity:** Gated. Follow [Remote Relay status](./REMOTE_RELAY_STATUS.md);
-> issue #849 live acceptance and issue #850 rollout gates remain authoritative.
-> An Oracle Always Free Compose candidate is under validation in the repository
-> root at deploy/oracle-free/. It does not change the current Coolify deployment
-> contract or production rollout HOLD.
-> This is one official hosted service, not a self-hosted customer mode.
+> **Current status (2026-11-17):** The owner-restricted pilot runs on
+> **Oracle Always Free** at https://easyeda-mcp-pro.oaslananka.dev.
+> The previous VPS/Coolify application and its dedicated data/image resources
+> have been decommissioned. **Do not use the historical Coolify deployment
+> steps below to deploy or roll back this service.** Public rollout #850
+> remains HOLD; the real acceptance criteria in #849 and
+> [Remote Relay maturity](./REMOTE_RELAY_STATUS.md) remain authoritative.
+> Local MCP remains account-free and does not require this service.
+>
+> The Oracle Compose deployment definition is under
+> `deploy/oracle-free/`. The existing pilot uses
+> one healthy Cloud container, the persistent Oracle SQLite volume
+> `easyeda-cloud_cloud-data`, exact-origin TLS ingress, and a bounded
+> `BRIDGE_MAX_PAYLOAD_SIZE=8388608` configuration. Preserve the sole
+> SQLite writer and do not create another Cloud instance or add paid services.
+> This is **not** a general-release or multi-user acceptance claim.
 
-## One deployment path
+## Historical Coolify deployment path — retired 2026-11-16
 
-**Protected GitHub main → Coolify Dockerfile build → Doppler runtime values.**
-No separate GitHub deployment workflow, hard-coded application credentials,
-GitHub Doppler token, second secrets store, or paid service is needed.
+The following Coolify/Doppler instructions are retained for provenance and
+historic security-incident context, **not as current operator runbook steps**.
+The former path was: protected GitHub main → Coolify Dockerfile build →
+Doppler runtime values.
 
 - Public website: `https://easyeda-mcp-pro.oaslananka.dev/`
 - Authenticated Streamable HTTP MCP: `https://easyeda-mcp-pro.oaslananka.dev/mcp`
