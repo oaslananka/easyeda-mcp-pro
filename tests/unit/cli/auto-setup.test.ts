@@ -105,6 +105,29 @@ describe('auto-setup CLI module', () => {
     expect(fs.writeFileSync).toHaveBeenCalled();
   });
 
+  it('reports a failed setup write instead of exiting successfully', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fs.writeFileSync).mockImplementationOnce(() => {
+      throw new Error('Simulated config write failure');
+    });
+
+    mockQuestion
+      .mockResolvedValueOnce('2') // Cursor IDE
+      .mockResolvedValueOnce('1') // core profile
+      .mockResolvedValueOnce('3'); // Skip extension setup
+
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    try {
+      await expect(runInteractiveInit()).rejects.toThrow('Simulated config write failure');
+      expect(consoleLogSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Setup wizard complete'),
+      );
+    } finally {
+      consoleLogSpy.mockRestore();
+    }
+  });
+
   it('runs interactive init setup wizard successfully', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ mcpServers: {} }));
