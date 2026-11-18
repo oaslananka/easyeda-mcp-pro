@@ -1,20 +1,19 @@
-# Temporary picomatch ReDoS patch
+# Temporary picomatch ReDoS mitigation
 
-The lockfile installs original MIT-licensed `picomatch@4.0.7` with a transparent
-`pnpm patchedDependencies` source patch. CVE-2026-112366 / GHSA-fc5q-39xc-vjpf.
+The lockfile keeps the original MIT-licensed picomatch@4.0.7 package and applies a transparent
+pnpm patchedDependencies source patch for CVE-2026-112366 / GHSA-fc5q-39xc-vjpf.
 
-The patch starts from the unmerged upstream proposal
-https://github.com/micromatch/picomatch/pull/238 (reviewed 2026-11-17).
-The proposal's bare-only cases `+(*)z` and `+(*?)z` **still timed out** in
-bounded tests, so this local patch also literalizes bare leading-quantifier
-branches. Unusual patterns such as `+(*)` are intentionally treated as
-literals; normal source globs remain covered by integration tests.
+The patch is a conservative adaptation of the still-unmerged upstream proposal
+https://github.com/micromatch/picomatch/pull/262 (reviewed 2026-11-18). It uses the parser's
+actual wildcard tokens, collapses narrowly defined single-star repeated branches where the
+outer repetition is redundant, and safely rewrites a restricted trailing-star alternative.
+Question-mark, capture-sensitive, and unsupported wildcard forms retain the existing literal
+fallback. The explicit maxExtglobRecursion: false opt-out remains unchanged.
 
-**Important:** `pnpm audit` and OSV will still flag `picomatch@4.0.7` by
-published package version; they do not recognize this source-level patch as an
-upstream security release. Do not ignore or bypass HIGH checks to merge this
-change. This patch reduces local development exposure but does not meet the
-independent release gate on its own. Issue #1073 tracks official remediation.
+This is a temporary source-level mitigation, not an official picomatch release or a claim
+that arbitrary user-controlled glob patterns are safe. pnpm audit and OSV still identify the
+published package version 4.0.7 and the HIGH advisory. Do not allowlist, suppress, or bypass
+the required audit gate to merge this change. Issue #1073 tracks the official remediation.
 
-Once an independently verified upstream security release exists, remove
-`patchedDependencies`, update the lockfile and rerun tests, SCA and CI.
+Once an independently verified upstream security release is published, remove
+patchedDependencies, update the lockfile, and rerun the full test suite, SCA, and CI.

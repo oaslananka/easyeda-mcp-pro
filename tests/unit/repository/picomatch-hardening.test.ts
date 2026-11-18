@@ -11,34 +11,115 @@ const vitestPackage = requireLocal.resolve('vitest/package.json');
 const vitePackage = createRequire(vitestPackage).resolve('vite/package.json');
 const patchedPath = createRequire(vitePackage).resolve('picomatch');
 const matcher = requireLocal(patchedPath) as {
-  makeRe(pattern: string): RegExp;
-  isMatch(input: string, pattern: string): boolean;
+  makeRe(pattern: string, options?: Record<string, unknown>): RegExp;
+  isMatch(input: string, pattern: string, options?: Record<string, unknown>): boolean;
 };
 
 describe('patched picomatch for CVE-2026-112366', () => {
   it('loads the hash-pinned patch for the actual Vite/Vitest transitive dependency', () => {
     expect(patchedPath).toContain('picomatch@4.0.7_patch_hash');
-    expect(readFileSync(resolve(dirname(patchedPath), 'lib/parse.js'), 'utf8')).toContain(
-      'hasUnsafeLeadingQuantifier',
-    );
+    const source = readFileSync(resolve(dirname(patchedPath), 'lib/parse.js'), 'utf8');
+    expect(source).toContain('const hasWildcard = tokens.slice(token.tokensIndex + 2)');
+    expect(source).toContain('analysis.collapse === true');
     expect(readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8')).toContain(
       'picomatch@4.0.7: patches/picomatch@4.0.7.patch',
     );
+    expect(readFileSync(resolve(repoRoot, 'patches/README.md'), 'utf8')).toContain(
+      'micromatch/picomatch/pull/262',
+    );
   });
 
-  it('literalizes unsafe repeated extglobs rather than nested regex quantifiers', () => {
-    for (const pattern of ['+(*a)z', '*(*a)z', '+(*?)z', '+(*)z', '+(*?)!']) {
-      const expression = matcher.makeRe(pattern).source;
-      expect(expression).toContain('\\(');
-      expect(expression).not.toMatch(/\(\?:\[\^\/\]\*\?.*\)\+/);
+  it('collapses simple repeated single-star branches without changing matching semantics', () => {
+    const patterns = [
+      '+(*)',
+      '*(*)',
+      '+(*a)',
+      '*(*a)',
+      '+(a*)',
+      '*(a*)',
+      '+(a*b)',
+      '*(a*b)',
+      'x+(*a)y',
+    ];
+    const inputs = [
+      '',
+      'a',
+      'aa',
+      'ab',
+      'aba',
+      'abab',
+      'abcabc',
+      'foo.js',
+      '.env',
+      'a/a',
+      'xaby',
+      'xay',
+      '/',
+      'bb',
+    ];
+    const optionSets: Record<string, unknown>[] = [
+      {},
+      { dot: true },
+      { windows: true },
+      { bash: true },
+    ];
+
+    for (const pattern of patterns) {
+      expect(matcher.makeRe(pattern).source).not.toMatch(/\)\+/);
+      expect(matcher.makeRe(pattern).source).not.toMatch(/\)\*/);
+      for (const options of optionSets) {
+        for (const input of inputs) {
+          expect(matcher.isMatch(input, pattern, options)).toBe(
+            matcher.isMatch(input, pattern, { ...options, maxExtglobRecursion: false }),
+          );
+        }
+      }
     }
   });
 
-  it('terminates known ReDoS cases within a short child-process deadline', () => {
+  it('preserves narrow trailing-star alternatives and literalizes unsupported wildcard forms', () => {
+    const patterns = ['+(a*|b)', '*(a*|b)', '+(a*|b|c)', '*(a*|b|c)', '+(A*|b)'];
+    const inputs = ['', 'a', 'b', 'c', 'aa', 'ab', 'ba', 'bb', 'ax', 'bax', 'abc', 'a/b'];
+    const optionSets: Record<string, unknown>[] = [
+      {},
+      { dot: true },
+      { windows: true },
+      { bash: true },
+      { nocase: true },
+      { flags: 'i' },
+    ];
+
+    for (const pattern of patterns) {
+      for (const options of optionSets) {
+        for (const input of inputs) {
+          expect(matcher.isMatch(input, pattern, options)).toBe(
+            matcher.isMatch(input, pattern, { ...options, maxExtglobRecursion: false }),
+          );
+        }
+      }
+    }
+
+    for (const pattern of ['+(*?)z', '+(a?*)']) {
+      expect(matcher.makeRe(pattern).source).toContain('\\+\\(');
+      expect(matcher.isMatch(pattern, pattern)).toBe(true);
+    }
+  });
+
+  it('bounds known and adjacent repeated-wildcard cases in a child process', () => {
+    const cases = [
+      ['+(*a)', 'a'.repeat(30) + '!'],
+      ['+(a*)', 'a'.repeat(30) + '/'],
+      ['+(a*b)', 'a'.repeat(30) + '!'],
+      ['+(a*|b)', 'a'.repeat(30) + '/'],
+      ['+(*?)z', 'a'.repeat(30) + '!'],
+      ['+(a?*)', 'a'.repeat(30) + '/'],
+      ['+(*)z', 'a'.repeat(30) + '!'],
+    ];
     const script = [
-      `const p = require(${JSON.stringify(patchedPath)});`,
-      "for (const glob of ['+(*a)z','+(*?)z','+(*)z','+(*?)!']) {",
-      "  if (p.isMatch('a'.repeat(30), glob)) process.exit(2);",
+      'const p = require(' + JSON.stringify(patchedPath) + ');',
+      'const cases = ' + JSON.stringify(cases) + ';',
+      'for (const [glob, input] of cases) {',
+      '  if (p.isMatch(input, glob)) process.exit(2);',
       '}',
     ].join('\n');
     const result = spawnSync(process.execPath, ['-e', script], {
@@ -50,10 +131,20 @@ describe('patched picomatch for CVE-2026-112366', () => {
     expect(result.status).toBe(0);
   });
 
-  it('preserves ordinary glob and literal-prefix extglob matching', () => {
+  it('retains the explicit opt-out and capture-mode literal fallback', () => {
+    const capture = matcher.makeRe('+(*a)', { capture: true });
+    expect(capture.source).toContain('\\+\\(');
+    expect(capture.test('+(*a)')).toBe(true);
+    expect(capture.test('aaa')).toBe(false);
+
+    expect(matcher.makeRe('+(*a)', { maxExtglobRecursion: false }).source).toMatch(/\)\+/);
+  });
+
+  it('preserves ordinary project globs', () => {
     expect(matcher.isMatch('src/index.ts', '**/*.ts')).toBe(true);
     expect(matcher.isMatch('README.md', '**/*.ts')).toBe(false);
     expect(matcher.isMatch('abc', '+(a*)')).toBe(true);
+    expect(matcher.isMatch('abab', '+(a*b)')).toBe(true);
     expect(matcher.isMatch('foo.test.ts', '*.@(test|spec).ts')).toBe(true);
   });
 });
