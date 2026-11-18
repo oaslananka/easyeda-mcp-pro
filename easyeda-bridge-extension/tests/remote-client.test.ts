@@ -491,6 +491,47 @@ describe('RemoteRelayClient resilience', () => {
     );
   });
 
+  it('probes a suspended Web editor heartbeat before discarding its paired session', async () => {
+    const { client } = makeClient();
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    socket.receive(relayMessage('session_registered', { paired: true, sessionId: 'sess_web' }));
+
+    // Browser suspends all extension timers; wall clock advances without
+    // executing any callback. The first resumed tick must probe, not close.
+    vi.setSystemTime(Date.now() + 90_000);
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(socket.readyState).toBe(OPEN);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(client.getStatus()).toMatchObject({ state: 'paired', sessionId: 'sess_web' });
+    expect(socket.sent.map((message) => JSON.parse(message))).toContainEqual(
+      expect.objectContaining({ type: 'heartbeat', source: 'extension' }),
+    );
+
+    socket.receive(relayMessage('heartbeat', { source: 'server' }));
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(socket.readyState).toBe(OPEN);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('still replaces an unresponsive socket after a suspended timer probe', async () => {
+    const { client } = makeClient();
+    client.connect({ mode: 'hosted', relayUrl: 'wss://relay.example/session' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+
+    vi.setSystemTime(Date.now() + 90_000);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(socket.readyState).toBe(OPEN);
+
+    // The socket did not acknowledge the probe during the next normal tick.
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(socket.readyState).toBe(CLOSED);
+    expect(client.getStatus()).toMatchObject({ state: 'connecting', reconnectAttempts: 1 });
+  });
+
   it('closes stale heartbeat sockets so the normal close path reconnects', async () => {
     const { client, log } = makeClient();
 
