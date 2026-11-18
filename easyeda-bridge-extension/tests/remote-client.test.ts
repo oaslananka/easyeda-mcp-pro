@@ -192,11 +192,8 @@ describe('RemoteRelayClient resilience', () => {
     first.receive(relayMessage('session_registered', { paired: true, sessionId: 'sess_first' }));
     expect(client.getStatus().state).toBe('paired');
     first.close();
-
-    await vi.advanceTimersByTimeAsync(1_000);
-    const reconnect = FakeWebSocket.instances[1];
-    reconnect.open();
-    reconnect.receive(relayMessage('session_registered', { paired: false, sessionId: 'sess_new' }));
+    // A successful legacy pairing without a rotating resume credential must
+    // stop now rather than open an unpaired connection or reuse its code.
     expect(client.getStatus()).toMatchObject({
       state: 'disconnected',
       sessionId: undefined,
@@ -204,13 +201,13 @@ describe('RemoteRelayClient resilience', () => {
     expect(client.getStatus().lastError).toMatch(/new pairing code/i);
     expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/new pairing code/i));
     await vi.advanceTimersByTimeAsync(60_000);
-    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(FakeWebSocket.instances).toHaveLength(1);
     client.connect({
       mode: 'hosted',
       relayUrl: 'wss://easyeda-mcp-pro.oaslananka.dev/remote/relay',
       pairingCode: 'EDA-99887766',
     });
-    expect(FakeWebSocket.instances).toHaveLength(3);
+    expect(FakeWebSocket.instances).toHaveLength(2);
   });
 
   it('rotates an in-memory owner device credential without replaying its one-time pairing code', async () => {

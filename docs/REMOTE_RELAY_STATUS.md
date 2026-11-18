@@ -6,6 +6,10 @@
 
 `MCP_BRIDGE_BACKEND=remote_relay` is an implemented, explicitly selected runtime path. It is not the default and is not yet advertised as Beta or production-ready. Local bridge mode remains the supported default.
 
+## Reconnect UX patch under verification (2026-11-18)
+
+An owner-only Windows EasyEDA Pro 3.2.209 trial confirmed real Cloud READ, a scoped native-approved cosmetic WRITE, GUI Save and full-process cold-reopen persistence on a disposable schematic. The extension was offline after the restart and needed another one-time code plus explicit owner document selection. A **not-yet-released** follow-up adds a separate, clear native “Remember Cloud on this device for 23 hours” choice: no choice means session-only, Local MCP remains the default, and profile-stored rotating credentials never restore OAuth grants, selected projects or write/export approvals. The profile is not a hardware-backed keychain. All tests/real-device reconnection gates must pass before changing the owner-only Experimental maturity label or publishing the artifact. See issue #849.
+
 ## Current owner-only acceptance (2026-11-17)
 
 The Oracle Always Free pilot is live for the authenticated owner, but **public
