@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -9,23 +10,52 @@ const requireLocal = createRequire(import.meta.url);
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const vitestPackage = requireLocal.resolve('vitest/package.json');
 const vitePackage = createRequire(vitestPackage).resolve('vite/package.json');
-const patchedPath = createRequire(vitePackage).resolve('picomatch');
-const matcher = requireLocal(patchedPath) as {
+const forkPath = createRequire(vitePackage).resolve('picomatch');
+const matcher = requireLocal(forkPath) as {
   makeRe(pattern: string, options?: Record<string, unknown>): RegExp;
   isMatch(input: string, pattern: string, options?: Record<string, unknown>): boolean;
 };
 
-describe('patched picomatch for CVE-2026-112366', () => {
-  it('loads the hash-pinned patch for the actual Vite/Vitest transitive dependency', () => {
-    expect(patchedPath).toContain('picomatch@4.0.7_patch_hash');
-    const source = readFileSync(resolve(dirname(patchedPath), 'lib/parse.js'), 'utf8');
+describe('first-party picomatch fork for CVE-2026-112366', () => {
+  it('loads the provenance-pinned first-party fork for Vite, Vitest, and tinyglobby', () => {
+    const forkPackagePath = resolve(dirname(forkPath), 'package.json');
+    const forkPackage = JSON.parse(readFileSync(forkPackagePath, 'utf8')) as {
+      name: string;
+      version: string;
+      license: string;
+      'x-upstream': string;
+      'x-security-advisory': string;
+    };
+    expect(forkPackage).toMatchObject({
+      name: '@oaslananka/picomatch',
+      version: '4.0.7-oaslananka.1',
+      license: 'MIT',
+      'x-upstream': 'micromatch/picomatch@4.0.7',
+      'x-security-advisory': 'GHSA-fc5q-39xc-vjpf / CVE-2026-112366',
+    });
+
+    const vitestPackage = requireLocal.resolve('vitest/package.json');
+    const vitestPicomatch = createRequire(vitestPackage).resolve('picomatch');
+    const vitePicomatch = createRequire(vitePackage).resolve('picomatch');
+    const tinyglobbyPackage = createRequire(vitePackage).resolve('tinyglobby/package.json');
+    const tinyglobbyPicomatch = createRequire(tinyglobbyPackage).resolve('picomatch');
+    expect(vitestPicomatch).toBe(forkPath);
+    expect(vitePicomatch).toBe(forkPath);
+    expect(tinyglobbyPicomatch).toBe(forkPath);
+
+    const source = readFileSync(resolve(dirname(forkPath), 'lib/parse.js'), 'utf8');
     expect(source).toContain('const hasWildcard = tokens.slice(token.tokensIndex + 2)');
     expect(source).toContain('analysis.collapse === true');
-    expect(readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8')).toContain(
-      'picomatch@4.0.7: patches/picomatch@4.0.7.patch',
-    );
-    expect(readFileSync(resolve(repoRoot, 'patches/README.md'), 'utf8')).toContain(
-      'micromatch/picomatch/pull/262',
+    // Hash LF-normalized upstream-derived parser code, including the reviewed patch.
+    // Do not silently swap fork source while keeping the same scoped package identity.
+    const sourceSha256 = createHash('sha256').update(source.replaceAll('\r\n', '\n')).digest('hex');
+    expect(sourceSha256).toBe('fe3f64c8d898df5d1f73fec276b2d76a78a9db1562dfde6b21e76f2e575ad445');
+    const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
+    expect(lockfile).toContain('picomatch: file:vendor/picomatch');
+    expect(lockfile).toContain("'@oaslananka/picomatch@file:vendor/picomatch'");
+    expect(lockfile).not.toMatch(/^  picomatch@4\.0\.7:/m);
+    expect(readFileSync(resolve(repoRoot, 'vendor/picomatch/FORK_NOTES.md'), 'utf8')).toContain(
+      'GHSA-fc5q-39xc-vjpf',
     );
   });
 
@@ -116,7 +146,7 @@ describe('patched picomatch for CVE-2026-112366', () => {
       ['+(*)z', 'a'.repeat(30) + '!'],
     ];
     const script = [
-      'const p = require(' + JSON.stringify(patchedPath) + ');',
+      'const p = require(' + JSON.stringify(forkPath) + ');',
       'const cases = ' + JSON.stringify(cases) + ';',
       'for (const [glob, input] of cases) {',
       '  if (p.isMatch(input, glob)) process.exit(2);',

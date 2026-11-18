@@ -11,10 +11,11 @@
 !pnpm-lock.yaml
 !pnpm-workspace.yaml
 
-# Include only the reviewed pnpm security patch used at dependency install.
-!patches/
-patches/**
-!patches/picomatch@4.0.7.patch
+# Include only the reviewed first-party matcher fork used at dependency install.
+!vendor/
+vendor/**
+!vendor/picomatch/
+!vendor/picomatch/**
 !tsconfig.json
 !tsconfig.build.json
 

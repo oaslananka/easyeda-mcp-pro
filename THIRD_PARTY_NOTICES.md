@@ -4,6 +4,20 @@ Current project-authored source is distributed under the MIT License. Previously
 
 ## Runtime and development dependencies
 
+### Temporary development-tooling fork
+
+vendor/picomatch/ is a first-party maintained, temporary fork of the MIT-licensed
+picomatch 4.0.7, identified as @oaslananka/picomatch 4.0.7-oaslananka.1. It is used only
+by development/test/documentation tools through the pnpm override; it is excluded from the
+production dependency graph and the published package allowlist. The upstream source,
+version, npm tarball integrity, retained MIT license, parser mitigation, and removal criteria
+are documented in vendor/picomatch/FORK_NOTES.md.
+
+The upstream GHSA-fc5q-39xc-vjpf / CVE-2026-112366 remains tracked in issue #1073. The fork
+is a real source-level mitigation, not an upstream release, an advisory suppression, or a
+claim that arbitrary untrusted glob patterns are safe. Continue independent SCA and regression
+checks until the fork is replaced by an independently verified upstream fix.
+
 The npm package depends on third-party open source packages declared in `package.json` and resolved in `pnpm-lock.yaml`. Maintain release evidence through:
 
 - `pnpm audit --audit-level low`
