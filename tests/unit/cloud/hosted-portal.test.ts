@@ -346,6 +346,7 @@ describe('Hosted Cloud browser recovery', () => {
 
   it('refreshes live device state and clears a stale paired indicator while the tab is visible', async () => {
     let online = true;
+    let sessionId = 'sess_disposable';
     let deviceRequests = 0;
     const result = await runWorkspace(async (url) => {
       if (url === '/cloud/api/me')
@@ -358,7 +359,7 @@ describe('Hosted Cloud browser recovery', () => {
           json: async () => ({
             sessions: [
               {
-                sessionId: 'sess_disposable',
+                sessionId,
                 connected: online,
                 mode: 'hosted',
                 extensionVersion: '1.15.6',
@@ -407,7 +408,7 @@ describe('Hosted Cloud browser recovery', () => {
     expect(getStatus().textContent).toBe('Disconnected');
     expect(getStatus().className).toContain('off');
     expect(pairing.textContent).toBe('Disconnected');
-    expect(hint.textContent).toContain('Generate a new pairing code');
+    expect(hint.textContent).toContain('can reconnect automatically');
     expect(
       result.elements
         .get('extensions')
@@ -416,6 +417,8 @@ describe('Hosted Cloud browser recovery', () => {
 
     result.setHidden(true);
     online = true;
+    // A verified device resume uses a fresh relay session, not the old selection.
+    sessionId = 'sess_disposable_reconnected';
     await result.tickUsage();
     expect(deviceRequests).toBe(2);
     expect(getStatus().textContent).toBe('Disconnected');
@@ -424,6 +427,10 @@ describe('Hosted Cloud browser recovery', () => {
     expect(deviceRequests).toBe(3);
     expect(getStatus().textContent).toBe('Connected');
     expect(pairing.textContent).toBe('Connected');
+    expect(hint.textContent).toContain('no new pairing code is needed');
+    const card = result.elements.get('extensions').children[0];
+    expect(card.children.some((child) => child.textContent === 'Use this PCB')).toBe(true);
+    expect(card.children.some((child) => child.textContent === 'Selected PCB')).toBe(false);
   });
 
   it('prioritizes connected devices and keeps old pairings removable without losing expansion on refresh', async () => {

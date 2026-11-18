@@ -89,6 +89,22 @@ describe('Hosted Cloud socket pairing after process restart', () => {
         false,
       );
 
+      // A durable but temporarily offline device must not require a new
+      // pairing code merely to recover transport connectivity.
+      const offlineRead = await restarted.gateway.routeToolRequest({
+        identity: owner,
+        toolName: 'easyeda_project_list',
+        riskLevel: 'read',
+      });
+      expect(offlineRead).toMatchObject({
+        ok: false,
+        code: 'SESSION_DISCONNECTED',
+        message: expect.stringContaining('existing Cloud pairing'),
+      });
+      expect(offlineRead).not.toMatchObject({
+        message: expect.stringContaining('using a fresh pairing code'),
+      });
+
       const recovered = await register(restarted.socket, {
         resumeCredential: first.resumeCredential,
       });

@@ -1,22 +1,14 @@
 import { spawnSync } from 'node:child_process';
-import { dirname, join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   removeGeneratedPackageArtifacts,
   verifyPackageArtifacts,
   writePackageBuildManifest,
 } from './package-artifacts.mjs';
+import { resolvePnpmCli } from './resolve-pnpm-cli.mjs';
 
 const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
-
-function nodeGlobalModulePath(packageName, ...segments) {
-  const binDirectory = dirname(process.execPath);
-  const modulesDirectory =
-    process.platform === 'win32'
-      ? join(binDirectory, 'node_modules')
-      : join(dirname(binDirectory), 'lib', 'node_modules');
-  return join(modulesDirectory, packageName, ...segments);
-}
 
 function requireSuccess(result) {
   if (result.status === 0) return;
@@ -35,7 +27,7 @@ function runExecutable(command, args) {
 }
 
 function runPnpmScript(script) {
-  const pnpmCli = nodeGlobalModulePath('corepack', 'dist', 'pnpm.js');
+  const pnpmCli = resolvePnpmCli();
   runExecutable(process.execPath, [pnpmCli, script]);
 }
 

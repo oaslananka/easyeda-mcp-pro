@@ -17,3 +17,6 @@ proje-ymlenmesi/
 
 # Project-local package-manager stores
 .pnpm-store/
+
+# Unmodified-format third-party MIT code with reviewed security patch.
+vendor/picomatch/

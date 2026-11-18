@@ -447,6 +447,7 @@ describe('BridgeManager - origin validation', () => {
       'https://pro.easyeda.com',
       'https://easyeda.com',
       'https://lceda.cn',
+      'https://client', // Native EasyEDA Pro 3.2.209 desktop origin.
       'chrome-extension://abcdefghijklmno',
       'moz-extension://abcdefghijklmno',
     ]) {
@@ -474,6 +475,29 @@ describe('BridgeManager - origin validation', () => {
     expect(badResult).toMatch(/403|Forbidden|unexpected server response/i);
 
     manager.disconnect('test complete');
+  });
+
+  it('rejects lookalike desktop origins and never trusts the desktop origin on non-loopback', () => {
+    const local = new BridgeManager(createTestConfig({ BRIDGE_HOST: '127.0.0.1' }));
+    const external = new BridgeManager(createTestConfig({ BRIDGE_HOST: '0.0.0.0' }));
+    const originAllowed = (manager: BridgeManager, origin: string): boolean =>
+      (
+        manager as unknown as {
+          isAllowedBridgeOrigin: (candidate: string) => boolean;
+        }
+      ).isAllowedBridgeOrigin(origin);
+
+    expect(originAllowed(local, 'https://client')).toBe(true);
+    for (const rejected of [
+      'http://client',
+      'https://client:8443',
+      'https://client.evil.example',
+      'https://client@evil.example',
+      'https://client/',
+    ]) {
+      expect(originAllowed(local, rejected)).toBe(false);
+    }
+    expect(originAllowed(external, 'https://client')).toBe(false);
   });
 
   it('drops chunk assemblies when capacity limit is reached', async () => {
