@@ -474,6 +474,11 @@ export class BridgeManager extends EventEmitter {
       if (allowed.includes('*') || allowed.includes(origin)) return true;
     }
     if (this.config.CORS_ORIGIN && this.config.CORS_ORIGIN === origin) return true;
+    // EasyEDA Pro 3.2.209 desktop uses this internal browser origin. Trust it
+    // only for a loopback-bound local bridge; never for a public listener.
+    if (origin === 'https://client' && this.isLoopbackHost(this.config.BRIDGE_HOST)) {
+      return true;
+    }
     try {
       const parsed = new URL(origin);
       if (['http:', 'https:'].includes(parsed.protocol) && LOOPBACK_HOSTS.has(parsed.hostname)) {

@@ -719,6 +719,112 @@ describe('RemoteGateway WebSocket relay', () => {
     expect(harness.client.socket.readyState).toBe(WebSocket.CLOSED);
   });
 
+  it('isolates concurrent owner sessions and dispatches to the correct native socket', async () => {
+    const harness = await createHarness();
+    harness.gateway.requireExplicitProjectSelection();
+    const ownerA: RemoteIdentity = { userId: 'first-owner', scopes: ['easyeda.read'] };
+    const ownerB: RemoteIdentity = { userId: 'second-owner', scopes: ['easyeda.read'] };
+    const firstSessionId = await registerSession(harness, ownerA);
+
+    const address = harness.server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing relay port');
+    const secondSocket = new WebSocket(`ws://127.0.0.1:${address.port}/remote/relay`);
+    await new Promise<void>((resolve, reject) => {
+      secondSocket.once('open', resolve);
+      secondSocket.once('error', reject);
+    });
+    const secondClient = new RelayClient(secondSocket);
+    try {
+      const codeB = harness.gateway.createPairingCode({ identity: ownerB });
+      secondClient.send(
+        envelope('register_session', {
+          extensionVersion: '1.15.6',
+          mode: 'hosted',
+          capabilities: [],
+          // Deliberately use the same native IDs: owner identity, not a
+          // user-controlled project UUID, must separate the two clients.
+          activeProject: {
+            projectId: 'relay-project',
+            documentId: 'relay-schematic',
+            documentType: 'schematic',
+          },
+          pairingCode: codeB,
+        }),
+      );
+      const registeredB = await secondClient.waitFor(
+        (message) => message.type === 'session_registered',
+      );
+      expect(registeredB.paired).toBe(true);
+      const secondSessionId = String(registeredB.sessionId);
+      expect(secondSessionId).not.toBe(firstSessionId);
+
+      expect(harness.gateway.listPairedExtensions(ownerA).map((s) => s.sessionId)).toEqual([
+        firstSessionId,
+      ]);
+      expect(harness.gateway.listPairedExtensions(ownerB).map((s) => s.sessionId)).toEqual([
+        secondSessionId,
+      ]);
+      expect(harness.gateway.selectPairedProject(ownerA, secondSessionId)).toBe(false);
+      expect(harness.gateway.selectPairedProject(ownerB, firstSessionId)).toBe(false);
+      expect(harness.gateway.selectPairedProject(ownerA, firstSessionId)).toBe(true);
+      expect(harness.gateway.selectPairedProject(ownerB, secondSessionId)).toBe(true);
+
+      await expect(
+        harness.gateway.routeToolRequest({
+          identity: ownerB,
+          sessionId: firstSessionId,
+          toolName: 'schematic.listComponents',
+          riskLevel: 'read',
+        }),
+      ).resolves.toMatchObject({ ok: false, code: 'SESSION_UNPAIRED' });
+
+      const requestA = harness.gateway.routeToolRequest({
+        identity: ownerA,
+        toolName: 'schematic.listComponents',
+        riskLevel: 'read',
+      });
+      const requestB = harness.gateway.routeToolRequest({
+        identity: ownerB,
+        toolName: 'schematic.listComponents',
+        riskLevel: 'read',
+      });
+      const [dispatchA, dispatchB] = await Promise.all([
+        harness.client.waitFor((m) => m.type === 'tool_request'),
+        secondClient.waitFor((m) => m.type === 'tool_request'),
+      ]);
+      expect(dispatchA.sessionId).toBe(firstSessionId);
+      expect(dispatchB.sessionId).toBe(secondSessionId);
+      expect(harness.client.messages.filter((m) => m.type === 'tool_request')).toHaveLength(1);
+      expect(secondClient.messages.filter((m) => m.type === 'tool_request')).toHaveLength(1);
+
+      // Reverse response order to catch accidental cross-owner settlement.
+      secondClient.send(
+        toolResponse({
+          sessionId: secondSessionId,
+          requestMessageId: String(dispatchB.messageId),
+          result: { owner: 'second-owner' },
+        }),
+      );
+      harness.client.send(
+        toolResponse({
+          sessionId: firstSessionId,
+          requestMessageId: String(dispatchA.messageId),
+          result: { owner: 'first-owner' },
+        }),
+      );
+      await expect(requestA).resolves.toMatchObject({
+        ok: true,
+        result: { owner: 'first-owner' },
+      });
+      await expect(requestB).resolves.toMatchObject({
+        ok: true,
+        result: { owner: 'second-owner' },
+      });
+    } finally {
+      await secondClient.close();
+    }
+  });
+
   it('re-registering one socket replaces and disconnects its previous session', async () => {
     const harness = await createHarness();
     const firstSessionId = await registerSession(harness);
