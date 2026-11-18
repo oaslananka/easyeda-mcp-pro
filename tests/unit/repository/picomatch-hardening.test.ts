@@ -53,12 +53,40 @@ describe('first-party picomatch fork for CVE-2026-112366', () => {
     const lockfile = readFileSync(resolve(repoRoot, 'pnpm-lock.yaml'), 'utf8');
     expect(lockfile).toContain('picomatch: file:vendor/picomatch');
     expect(lockfile).toContain("'@oaslananka/picomatch@file:vendor/picomatch'");
-    expect(lockfile).not.toMatch(/^  picomatch@4\.0\.7:/m);
+    expect(lockfile).not.toMatch(/^ {2}picomatch@4\.0\.7:/m);
     expect(readFileSync(resolve(repoRoot, 'vendor/picomatch/FORK_NOTES.md'), 'utf8')).toContain(
       'GHSA-fc5q-39xc-vjpf',
     );
   });
 
+  it('preserves escaped bracket matching and bounds long unmatched bracket inputs', () => {
+    const utilsPath = resolve(dirname(forkPath), 'lib/utils.js');
+    const utils = requireLocal(utilsPath) as { removeBackslashes(input: string): string };
+    const alphabet = ['[', ']', '\\', 'a', '/', '\n', '\r'];
+    const cases: [string, string][] = [['', utils.removeBackslashes('')]];
+    let words = [''];
+    for (let length = 1; length <= 5; length += 1) {
+      words = words.flatMap((word) => alphabet.map((character) => word + character));
+      for (const input of words) cases.push([input, utils.removeBackslashes(input)]);
+    }
+    expect(cases).toHaveLength(19608);
+    expect(createHash('sha256').update(JSON.stringify(cases)).digest('hex')).toBe(
+      'd68a03eb295d26234322c34db8ba46d5ee07084acee5aa454e9c20961c94f9f0',
+    );
+
+    const script = [
+      'const unescape = require(' + JSON.stringify(utilsPath) + ').removeBackslashes;',
+      'const input = "[".repeat(150000) + String.fromCharCode(92) + "z";',
+      'if (unescape(input) !== "[".repeat(150000) + "z") process.exit(2);',
+    ].join('\n');
+    const result = spawnSync(process.execPath, ['-e', script], {
+      timeout: 2500,
+      encoding: 'utf8',
+      windowsHide: true,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(0);
+  });
   it('collapses simple repeated single-star branches without changing matching semantics', () => {
     const patterns = [
       '+(*)',

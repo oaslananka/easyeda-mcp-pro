@@ -21,7 +21,12 @@ The parser mitigation is a conservative adaptation of the still-unmerged upstrea
 proposal https://github.com/micromatch/picomatch/pull/262. It inspects parsed wildcard
 tokens, collapses narrowly defined single-star repeated branches where repetition is
 semantically redundant, and safely rewrites a restricted trailing-star alternative.
-Capture-sensitive and unsupported wildcard forms retain the literal fallback. The
+Capture-sensitive and unsupported wildcard forms retain the literal fallback.
+
+A separate CodeQL HIGH finding in the upstream bracket-unescape regex was addressed
+by replacing the regex call with a linear-time scanner in lib/utils.js. A
+19,608-case corpus verifies output parity against the original behavior; a
+bounded child-process test covers 150,000 unmatched opening brackets. The
 maxExtglobRecursion: false opt-out remains unchanged.
 
 The source is covered by tests/unit/repository/picomatch-hardening.test.ts, including
