@@ -52,8 +52,13 @@ describe('system API operations', () => {
     );
   });
 
-  it.each(['SCH_PrimitiveText.delete', 'sch_PrimitiveText.delete'])(
-    'refuses an unpersisted native text-delete API without dispatching it: %s',
+  it.each([
+    'SCH_PrimitiveText.delete',
+    'sch_PrimitiveText.delete',
+    'SCH_SourcePrimitiveText.remove',
+    'sch_SourcePrimitiveText.remove',
+  ])(
+    'refuses native text-delete APIs until cold-reopen persistence is verified: %s',
     async (path) => {
       const dependencies = createDependencies();
       const operations = createSystemApiOperations(dependencies);
