@@ -1,72 +1,60 @@
 # Getting Started
 
-`easyeda-mcp-pro` is a Model Context Protocol (MCP) server that connects your AI assistant (like Claude, Cursor, VS Code Copilot, or Antigravity) with your **EasyEDA Pro** desktop environment. It allows AI models to safely read, inspect, check rules, and write schematic/PCB designs.
+Connect your open EasyEDA Pro project to an MCP-compatible assistant. Start locally: **no Cloud account or repository clone is required**.
 
----
+## Before you begin
 
-## Prerequisites
+- Install **EasyEDA Pro** on your computer.
+- Install **Node.js 24.x**, then verify it with `node --version`.
+- Have an MCP-capable client such as Claude Desktop, Cursor, VS Code, or another supported client.
 
-- **Node.js**: 24.x, with `24.22.3` pinned for repository automation
-- **pnpm**: exactly `11.28.11` when building from source
+**You do not need pnpm, Git, or a source checkout** to use the published `npx` commands below. Contributors building from source should follow [CONTRIBUTING.md](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/CONTRIBUTING.md) instead; that workflow pins Node.js 24.22.3 and pnpm 11.28.11.
 
-```bash
-nvm install 24.22.3
-nvm use 24.22.3
-corepack enable
-corepack prepare pnpm@11.28.11 --activate
-node scripts/check-runtime.mjs --require-pnpm
-```
+## Connect locally
 
-- **EasyEDA Pro**: Installed on your system
+### 1. Set up your MCP client
 
----
-
-## Quick Setup (Recommended)
-
-The easiest way to install and configure everything is to run the interactive setup wizard:
-
-### 1. Run the Setup Wizard
+Run the interactive setup:
 
 ```bash
 npx easyeda-mcp-pro init
 ```
 
-This wizard will guide you through:
+The wizard helps you choose a detected client and a tool profile, writes the client's MCP configuration, and locates the EasyEDA bridge extension. It **does not automatically install the extension inside EasyEDA Pro**.
 
-1. **Selecting your AI Client**: It automatically detects installed IDEs/clients (Claude Desktop, Cursor, VS Code, Windsurf, Cline, Gemini/Antigravity, Zed, Amazon Q, Continue) and inserts the correct MCP config.
-2. **Selecting your Tool Profile**: Choose between `core` (read/inspect), `pro` (manufacturing exports), `full` (full control API), or `dev` (diagnostics).
-3. **Importing the Extension**: It will help you locate the `.eext` bridge extension bundle and open the folder in your file manager.
+For a non-interactive setup of all detected clients, use `npx easyeda-mcp-pro setup all` instead.
 
-### 2. Import the Extension in EasyEDA Pro
+### 2. Install the bridge in EasyEDA Pro
 
-To allow the MCP server to communicate with EasyEDA Pro, you must import the bridge extension:
+1. Open **EasyEDA Pro** and select **Advanced > Extensions Manager** (EasyEDA Pro 3.2.209; older builds may put the manager under Settings).
+2. Select **Import Extension** and choose `easyeda-bridge-extension.eext`. If you need to locate the bundled file again, run `npx easyeda-mcp-pro extension --open`.
+3. Enable **Allow External Interaction** for the extension.
+4. **Fully quit and reopen EasyEDA Pro.** Importing or enabling the extension without restarting may leave the previous dispatcher in memory.
+5. Open a project and focus the schematic or PCB you want to inspect.
+6. Open **MCP Bridge** in EasyEDA and choose the **local MCP** connection. Do not enter the hosted Cloud MCP URL in the extension's custom WebSocket field.
 
-1. Open **EasyEDA Pro**.
-2. Go to **Advanced** → **Extensions Manager…** (EasyEDA Pro 3.2.209; older builds may use **Settings** → **Extensions** → **Extension Manager**).
-3. Click **Import Extension** and select the `easyeda-bridge-extension.eext` package (which was shown or copied during the `init` command).
-4. Ensure **Allow External Interaction** is checked/enabled for the extension in the manager.
-5. In the top header menu, click **MCP Bridge** → **Connect**.
+### 3. Start your assistant and check the connection
 
-### 3. Restart Your Client
+Restart your MCP client after its configuration changes. With the client connected to the open editor, ask it to check EasyEDA MCP Pro health and list the available projects.
 
-After configuration is written, restart your AI IDE or client (e.g., Claude Desktop, Cursor, VS Code) to start the MCP server.
-
----
-
-## Manual Client Setup
-
-If you prefer to configure your client manually, you can run the non-interactive setup:
+If the connection is not ready, run:
 
 ```bash
-# Configure all detected clients automatically
-npx easyeda-mcp-pro setup all
-
-# Or configure a specific client (e.g., Cursor)
-npx easyeda-mcp-pro setup cursor --profile pro
+npx easyeda-mcp-pro --doctor
 ```
 
-To copy the extension file to a custom folder:
+A bridge shown as offline while no MCP client has started the server is informational, not proof of a broken installation. Follow the [troubleshooting guide](./troubleshooting.md) if it stays disconnected after starting the client.
 
-```bash
-npx easyeda-mcp-pro extension --copy /path/to/destination
-```
+## Make your first useful request
+
+Open a schematic and ask:
+
+> Which components connect to the 3V3 rail? Show the net and pin evidence, and identify what needs a manual datasheet or layout check.
+
+Continue with the [schematic review walkthrough](../examples/schematic-review.md). Read and write permissions depend on your tool profile and selected project. Mutations require explicit confirmation; Cloud adds a separate owner-approval boundary. An automated review does not certify electrical correctness or manufacturing readiness.
+
+## Other connection choices
+
+Local MCP works without Cloud sign-in. Hosted access is a separate opt-in workflow with account sign-in, device pairing and explicit project selection. See [Local and Cloud modes](../REMOTE_MCP_MODES.md).
+
+For advanced source builds, client configuration and troubleshooting, see [Configuration](./configuration.md) and the [Tool Reference](../reference/tools.md).
