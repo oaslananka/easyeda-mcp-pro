@@ -226,13 +226,18 @@ export function createSystemApiOperations(
   return {
     async apiCall(params) {
       const path = typeof params.path === 'string' ? params.path : '';
-      // The BETA text-delete API acknowledges a transient deletion that
-      // disappears on cold reopen (live EasyEDA Pro 3.2.209 evidence).
-      if (path.toLowerCase() === 'sch_primitivetext.delete') {
+      // Neither native text-delete API is enabled until a disposable-project
+      // cold-reopen test proves persistence on the target EasyEDA runtime.
+      // Source API success acknowledges an asynchronous source update only.
+      const normalizedPath = path.toLowerCase();
+      if (
+        normalizedPath === 'sch_primitivetext.delete' ||
+        normalizedPath === 'sch_sourceprimitivetext.remove'
+      ) {
         throw dependencies.createBridgeError(
           'UNSUPPORTED_RUNTIME',
-          'Native schematic text deletion is not durably verified',
-          'In EasyEDA GUI, select text, Delete, Ctrl+S, then close and reopen to verify.',
+          'Native schematic text deletion is not durably verified on this runtime',
+          'Use EasyEDA GUI Delete and Ctrl+S, then close and reopen to verify. Keep native API deletion disabled until disposable-project persistence acceptance passes.',
         );
       }
       return dependencies.callAllowedApi(
