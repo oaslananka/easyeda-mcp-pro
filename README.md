@@ -79,6 +79,63 @@ The [documentation site](https://oaslananka.github.io/easyeda-mcp-pro/) is organ
 
 The [compatibility record](https://oaslananka.github.io/easyeda-mcp-pro/reference/easyeda-compatibility.html) separates live-tested EasyEDA versions from mocked and experimental behavior; do not infer a product guarantee from a model or a passing test.
 
+## Technical reference
+
+The main workflow stays short. Details for source users and automation live here;
+[configuration](docs/guide/configuration.md) and
+[security architecture](docs/security-architecture.md) provide the full contracts.
+
+<details>
+<summary>Tool profiles, configuration and maintenance</summary>
+
+### MCP capability profiles
+
+Counts below are generated from the active registry, not copied from a release claim.
+
+<!-- capability-counts:start -->
+
+| Profile        | Registered tools |
+| -------------- | ---------------: |
+| `core`         |               82 |
+| `pro`          |              109 |
+| `full`         |              126 |
+| `dev`          |              131 |
+| `experimental` |              132 |
+
+<!-- capability-counts:end -->
+
+### Keyless sourcing controls
+
+The [configuration guide](docs/guide/configuration.md) covers
+`KEYLESS_SOURCING_ENABLED`, `SOURCING_CACHE_TTL_SECONDS` and
+`VENDOR_MIN_REQUEST_INTERVAL_MS`. Free supplier snapshots can be incomplete;
+a lookup does not confer purchasing approval.
+
+### Reserved AI configuration
+
+No in-process AI provider client is currently implemented. Reserved `AI_*`
+settings do not activate an AI provider; do not supply provider credentials.
+
+### Engineering and agent references
+
+The on-demand engineering review router is the
+[engineering review reference](skills/design-validation/references/engineering-review.md).
+Its review guidance is not automatic safety or fabrication certification.
+See [agent runtime configuration](docs/agent-runtime-config.md).
+
+### Dependency and release maintenance
+
+Hosted Renovate is an account-level prerequisite; checked-in configuration
+does not prove the GitHub integration is active. See
+[repository governance](docs/REPOSITORY_GOVERNANCE.md).
+Releases follow the [Release Policy](docs/RELEASE_POLICY.md),
+[release process](docs/RELEASE_PROCESS.md), and
+[verification guide](docs/RELEASE_VERIFICATION.md).
+The experimental adapter is documented in the
+[CDP bridge guide](docs/guide/cdp-bridge.md).
+
+</details>
+
 ## Contributing and license
 
 Reproducible bug reports, documentation improvements and patches are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). [DeepWiki](https://deepwiki.com/oaslananka/easyeda-mcp-pro) provides a secondary code-navigation reference.

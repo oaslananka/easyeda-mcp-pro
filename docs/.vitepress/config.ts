@@ -93,6 +93,8 @@ export default defineConfig({
           { text: 'Bridge Contract', link: '/reference/bridge-contract' },
           { text: 'Resources & Prompts', link: '/reference/resources-prompts' },
           { text: 'Remote MCP Modes', link: '/REMOTE_MCP_MODES' },
+          { text: 'Remote Relay Status', link: '/REMOTE_RELAY_STATUS' },
+          { text: 'CDP Bridge (Experimental)', link: '/guide/cdp-bridge' },
         ],
       },
       {

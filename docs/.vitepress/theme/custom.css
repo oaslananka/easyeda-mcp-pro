@@ -432,8 +432,14 @@ body {
   font-weight: 750;
 }
 
-.ee-action-primary:hover {
+.VPHome .ee-action-primary,
+.VPHome .ee-action-primary:visited {
+  color: #102a1e;
+}
+
+.VPHome .ee-action-primary:hover {
   background: #c7efd1;
+  color: #102a1e;
 }
 
 .VPHome .VPHomeContent a.ee-action-primary {
