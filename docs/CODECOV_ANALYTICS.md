@@ -128,3 +128,15 @@ The ratchets were deliberately increased only to **350,931 / 288,409 /
 automatic build and release fail-closed budget gate. This does **not**
 constitute native post-mutation copper rebuild acceptance or permission to
 release #985.
+
+The 2026-11-18 first-user Cloud reconnect change added **explicit opt-in**
+device trust, strict expiry/revocation behavior and lifecycle regression tests
+without extending remote tool privileges or retaining one-time pairing codes.
+The reproducible production extension package measured **236,709 bytes**
+(previous **235,224**, +1,398 bytes, +0.59%) and its non-minified loader
+measured **397,648 bytes** (previous **391,729**, +5,567 bytes, +1.42%).
+The dispatcher remained **313,297 bytes**. The size configuration was
+updated only to these observed bytes; the checker, deterministic build,
+package identity verification and fail-closed limits remain enforced.
+The change is **not** general-availability or live cold-restart acceptance
+without a separate real EasyEDA trial.

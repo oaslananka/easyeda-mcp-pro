@@ -22,6 +22,7 @@ import {
   type RemoteApprovalPrompt,
   type RemoteRelayMode,
 } from './remote-client.js';
+import { HostedDeviceTrust, type HostedDeviceTrustStorage } from './hosted-device-trust.js';
 import { createDispatcher } from './dispatcher.js';
 import { readNativeRemoteActiveProject } from './remote-active-project.js';
 import { createNativeRemoteWebSocket } from './remote-native-websocket.js';
@@ -636,6 +637,9 @@ async function handleLoaderMethod(
 // ── Remote relay ─────────────────────────────────────────────────────────────
 
 let remoteRelayClient: RemoteRelayClient | null = null;
+const trustedHostedDevice = new HostedDeviceTrust(() =>
+  readPath<HostedDeviceTrustStorage>(getGlobal(), 'sys_Storage'),
+);
 
 function requestRemoteApproval(prompt: RemoteApprovalPrompt): Promise<RemoteApprovalDecision> {
   const dialog = readPath<EasyedaDialogApi>(getGlobal(), 'sys_Dialog');
@@ -688,6 +692,16 @@ function getRemoteRelayClient(): RemoteRelayClient {
     requestApproval: requestRemoteApproval,
     onPayloadLimit: (maxBytes) => {
       remoteRelayMaxPayloadSize = maxBytes;
+    },
+    onTrustedCredential: (credential, freshOwnerConsent) => {
+      void trustedHostedDevice.remember(credential, freshOwnerConsent).then((saved) => {
+        if (!saved) showToast('Cloud device trust could not be saved; this session still works.');
+      });
+    },
+    onTrustedCredentialInvalidated: () => {
+      void trustedHostedDevice.forget().then((removed) => {
+        if (!removed) showToast('Could not forget this device locally. Revoke its Cloud access.');
+      });
     },
     timers: runtimeTimers,
     createWebSocket: (url) => {
@@ -778,6 +792,26 @@ async function promptConnectionValue(message: string, initialValue = ''): Promis
   }
 }
 
+/** Native owner consent is mandatory before saving a revocable device bearer. */
+function requestTrustedDeviceConsent(): Promise<boolean> {
+  const dialog = readPath<EasyedaDialogApi>(getGlobal(), 'sys_Dialog');
+  if (typeof dialog?.showConfirmationMessage !== 'function') return Promise.resolve(false);
+  return new Promise<boolean>((resolve) => {
+    try {
+      dialog.showConfirmationMessage?.call(
+        dialog,
+        'Remember this EasyEDA profile for up to 23 hours? The Cloud saves a revocable device-only reconnect credential in EasyEDA extension settings (not an OS keychain). Anyone with access to this profile may reconnect until it expires or is revoked. Project selection and write approvals are never automatically restored.',
+        'Remember Cloud on this device?',
+        'Remember 23h',
+        'This session only',
+        (remember) => resolve(remember === true),
+      );
+    } catch {
+      resolve(false); // Unavailable beta dialog never implies consent.
+    }
+  });
+}
+
 async function connectHostedCloudInternal(): Promise<void> {
   const generation = ++connectionPromptGeneration;
   const pairingCode = await promptConnectionValue(
@@ -789,7 +823,10 @@ async function connectHostedCloudInternal(): Promise<void> {
     showToast('Enter a valid EDA-XXXXXXXX Cloud code.');
     return;
   }
-  connectRemoteRelayInternal('hosted', OFFICIAL_HOSTED_RELAY_URL, code);
+  const remember = await requestTrustedDeviceConsent();
+  if (generation !== connectionPromptGeneration) return;
+  if (!remember && trustedHostedDevice.read()) void trustedHostedDevice.forget();
+  connectRemoteRelayInternal('hosted', OFFICIAL_HOSTED_RELAY_URL, code, remember);
 }
 
 async function connectCustomRemoteInternal(): Promise<void> {
@@ -833,6 +870,8 @@ function connectRemoteRelayInternal(
   mode: Exclude<RemoteRelayMode, 'disabled'> = 'hosted',
   relayUrl?: string,
   pairingCode?: string,
+  rememberHostedDevice = false,
+  resumeCredential?: string,
 ): void {
   if (relayUrl !== undefined) {
     try {
@@ -850,10 +889,13 @@ function connectRemoteRelayInternal(
     );
     return;
   }
+  if (mode === 'self_hosted' && trustedHostedDevice.read()) {
+    void trustedHostedDevice.forget();
+  }
   disconnectInternal(false);
   selectedConnectionMode = 'remote';
   const client = getRemoteRelayClient();
-  client.connect({ mode, relayUrl, pairingCode });
+  client.connect({ mode, relayUrl, pairingCode, rememberHostedDevice, resumeCredential });
   if (client.getStatus().state === 'disconnected') {
     // A denied native external-interactions permission is not a transient
     // outage: restore Local as the user's selected mode instead of looping.
@@ -1695,6 +1737,22 @@ async function handleActivate(): Promise<void> {
   }
 
   activationStarted = true;
+  // A previous explicit trusted-device choice restores only the owner pairing,
+  // never selected project, OAuth scope, or native write/export approvals.
+  const trustedCredential = trustedHostedDevice.read();
+  if (trustedCredential) {
+    connectRemoteRelayInternal(
+      'hosted',
+      OFFICIAL_HOSTED_RELAY_URL,
+      undefined,
+      true,
+      trustedCredential,
+    );
+    if (selectedConnectionMode === 'remote') {
+      showToast('Reconnecting your trusted EasyEDA Cloud device…');
+      return;
+    }
+  }
   if (autoConnectEnabled && selectedConnectionMode === 'local') {
     showToast(`MCP Bridge: Auto-Connect ON — scanning local server`);
     void connectInternal('auto');

@@ -48,6 +48,10 @@ interface RemoteRelayClientOptions {
   executeToolRequest?: (toolName: string, input: unknown) => Promise<unknown>;
   requestApproval?: (request: RemoteApprovalPrompt) => Promise<RemoteApprovalDecision>;
   onPayloadLimit?: (maxBytes: number | undefined) => void;
+  /** Called only after the server confirms a trusted Hosted Cloud device. */
+  onTrustedCredential?: (credential: string, freshOwnerConsent: boolean) => void;
+  /** Clear persisted trust on owner disconnect, revocation or failed resume. */
+  onTrustedCredentialInvalidated?: () => void;
   timers: RuntimeTimers;
   createWebSocket: (url: string) => WebSocket;
 }
@@ -57,6 +61,7 @@ interface RemoteRelayConnectInput {
   relayUrl?: string;
   pairingCode?: string;
   resumeCredential?: string;
+  rememberHostedDevice?: boolean;
 }
 
 interface RemoteEnvelope {
@@ -189,6 +194,9 @@ export class RemoteRelayClient {
   }
 
   disconnect(reason: 'user_disabled' | 'replaced' | 'disconnected' = 'user_disabled'): void {
+    if (reason === 'user_disabled' && this.status.mode === 'hosted') {
+      this.options.onTrustedCredentialInvalidated?.();
+    }
     this.desiredConnection = null;
     this.clearReconnectTimer();
     this.clearHeartbeatTimer();
@@ -323,20 +331,7 @@ export class RemoteRelayClient {
       this.options.showToast(hint);
       return;
     }
-    if (
-      message.paired === true &&
-      typeof message.resumeCredential === 'string' &&
-      /^ers_[a-f0-9]{64}$/.test(message.resumeCredential) &&
-      this.desiredConnection?.mode === 'hosted'
-    ) {
-      // Kept only in the running extension process; never put a device
-      // bearer into visible status, logs, URLs, settings or local storage.
-      this.desiredConnection = {
-        ...this.desiredConnection,
-        pairingCode: undefined,
-        resumeCredential: message.resumeCredential,
-      };
-    }
+    if (message.paired === true) this.rememberPairedCredential(message);
     this.options.onPayloadLimit?.(pairedRelayPayloadLimit(message));
     this.status = {
       ...this.status,
@@ -345,6 +340,26 @@ export class RemoteRelayClient {
       sessionId: typeof message.sessionId === 'string' ? message.sessionId : this.status.sessionId,
     };
     return;
+  }
+
+  private rememberPairedCredential(message: RemoteEnvelope): void {
+    const connection = this.desiredConnection;
+    if (!connection) return;
+    const credential =
+      connection.mode === 'hosted' &&
+      typeof message.resumeCredential === 'string' &&
+      /^ers_[a-f0-9]{64}$/.test(message.resumeCredential)
+        ? message.resumeCredential
+        : undefined;
+    // A consumed one-time code must never be replayed during reconnect.
+    this.desiredConnection = {
+      ...connection,
+      pairingCode: undefined,
+      ...(credential ? { resumeCredential: credential } : {}),
+    };
+    if (credential && connection.rememberHostedDevice) {
+      this.options.onTrustedCredential?.(credential, Boolean(connection.pairingCode));
+    }
   }
 
   private handleRevokedSession(message: RemoteEnvelope): void {
@@ -555,6 +570,20 @@ export class RemoteRelayClient {
     if (socket !== this.socket) return;
     this.socket = null;
     this.clearHeartbeatTimer();
+    if (
+      this.desiredConnection &&
+      this.status.state === 'paired' &&
+      !this.desiredConnection.pairingCode &&
+      !this.desiredConnection.resumeCredential
+    ) {
+      // The one-time pairing was consumed but the server did not issue a
+      // resumable credential. Never reconnect as an unpaired device silently.
+      this.disconnect('user_disabled');
+      const hint = 'Cloud session expired. Generate a new pairing code to reconnect.';
+      this.status = { ...this.status, lastError: hint };
+      this.options.showToast(hint);
+      return;
+    }
     if (!this.desiredConnection) {
       if (this.status.state !== 'disconnected') {
         this.status = { ...this.status, state: 'disconnected', sessionId: undefined };
