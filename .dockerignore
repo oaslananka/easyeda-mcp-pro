@@ -10,6 +10,12 @@
 !package.json
 !pnpm-lock.yaml
 !pnpm-workspace.yaml
+
+# Include only the reviewed first-party matcher fork used at dependency install.
+!vendor/
+vendor/**
+!vendor/picomatch/
+!vendor/picomatch/**
 !tsconfig.json
 !tsconfig.build.json
 

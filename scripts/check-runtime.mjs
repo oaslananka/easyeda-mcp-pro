@@ -47,7 +47,11 @@ function detectPnpmVersion() {
   if (match?.[1]) return match[1];
 
   try {
-    return execFileSync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['--version'], {
+    // Windows Node.js cannot exec .cmd shims directly without a shell.
+    const windows = process.platform === 'win32';
+    const command = windows ? process.env.ComSpec || 'cmd.exe' : 'pnpm';
+    const args = windows ? ['/d', '/s', '/c', 'pnpm --version'] : ['--version'];
+    return execFileSync(command, args, {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
       env: { ...process.env, EASYEDA_MCP_RUNTIME_CHECK_ACTIVE: '1' },

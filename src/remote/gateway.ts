@@ -536,7 +536,7 @@ export class RemoteGateway {
         return gatewayError(
           424,
           'SESSION_DISCONNECTED',
-          'Your linked EasyEDA extension is offline. Reconnect it using a fresh pairing code.',
+          'Your linked EasyEDA extension is offline. Open EasyEDA and allow its existing Cloud pairing to reconnect. Generate a new pairing code only if pairing expired or was revoked.',
         );
       }
       return gatewayError(

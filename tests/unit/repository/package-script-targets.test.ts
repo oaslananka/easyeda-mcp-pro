@@ -148,7 +148,7 @@ describe('package script target policy', () => {
   it('keeps the live repository free of missing package script targets', async () => {
     await expect(verifyRepositoryPackageScriptTargets({ root: repoRoot })).resolves.toMatchObject({
       ok: true,
-      checkedPackages: 2,
+      checkedPackages: 3,
       errors: [],
     });
   });

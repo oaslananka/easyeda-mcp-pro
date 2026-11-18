@@ -363,8 +363,9 @@ describe('package artifact policy', () => {
     expect(packageJson.scripts['package:check-pack-list']).toBe(
       'node scripts/check-packed-file-list.mjs',
     );
-    expect(packagePrepare).toContain('function nodeGlobalModulePath(packageName, ...segments)');
-    expect(packagePrepare).toContain("nodeGlobalModulePath('corepack', 'dist', 'pnpm.js')");
+    expect(packagePrepare).toContain("import { resolvePnpmCli } from './resolve-pnpm-cli.mjs'");
+    expect(packagePrepare).toContain('const pnpmCli = resolvePnpmCli()');
+    expect(packagePrepare).not.toContain('nodeGlobalModulePath');
     expect(packagePrepare).toContain('runExecutable(process.execPath, [pnpmCli, script])');
     expect(packagePrepare).toContain("runPnpmScript('build')");
     expect(packagePrepare).toContain("runPnpmScript('build:extension')");
