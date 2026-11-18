@@ -169,6 +169,7 @@ export class RemoteRelayClient {
   private desiredConnection: RemoteRelayConnectInput | null = null;
   private reconnectTimer: RuntimeTimerHandle | null = null;
   private heartbeatTimer: RuntimeTimerHandle | null = null;
+  private lastHeartbeatSweepAtMs: number | null = null;
   private readonly pendingApprovalIds = new Set<string>();
 
   constructor(private readonly options: RemoteRelayClientOptions) {}
@@ -618,8 +619,18 @@ export class RemoteRelayClient {
 
   private startHeartbeatTimer(): void {
     this.clearHeartbeatTimer();
+    this.lastHeartbeatSweepAtMs = Date.now();
     this.heartbeatTimer = this.options.timers.setInterval(() => {
-      this.checkHeartbeatLiveness();
+      const now = Date.now();
+      const wasSuspended =
+        this.lastHeartbeatSweepAtMs !== null &&
+        now - this.lastHeartbeatSweepAtMs > HEARTBEAT_LIVENESS_MS;
+      this.lastHeartbeatSweepAtMs = now;
+      // Web EasyEDA can pause extension timers while backgrounded. The first
+      // late callback is not proof of a dead server: probe it once before
+      // replacing the owner-bound relay session and invalidating selection.
+      // An unacknowledged probe still fails the next ordinary liveness check.
+      if (!wasSuspended) this.checkHeartbeatLiveness();
       this.sendCurrentProjectHeartbeat();
     }, HEARTBEAT_SWEEP_MS);
   }
@@ -664,6 +675,7 @@ export class RemoteRelayClient {
   }
 
   private clearHeartbeatTimer(): void {
+    this.lastHeartbeatSweepAtMs = null;
     if (!this.heartbeatTimer) return;
     this.options.timers.clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = null;

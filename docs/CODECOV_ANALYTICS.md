@@ -140,3 +140,14 @@ updated only to these observed bytes; the checker, deterministic build,
 package identity verification and fail-closed limits remain enforced.
 The change is **not** general-availability or live cold-restart acceptance
 without a separate real EasyEDA trial.
+
+The Web V4 background-timer recovery regression on 2026-11-19 retains
+authenticated relay heartbeat liveness while avoiding a false disconnect on
+the first callback after a browser timer suspension. **If the server does not
+acknowledge the fresh probe, the next ordinary liveness sweep still closes
+the dead connection.** Source test coverage exercises both resumed acknowledgments
+and unresponsive transports. The measured extension distribution grew from
+236,709 to **236,787 bytes** (+78), the loader from 397,648 to **397,963
+bytes** (+315), and the dispatcher remained **313,297 bytes**. The extension
+size checker and hard ceiling remain enabled; this is QA source behavior,
+not a claim of public release or real Web V4 acceptance.
