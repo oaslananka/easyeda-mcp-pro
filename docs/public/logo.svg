@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" aria-labelledby="title">
-  <title id="title">EasyEDA MCP Pro</title>
-  <rect x="2" y="2" width="44" height="44" rx="13" fill="#305bc9"/>
-  <rect x="10" y="10" width="28" height="28" rx="7" stroke="#fff" stroke-width="2.5"/>
-  <path d="M16 17h16M16 24h9m-9 7h16" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
-  <circle cx="30" cy="24" r="4" fill="#9edcff"/>
-  <circle cx="16" cy="17" r="3" fill="#9edcff"/>
-  <circle cx="32" cy="31" r="3" fill="#9edcff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title">
+  <title id="title">EasyEDA MCP Pro circuit mark</title>
+  <rect width="48" height="48" rx="12" fill="#10362d"/>
+  <rect x="9" y="9" width="30" height="30" rx="6" fill="#143e34" stroke="#8accae" stroke-width="1.5"/>
+  <path d="M15 18h17M15 25h10M15 32h17" fill="none" stroke="#e2b782" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="32" cy="18" r="3.5" fill="#9fdec0"/>
+  <circle cx="25" cy="25" r="3.5" fill="#9fdec0"/>
+  <circle cx="32" cy="32" r="3.5" fill="#9fdec0"/>
 </svg>

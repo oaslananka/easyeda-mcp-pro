@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
-import { getLogger } from '../utils/logger.js';
 import {
   type ClientDefinition,
   type ClientName,
@@ -21,16 +20,6 @@ import {
   warn,
   readJsonFile,
 } from './client-definitions.js';
-
-// ── Safe logger fallback for CLI paths where pino may not be initialized yet ──
-
-function logError(message: string, err?: unknown): void {
-  try {
-    getLogger().error(err, message);
-  } catch {
-    console.error(message, err);
-  }
-}
 
 // ── Server entry builder ────────────────────────────────────
 
@@ -464,8 +453,6 @@ export async function runInteractiveInit(): Promise<void> {
     console.log('════════════════════════════════════════════════════════════');
     console.log('🎉 Setup wizard complete! Please restart your client IDE.');
     console.log('════════════════════════════════════════════════════════════');
-  } catch (err) {
-    logError('Error during setup wizard', err);
   } finally {
     rl.close();
   }

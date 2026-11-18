@@ -35,7 +35,7 @@
     "src/catalog/ingest.ts": [49],
     "src/circuit/circuit-ir.ts": [24],
     "src/circuit/component-planning.ts": [19, 19],
-    "src/cli/auto-setup.ts": [26],
+    "src/cli/auto-setup.ts": [25],
     "src/cli/local-setup.ts": [36, 31, 30, 21, 18],
     "src/export-manifest/validation.ts": [18, 17],
     "src/layout/autofix.ts": [17],
