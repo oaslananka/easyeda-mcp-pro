@@ -253,7 +253,7 @@ describe('RemoteRelayClient resilience', () => {
 
   it('rotates owner-bound Cloud session before its hard TTL without replaying a pairing code', async () => {
     vi.setSystemTime(new Date('2026-11-19T09:00:00Z'));
-    const { client } = makeClient();
+    const { client, log } = makeClient();
     const token = 'ers_' + 'd'.repeat(64);
     client.connect({ mode: 'hosted', pairingCode: 'EDA-ABCDEF12' });
     const initial = FakeWebSocket.instances[0];
@@ -267,10 +267,16 @@ describe('RemoteRelayClient resilience', () => {
       }),
     );
     expect(client.getStatus().state).toBe('paired');
-    await vi.advanceTimersByTimeAsync(59_000);
+    // Keep the server heartbeat alive so only the session-renewal timer can
+    // close the socket; a liveness timeout must not make this test pass.
+    for (const delay of [15_000, 15_000, 15_000, 14_000]) {
+      await vi.advanceTimersByTimeAsync(delay);
+      initial.receive(relayMessage('heartbeat', { source: 'server' }));
+    }
     expect(FakeWebSocket.instances).toHaveLength(1);
     expect(initial.readyState).toBe(OPEN);
     await vi.advanceTimersByTimeAsync(1_000);
+    expect(log).toHaveBeenCalledWith('Cloud relay session nearing expiry; renewing device session');
     expect(initial.readyState).toBe(CLOSED);
     expect(client.getStatus()).toMatchObject({ state: 'connecting', sessionId: undefined });
     await vi.advanceTimersByTimeAsync(1_000);
@@ -298,7 +304,7 @@ describe('RemoteRelayClient resilience', () => {
 
   it('fails closed at session expiry without a trusted resume credential', async () => {
     vi.setSystemTime(new Date('2026-11-19T09:00:00Z'));
-    const { client, showToast } = makeClient();
+    const { client, showToast, log } = makeClient();
     client.connect({ mode: 'hosted', pairingCode: 'EDA-ABCDEF12' });
     const initial = FakeWebSocket.instances[0];
     initial.open();
@@ -309,11 +315,43 @@ describe('RemoteRelayClient resilience', () => {
         expiresAt: new Date(Date.now() + 120_000).toISOString(),
       }),
     );
-    await vi.advanceTimersByTimeAsync(60_000);
+    for (const delay of [15_000, 15_000, 15_000, 14_000]) {
+      await vi.advanceTimersByTimeAsync(delay);
+      initial.receive(relayMessage('heartbeat', { source: 'server' }));
+    }
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(log).toHaveBeenCalledWith('Cloud relay session nearing expiry; renewing device session');
     expect(client.getStatus().state).toBe('disconnected');
     expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/new pairing code/i));
     await vi.advanceTimersByTimeAsync(120_000);
     expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('ignores malformed or already expired registration deadlines without creating renewal timers', () => {
+    vi.setSystemTime(new Date('2026-11-19T09:00:00Z'));
+    const { client } = makeClient();
+    client.connect({ mode: 'hosted', pairingCode: 'EDA-ABCDEF12' });
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    socket.receive(
+      relayMessage('session_registered', {
+        paired: true,
+        sessionId: 'sess_malformed_deadline',
+        expiresAt: 'invalid',
+        resumeCredential: 'ers_' + 'a'.repeat(64),
+      }),
+    );
+    expect(vi.getTimerCount()).toBe(1); // only the normal heartbeat interval
+    socket.receive(
+      relayMessage('session_registered', {
+        paired: true,
+        sessionId: 'sess_past_deadline',
+        expiresAt: new Date(Date.now() - 1).toISOString(),
+      }),
+    );
+    expect(vi.getTimerCount()).toBe(1);
+    expect(socket.readyState).toBe(OPEN);
+    client.disconnect();
   });
 
   it('fails closed when the server rejects an expired or revoked resume credential', async () => {
