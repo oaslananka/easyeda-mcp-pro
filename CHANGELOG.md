@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.16.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.16.0...easyeda-mcp-pro-v1.16.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **cloud:** deliver BOM exports inline with scoped authorization ([#1085](https://github.com/oaslananka/easyeda-mcp-pro/issues/1085)) ([4d4a464](https://github.com/oaslananka/easyeda-mcp-pro/commit/4d4a4645d3bc851b6e2dcbad113546ef368ef8e4))
+* **cloud:** reject foreign project IDs before MCP dispatch ([#1086](https://github.com/oaslananka/easyeda-mcp-pro/issues/1086)) ([6067401](https://github.com/oaslananka/easyeda-mcp-pro/commit/60674016e48e570b3fff196f600fc94e14e80614))
+* **cloud:** renew expiring relay sessions and show accurate device readiness ([#1083](https://github.com/oaslananka/easyeda-mcp-pro/issues/1083)) ([d285e18](https://github.com/oaslananka/easyeda-mcp-pro/commit/d285e186b9f59c6c4c25ba2d75c3b974fd39f7c7))
+
 ## [1.16.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.6...easyeda-mcp-pro-v1.16.0) (2026-11-19)
 
 
