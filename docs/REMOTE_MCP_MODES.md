@@ -55,6 +55,21 @@ Open EasyEDA Web project
 
 The extension opens an outbound relay connection. The hosted gateway never connects directly to a user's local network.
 
+### Cloud BOM export delivery
+
+In Hosted Remote mode, call `easyeda_bom_export` with `format: "csv"` or
+`format: "json"` and **omit `filePath`**. After the separate `easyeda.export`
+scope and native project-session approval, the MCP response carries BOM
+content, MIME type and a suggested filename directly to the authorized client.
+The MCP client must save that content as a local file; this response does
+**not** automatically download onto the editor's machine. CSV formula-like
+part fields are neutralized. Inline payloads are limited to 256 KiB; larger
+BOMs and `.xlsx` require an explicit local export workflow.
+
+Local MCP keeps its existing artifact-directory path behavior. Hosted Cloud
+does not accept a client Windows path or silently write private BOM artifacts
+to the Oracle server's filesystem as a fallback.
+
 ## Self-hosted Remote Mode
 
 Self-hosted Remote Mode lets the operator expose their own endpoint:

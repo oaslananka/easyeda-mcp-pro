@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ToolRegistry } from '../../../src/tools/registry.js';
+import { ToolRegistry, remoteRiskForTool } from '../../../src/tools/registry.js';
 import { type ToolContext } from '../../../src/tools/types.js';
 import { registerBomCoreTools } from '../../../src/tools/L1_bom_core.js';
 import { registerBomSourcingTools } from '../../../src/tools/L1_bom_sourcing.js';
@@ -411,6 +411,139 @@ describe('BOM Tools Sourcing & Validate', () => {
 
     afterEach(() => {
       fs.rmSync(tmpArtifactDir, { recursive: true, force: true });
+    });
+
+    it('classifies BOM artifact delivery as remote export requiring approval', () => {
+      const tool = registry.get('easyeda_bom_export');
+      expect(tool).toBeDefined();
+      expect(tool?.sideEffect).toBe('artifact-write');
+      expect(tool && remoteRiskForTool(tool)).toBe('export');
+    });
+
+    it('delivers CSV directly to the remote MCP client without hosted disk writes', async () => {
+      context.config.MCP_BRIDGE_BACKEND = 'remote_relay';
+      bridgeCall.mockResolvedValue([
+        {
+          reference: 'R1',
+          value: '22kΩ',
+          footprint: 'R0603',
+          lcsc: 'C31850',
+          quantity: 1,
+          manufacturer: 'UNI-"ROYAL"',
+          mpn: '=1+2',
+          unexpected_private_field: 'not disclosed',
+        },
+      ]);
+      const tool = registry.get('easyeda_bom_export');
+      const result = await tool?.handler(context, { projectId: 'proj-1', format: 'csv' });
+
+      expect(result).toMatchObject({
+        exported: true,
+        delivery: 'inline',
+        file_name: 'proj-1-bom.csv',
+        mime_type: 'text/csv',
+        entry_count: 1,
+      });
+      expect(result.file_path).toBeUndefined();
+      expect(result.content).toContain('"22kΩ"');
+      expect(result.content).toContain('UNI-""ROYAL');
+      expect(result.content).toContain("'=1+2");
+      expect(result.content).not.toContain('unexpected_private_field');
+      expect(result.byte_length).toBe(Buffer.byteLength(result.content, 'utf8'));
+      expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
+      expect(bridgeCall).toHaveBeenCalledWith('bom.generate', {
+        projectId: 'proj-1',
+        format: 'json',
+      });
+    });
+
+    it('returns inline JSON with only whitelisted BOM part fields', async () => {
+      context.config.MCP_BRIDGE_BACKEND = 'remote_relay';
+      bridgeCall.mockResolvedValue([
+        { reference: 'R1', quantity: 1, value: '22k', hidden: 'never-include' },
+      ]);
+      const tool = registry.get('easyeda_bom_export');
+      const result = await tool?.handler(context, {
+        projectId: 'proj-1',
+        format: 'json',
+        delivery: 'inline',
+      });
+      expect(result).toMatchObject({
+        exported: true,
+        delivery: 'inline',
+        file_name: 'proj-1-bom.json',
+        mime_type: 'application/json',
+      });
+      expect(JSON.parse(result.content)).toEqual([
+        {
+          reference: 'R1',
+          quantity: 1,
+          value: '22k',
+          footprint: '',
+          lcsc: '',
+          manufacturer: '',
+          mpn: '',
+        },
+      ]);
+      expect(result.content).not.toContain('never-include');
+    });
+
+    it.each(['=1+2', '+cmd', '-2+5', '@IMPORT', '  =2+2'])(
+      'neutralizes spreadsheet formulas in CSV cells: %s',
+      async (input) => {
+        context.config.MCP_BRIDGE_BACKEND = 'remote_relay';
+        bridgeCall.mockResolvedValue([{ reference: 'R1', quantity: 1, value: input }]);
+        const result = await registry.get('easyeda_bom_export')?.handler(context, {
+          projectId: 'proj-1',
+          format: 'csv',
+        });
+        expect(result.content).toContain("'" + input);
+      },
+    );
+
+    it('rejects client-machine paths in Cloud rather than writing to Oracle', async () => {
+      context.config.MCP_BRIDGE_BACKEND = 'remote_relay';
+      const tool = registry.get('easyeda_bom_export');
+      const result = await tool?.handler(context, {
+        projectId: 'proj-1',
+        format: 'csv',
+        filePath: 'C:/Users/Tester/Downloads/bom.csv',
+      });
+      expect(result).toMatchObject({ exported: false, not_available: true });
+      expect(result.error).toContain('filePath');
+      expect(bridgeCall).not.toHaveBeenCalled();
+      expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
+    });
+
+    it('refuses hosted filesystem writes and unsupported inline XLSX', async () => {
+      context.config.MCP_BRIDGE_BACKEND = 'remote_relay';
+      const tool = registry.get('easyeda_bom_export');
+      const file = await tool?.handler(context, {
+        projectId: 'proj-1',
+        format: 'csv',
+        delivery: 'file',
+        filePath: path.join(tmpArtifactDir, 'secret.csv'),
+      });
+      const xlsx = await tool?.handler(context, { projectId: 'proj-1', format: 'xlsx' });
+      expect(file).toMatchObject({ exported: false, not_available: true });
+      expect(xlsx).toMatchObject({ exported: false, not_available: true });
+      expect(xlsx.error).toContain('XLSX');
+      expect(bridgeCall).not.toHaveBeenCalled();
+      expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
+    });
+
+    it('refuses invalid BOM rows and oversized inline payloads', async () => {
+      context.config.MCP_BRIDGE_BACKEND = 'remote_relay';
+      const tool = registry.get('easyeda_bom_export');
+      bridgeCall.mockResolvedValueOnce([{ reference: '', quantity: 1 }]);
+      const invalid = await tool?.handler(context, { projectId: 'proj-1', format: 'csv' });
+      bridgeCall.mockResolvedValueOnce([
+        { reference: 'R1', quantity: 1, value: 'A'.repeat(256 * 1024) },
+      ]);
+      const oversized = await tool?.handler(context, { projectId: 'proj-1', format: 'csv' });
+      expect(invalid).toMatchObject({ exported: false, not_available: true });
+      expect(oversized).toMatchObject({ exported: false, not_available: true });
+      expect(oversized.error).toContain('256 KiB');
     });
 
     it('exports only when the bridge materializes a non-empty artifact and counts array entries', async () => {
