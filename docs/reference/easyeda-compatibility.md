@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.16.1               | 1.16.1                | 1.16.1            | Live validated  | 2026-11-19 | 2027-02-17 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.16.0               | 1.16.0                | 1.16.0            | Live validated  | 2026-11-19 | 2027-02-17 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.6               | 1.15.6                | 1.15.6            | Live validated  | 2026-11-15 | 2027-02-13 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.5               | 1.15.5                | 1.15.5            | Live validated  | 2026-11-14 | 2027-02-12 |
@@ -76,6 +77,51 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-19-6067401-v161-cloud-release
+
+Record ID: `easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-19-6067401-v161-cloud-release`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                                             |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `4.1.105.0339a6cd`                                                                                                      |
+| Electron                                 | `36.3.1`                                                                                                                |
+| Chromium                                 | `not independently recorded` (Exact Chromium runtime version not independently measured during this native QA session.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                                      |
+| Kernel                                   | `7.0.0-43-generic`                                                                                                      |
+| Architecture                             | `x86_64`                                                                                                                |
+| Node.js used by validation server        | `24.22.3`                                                                                                               |
+| Validation package version               | `1.16.1`                                                                                                                |
+| Fix version represented by evidence      | `1.16.1`                                                                                                                |
+| Compatibility-sensitive base commit      | `60674016e48e570b3fff196f600fc94e14e80614`                                                                              |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                                |
+| Installed extension package metadata     | `1.16.1`                                                                                                                |
+| Live-validated extension package SHA-256 | `28eae04b658ed0ba2f2410d7f061ac131244967af646662fe219e3c0826a4f0b`                                                      |
+| Live-validated extension package size    | `237681 bytes`                                                                                                          |
+| Loader-reported version                  | `1.16.1`                                                                                                                |
+| Bridge contract                          | `1.0.0`                                                                                                                 |
+| Dispatcher                               | `baked`                                                                                                                 |
+| Method registry hash                     | `f71f5e22b7fec5db`                                                                                                      |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                                       |
+
+The installed extension package and loader both reported version `1.16.1` during this validation.
+
+### Capability evidence
+
+| Capability                                                           | Level  | Status   | Result                                                                                                                                                                                                                                         | Evidence                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Live Cloud read and wrong-project denial on deployed current source  | `live` | `passed` | Authenticated real V4 Cloud schematic read and project list accepted the selected project; mismatched project IDs failed closed with PROJECT_INACTIVE for sheet metadata and components.                                                       | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/850#issuecomment-7020179300), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-main-6067401-v1.16.1-cloud-acceptance.json) |
+| Scoped native approved text write persists through V4 cold reopen    | `live` | `passed` | Remote MCP add_text on disposable focused page required native approval and returned success; the added text was visible, saved to an integrity-checked SQLite project and remained visible after complete CLI session shutdown and reopening. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-main-6067401-v1.16.1-cloud-acceptance.json)                                                                                               |
+| v1.16.1 extension rebuild is bit-identical to live-tested V4 package | `live` | `passed` | Official candidate 709aa6a rebuild produced 237681-byte .eext with SHA-256 matching the previously installed/live-tested Bridge v1.16.1; the five other compatibility-sensitive source subtrees match deployed main.                           | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-main-6067401-v1.16.1-cloud-acceptance.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/850#issuecomment-7018508621) |
+
+### Known limitations
+
+- The validated release-candidate package is 1.16.1, while the live deployed Cloud server executed version 1.16.0 at source 6067401. The only compatibility-sensitive delta to 1.16.1 is the release-managed extensionVersion literal; commit-bound release readiness must verify this exact exception. This is not a claim that 1.16.1 server was deployed.
+- After cold restart native file persistence passed, but remote Cloud connection returned SESSION_DISCONNECTED and manual Connect Cloud requested a one-time pairing code. Automatic Cloud reconnect was not accepted.
+- Direct independent-owner OAuth bearer isolation, long network/TTL recovery, provider callbacks/credential rotation, and complete new-user UX remain open in issue #850.
+- No native PCB copper-zone manufacture signoff, mass API coverage, user production project mutation, or supplier/purchase activity is claimed.
 
 ## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-19-597d236-v116-native-local-write-delete
 

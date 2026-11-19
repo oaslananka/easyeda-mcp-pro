@@ -4,6 +4,99 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-19-6067401-v161-cloud-release",
+      "status": "live-validated",
+      "validatedAt": "2026-11-19T20:18:00Z",
+      "reviewBy": "2027-02-17",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-43-generic",
+        "nodeVersion": "24.22.3"
+      },
+      "easyedaPro": {
+        "version": "4.1.105.0339a6cd",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "not independently recorded",
+        "electronVersionProvenance": "Observed in the V4 process startup crash reporter metadata.",
+        "chromiumVersionProvenance": "Exact Chromium runtime version not independently measured during this native QA session."
+      },
+      "server": {
+        "validationPackageVersion": "1.16.1",
+        "releaseContainingFixes": "1.16.1",
+        "commit": "60674016e48e570b3fff196f600fc94e14e80614",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "5f87dc6ed453fcb0e1ff07009f16bbeda00b7b29",
+            "src/bridge": "f591958922137f786668303d5a8f10398eebb798",
+            "src/remote": "6153cf30c6ac94500d87517ed4d7ddf71fae5e23",
+            "src/server/transports": "cba8355ae8dbeb2a8f9a3bbec3e325caf83fa8cd",
+            "src/tools": "acd9692f0089b92f5bb1f6086b36c6ecefa6244d",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.16.1",
+        "loaderReportedVersion": "1.16.1",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "f71f5e22b7fec5db",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "dcb0ex9ed6x082f",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "28eae04b658ed0ba2f2410d7f061ac131244967af646662fe219e3c0826a4f0b",
+        "packageSizeBytes": 237681
+      },
+      "fixture": {
+        "project": "Isolated disposable V4 Cloud test schematic; private local paths and account identities withheld",
+        "schematic": "Focused P1, safe QA annotation create/readback/save/cold reopen; no production files",
+        "disposable": true,
+        "readOnly": false
+      },
+      "capabilities": [
+        {
+          "id": "native-v4-6067401-cloud-focused-project-denial",
+          "name": "Live Cloud read and wrong-project denial on deployed current source",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Authenticated real V4 Cloud schematic read and project list accepted the selected project; mismatched project IDs failed closed with PROJECT_INACTIVE for sheet metadata and components.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/850#issuecomment-7020179300",
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-main-6067401-v1.16.1-cloud-acceptance.json"
+          ]
+        },
+        {
+          "id": "native-v4-6067401-write-save-cold-reopen",
+          "name": "Scoped native approved text write persists through V4 cold reopen",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Remote MCP add_text on disposable focused page required native approval and returned success; the added text was visible, saved to an integrity-checked SQLite project and remained visible after complete CLI session shutdown and reopening.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-main-6067401-v1.16.1-cloud-acceptance.json"
+          ]
+        },
+        {
+          "id": "native-v4-6067401-candidate-artifact-parity",
+          "name": "v1.16.1 extension rebuild is bit-identical to live-tested V4 package",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Official candidate 709aa6a rebuild produced 237681-byte .eext with SHA-256 matching the previously installed/live-tested Bridge v1.16.1; the five other compatibility-sensitive source subtrees match deployed main.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-main-6067401-v1.16.1-cloud-acceptance.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/850#issuecomment-7018508621"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "The validated release-candidate package is 1.16.1, while the live deployed Cloud server executed version 1.16.0 at source 6067401. The only compatibility-sensitive delta to 1.16.1 is the release-managed extensionVersion literal; commit-bound release readiness must verify this exact exception. This is not a claim that 1.16.1 server was deployed.",
+        "After cold restart native file persistence passed, but remote Cloud connection returned SESSION_DISCONNECTED and manual Connect Cloud requested a one-time pairing code. Automatic Cloud reconnect was not accepted.",
+        "Direct independent-owner OAuth bearer isolation, long network/TTL recovery, provider callbacks/credential rotation, and complete new-user UX remain open in issue #850.",
+        "No native PCB copper-zone manufacture signoff, mass API coverage, user production project mutation, or supplier/purchase activity is claimed."
+      ]
+    },
+    {
       "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-19-597d236-v116-native-local-write-delete",
       "status": "live-validated",
       "validatedAt": "2026-11-19T04:55:36Z",
