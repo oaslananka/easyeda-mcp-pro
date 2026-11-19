@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "type": "native-cloud-release-compatibility-acceptance",
+  "validationDate": "2026-11-19",
+  "candidate": {
+    "pullRequest": 1084,
+    "releaseVersion": "1.16.1",
+    "candidateHead": "709aa6a37986e2b9c012986b8223daa6d66c2aeb",
+    "deployedRuntimeSourceCommit": "60674016e48e570b3fff196f600fc94e14e80614",
+    "compatibilitySourceDifference": "Only the release-managed extensionVersion literal in easyeda-bridge-extension/src/index.ts differs between main and the candidate. The other five sensitive subtrees are byte-identical.",
+    "extensionBuild": {
+      "builtFrom": "709aa6a37986e2b9c012986b8223daa6d66c2aeb",
+      "sizeBytes": 237681,
+      "sha256": "28eae04b658ed0ba2f2410d7f061ac131244967af646662fe219e3c0826a4f0b",
+      "matchesPreviouslyInstalledAndLiveTestedPackage": true
+    },
+    "liveDeployedCloudRuntimeVersion": "1.16.0",
+    "releaseCandidateValidatedPackageVersion": "1.16.1"
+  },
+  "environment": {
+    "easyedaPro": "4.1.105.0339a6cd",
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-43-generic",
+    "nodeBuildRuntime": "24.22.3",
+    "electron": "36.3.1",
+    "chromium": "not independently recorded",
+    "bridgeVersion": "1.0.0",
+    "bridgePackageVersion": "1.16.1"
+  },
+  "fixture": {
+    "kind": "isolated disposable schematic project copy",
+    "page": "P1",
+    "documentLabel": "V4 Cloud disposable QA",
+    "userProductionProjectsModified": false
+  },
+  "observations": [
+    {
+      "scenario": "Authenticated Cloud MCP READ and selected-project boundary",
+      "status": "PASS",
+      "details": "Real EasyEDA V4.1.105 + Bridge 1.16.1 selected page P1; correctly targeted sheet read and project list succeeded. A deliberately different project ID returned PROJECT_INACTIVE for sheet metadata and components after 6067401 was deployed.",
+      "source": "https://github.com/oaslananka/easyeda-mcp-pro/issues/850#issuecomment-7020179300"
+    },
+    {
+      "scenario": "Native scoped WRITE on deployed source and exact rebuild-matching extension",
+      "status": "PASS",
+      "details": "Remote MCP easyeda_schematic_add_text on focused P1 required a visible native Remote MCP Approval dialog. Normal UI Approve was selected. The exact retried call returned success:true and a primitive ID; new QA annotation was visually confirmed in the schematic.",
+      "source": "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-main-6067401-v1.16.1-cloud-acceptance.json"
+    },
+    {
+      "scenario": "Save and cold reopen persistence",
+      "status": "PASS",
+      "details": "Ctrl+S in native V4.1.105; disposable project SQLite integrity_check returned ok, file SHA-256 a576680cee9fa4df75909a06323f4dac03511804b52940d076ef455450a1dde6. Closed the QA-owned CLI editor session with session close --destroy true, reopened the same file with official CLI open --path, and opened P1; the newly written annotation was visible after reload.",
+      "source": "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-main-6067401-v1.16.1-cloud-acceptance.json"
+    },
+    {
+      "scenario": "Native Bridge extension discovery after restart",
+      "status": "PASS",
+      "details": "Official V4 functions --session inventory included enabled MCP Pro Bridge version 1.16.1. Rebuilt extension from PR #1084 candidate matched earlier installed and live-tested .eext byte-for-byte.",
+      "source": "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-main-6067401-v1.16.1-cloud-acceptance.json"
+    },
+    {
+      "scenario": "Automatic Cloud recovery after editor cold restart",
+      "status": "NOT VERIFIED",
+      "details": "After the new native editor session, the remote MCP call failed closed with SESSION_DISCONNECTED. Manual Connect Cloud opened the official one-time pairing-code prompt; no code was supplied. Neither automatic reconnection nor another successful post-restart remote call is claimed.",
+      "source": "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-main-6067401-v1.16.1-cloud-acceptance.json"
+    }
+  ],
+  "limitations": [
+    "This record combines real native V4 executions on the 1.16.0 deployed Cloud source with a byte-identical 1.16.1 extension artifact from exact release candidate. The server v1.16.1 was NOT deployed as part of this test; the tracked release promotion changes only extensionVersion among sensitive source paths.",
+    "Direct independent-owner OAuth MCP denial, long network/token lifetime recovery, Google/GitHub credential rotation and fully unattended new-user onboarding are still unverified.",
+    "Manufacturing, PCB electrical correctness, zone writing and unrelated native workflows were not tested.",
+    "This record uses a verified version-literal-only release promotion from deployed main source to the release PR, not a claim that 1.16.1 server metadata was already deployed."
+  ],
+  "priorLiveEvidence": [
+    "https://github.com/oaslananka/easyeda-mcp-pro/issues/850#issuecomment-7020179300",
+    "https://github.com/oaslananka/easyeda-mcp-pro/issues/850#issuecomment-7018508621"
+  ]
+}
