@@ -1,8 +1,117 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-11-15",
+  "lastReviewed": "2026-11-19",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-19-597d236-v116-native-local-write-delete",
+      "status": "live-validated",
+      "validatedAt": "2026-11-19T04:55:36Z",
+      "reviewBy": "2027-02-17",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-43-generic",
+        "nodeVersion": "24.22.3"
+      },
+      "easyedaPro": {
+        "version": "4.1.105.0339a6cd",
+        "electronVersion": "not independently recorded",
+        "chromiumVersion": "not independently recorded",
+        "electronVersionProvenance": "Exact Electron runtime version not independently measured during this native QA session.",
+        "chromiumVersionProvenance": "Exact Chromium runtime version not independently measured during this native QA session."
+      },
+      "server": {
+        "validationPackageVersion": "1.16.0",
+        "releaseContainingFixes": "1.16.0",
+        "commit": "597d236ae887186b9a040399536e260e144f3a51",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "86c1b52eae9ad5f7e0b292e8dfe59b58d98be547",
+            "src/bridge": "f591958922137f786668303d5a8f10398eebb798",
+            "src/remote": "1c2675bead35d66a6cbf133c1c9ad2d52e12aa4e",
+            "src/server/transports": "cba8355ae8dbeb2a8f9a3bbec3e325caf83fa8cd",
+            "src/tools": "44d0f113e68b578310bd93b241f5f6f65eddcef5",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.16.0",
+        "versionConfirmedBy": "Previously officially imported QA archive matched exact source-built v1.16.0 archive SHA and live dispatcher build.",
+        "packageLicense": "AGPL-3.0-only",
+        "packageSha256": "59d86a797e97b7fe04dd227ebbd7a2ec2d281eb508f83b326e3a28c993245bc4",
+        "packageSizeBytes": 237464,
+        "loaderReportedVersion": "1.16.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "f71f5e22b7fec5db",
+        "activeDispatcher": "baked",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "methodRegistryHashProvenance": "Deterministically computed from exact candidate source EasyedaApiMethodSchema; live MCP handshake independently showed registryMismatch=false.",
+        "dispatcherBuildId": "dcb0ex9ed6x082f"
+      },
+      "fixture": {
+        "project": "New copied private disposable offline one-page schematic (.eprj2); no user projects, IDs or local paths exposed",
+        "disposable": true,
+        "readOnly": false
+      },
+      "capabilities": [
+        {
+          "id": "597d236-exact-runtime",
+          "name": "Exact-source local editor/extension/server bridge identity",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Exact release candidate 597d236 was built; its 237464-byte extension matched the previously imported QA archive byte-for-byte. The live dispatcher reported dcb0ex9ed6x082f; EasyEDA Pro reported 4.1.105, the server and extension each 1.16.0, and registry/version mismatch checks were false. Only isolated loopback MCP was exercised.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-v1.16.0-597d236-v4-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/1060#issuecomment-7000129103"
+          ]
+        },
+        {
+          "id": "597d236-focused-native-read",
+          "name": "Focused disposable schematic inventory, page and project identity",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "New copied offline .eprj2, one schematic page and a native-focused project; base 1 text, 1 page-frame component, 0 wires. The local MCP component read correctly excluded the non-BOM page frame.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-v1.16.0-597d236-v4-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/1060#issuecomment-7000129103"
+          ]
+        },
+        {
+          "id": "597d236-native-mcp-add",
+          "name": "Confirmed MCP text creation/save survives independent cold reopen",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Missing confirmWrite was rejected. Explicit one-text MCP add and save returned a native ACK but persistence_verified=false; after a complete native editor shutdown, a new process reopened the same file and independently read exactly 1 unique test marker (2 total text objects), 1 frame, 0 wires.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-v1.16.0-597d236-v4-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/1060#issuecomment-7000129103"
+          ]
+        },
+        {
+          "id": "597d236-native-mcp-delete",
+          "name": "V4.1.105-only exact-ID MCP beta text deletion/save survives cold reopen",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Only the intended test marker was deleted using the version-gated scalar beta method with confirmWrite:true; native inventory showed 0 markers and intact 1 frame/0 wires. MCP save retained persistence_verified=false; after a full second shutdown and fresh-process cold reopen the marker stayed absent and file SHA matched the saved copy. Initial cold read raced page loading; subsequent read succeeded without another mutation.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-v1.16.0-597d236-v4-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/1060#issuecomment-7000129103"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Native text deletion is accepted ONLY for one exact ID on EasyEDA Pro 4.1.105 with focused disposable .eprj2 evidence; no broader EasyEDA version, mixed/batch delete, .eprj3 or production-project persistence guarantee.",
+        "EasyEDA Pro 3.2.209 beta text deletion previously failed cold persistence and continues to fail closed; raw SCH_PrimitiveText.delete and SCH_SourcePrimitiveText.remove via advanced API remain denied.",
+        "This live record covers local MCP over private OS loopback only. Public Cloud/remote relay backend 1.16.0, cross-account isolation, remote WRITE/export and production deployment were NOT exercised or accepted; #850 remains HOLD.",
+        "External desktop Windows/macOS actual editor runtimes, long-running arbitrary GUI sessions, electronics/ERC/DRC or manufacturing approval are NOT validated by this scenario.",
+        "Electron and Chromium exact runtime versions were not independently inspected; no values are inferred from upstream release pages. One fresh-process read raced native page readiness and was repeated read-only only after the page was available.",
+        "The native MCP save API intentionally returns persistence_verified=false; durability here is a test-specific independent complete shutdown/reopen observation, not a runtime-guaranteed save contract."
+      ]
+    },
     {
       "id": "easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-15-304ef59-v1156-agpl-native-readonly",
       "status": "live-validated",
