@@ -28,6 +28,7 @@ interface CompatibilitySource {
       electronVersion: string;
       chromiumVersion: string;
       chromiumVersionProvenance?: string;
+      electronVersionProvenance?: string;
     };
     server: {
       validationPackageVersion: string;
@@ -93,15 +94,24 @@ describe('EasyEDA compatibility evidence policy', () => {
       expect(record.environment.kernel).not.toMatch(/TBD|unknown/i);
       expect(record.environment.nodeVersion).toMatch(/^24\./);
       const isWebEditor = record.id.startsWith('easyeda-pro-web-');
-      // Web editor reports only the visible product version, and Chrome does
-      // not run the vendor Electron shell. Native evidence stays strict.
+      // Keep exact native build IDs for both measured EasyEDA generations.
+      // Unknown Electron/Chromium versions must stay explicitly unknown:
+      // require provenance rather than manufacturing an upstream version.
       expect(record.easyedaPro.version).toMatch(
-        isWebEditor ? /^3\.2\.\d+ \(Web editor\)$/ : /^3\.2\.\d+\.[0-9a-f]{8}$/,
+        isWebEditor ? /^3\.2\.\d+ \(Web editor\)$/ : /^(?:3\.2|4\.1)\.\d+\.[0-9a-f]{8}$/,
       );
-      expect(record.easyedaPro.electronVersion).toMatch(
-        isWebEditor ? /^not applicable \(Chrome Web\)$/ : /^\d+\.\d+\.\d+$/,
-      );
-      expect(record.easyedaPro.chromiumVersion).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
+      if (isWebEditor) {
+        expect(record.easyedaPro.electronVersion).toBe('not applicable (Chrome Web)');
+      } else if (record.easyedaPro.electronVersion === 'not independently recorded') {
+        expect(record.easyedaPro.electronVersionProvenance).toContain('not independently measured');
+      } else {
+        expect(record.easyedaPro.electronVersion).toMatch(/^\d+\.\d+\.\d+$/);
+      }
+      if (record.easyedaPro.chromiumVersion === 'not independently recorded') {
+        expect(record.easyedaPro.chromiumVersionProvenance).toContain('not independently measured');
+      } else {
+        expect(record.easyedaPro.chromiumVersion).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
+      }
       expect(record.server.validationPackageVersion).toMatch(
         /^(?:0\.35\.\d+|\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?)$/,
       );

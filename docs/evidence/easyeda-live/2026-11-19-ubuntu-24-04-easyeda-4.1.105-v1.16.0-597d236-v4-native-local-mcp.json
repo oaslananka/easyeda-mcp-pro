@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-v116-release-source-native-local-mcp-add-and-delete-cold-persistence",
+  "recordedAtUtc": "2026-11-19T04:55:36Z",
+  "candidate": {
+    "releasePr": 1069,
+    "commit": "597d236ae887186b9a040399536e260e144f3a51",
+    "packageVersion": "1.16.0",
+    "extensionSha256": "59d86a797e97b7fe04dd227ebbd7a2ec2d281eb508f83b326e3a28c993245bc4",
+    "extensionBytes": 237464,
+    "dispatcherBuildId": "dcb0ex9ed6x082f",
+    "sensitiveGitTreeSha1": {
+      "easyeda-bridge-extension/src": "86c1b52eae9ad5f7e0b292e8dfe59b58d98be547",
+      "src/bridge": "f591958922137f786668303d5a8f10398eebb798",
+      "src/remote": "1c2675bead35d66a6cbf133c1c9ad2d52e12aa4e",
+      "src/server/transports": "cba8355ae8dbeb2a8f9a3bbec3e325caf83fa8cd",
+      "src/tools": "44d0f113e68b578310bd93b241f5f6f65eddcef5",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    },
+    "methodRegistryHash": "f71f5e22b7fec5db",
+    "methodRegistryHashProvenance": "Computed from exact candidate compiled bridge method registry; native handshake mismatch=false."
+  },
+  "editor": {
+    "version": "EasyEDA Pro 4.1.105.0339a6cd",
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "nodeVersion": "24.22.3",
+    "electronVersion": "not independently recorded",
+    "chromiumVersion": "not independently recorded"
+  },
+  "fixture": {
+    "kind": "private-disposable-copy",
+    "format": "offline .eprj2",
+    "onePage": true,
+    "nativeFocusVerified": true,
+    "originalUserEditorUnchanged": true,
+    "originalFixtureUnchanged": true,
+    "privateIdentifiersExcluded": true
+  },
+  "transport": {
+    "server": "real source-built local stdio MCP",
+    "bridge": "private network namespace OS-loopback 127.0.0.1",
+    "hostExposedBridgePort": false,
+    "installedExtensionShaMatched": true,
+    "registryMismatch": false,
+    "versionMismatch": false
+  },
+  "preflight": {
+    "nativeTextObjects": 1,
+    "nativePageFrameComponents": 1,
+    "nativeWires": 0,
+    "missingConfirmWriteRejected": true
+  },
+  "add": {
+    "tool": "easyeda_schematic_add_text",
+    "explicitConfirmWrite": true,
+    "mcpNativeAck": true,
+    "mcpSaveNativeAcknowledged": true,
+    "mcpSavePersistenceVerified": false,
+    "fullNativeStop": true,
+    "independentNewProcessColdReopen": true,
+    "uniqueMarkerCount": 1,
+    "nativeTextObjectsAfterReopen": 2,
+    "nativePageFrameComponents": 1,
+    "nativeWires": 0
+  },
+  "delete": {
+    "tool": "easyeda_schematic_delete_primitive",
+    "exactlyOneTextId": true,
+    "nativeBetaScalarDelete": true,
+    "explicitConfirmWrite": true,
+    "mcpDeleteAcknowledged": true,
+    "mcpDeletePersistenceVerified": false,
+    "mcpSaveNativeAcknowledged": true,
+    "mcpSavePersistenceVerified": false,
+    "nativeImmediateMarkerCount": 0,
+    "fullNativeStop": true,
+    "independentNewProcessColdReopen": true,
+    "nativeMarkerCountAfterReopen": 0,
+    "nativeTextObjectsAfterReopen": 1,
+    "nativePageFrameComponentsAfterReopen": 1,
+    "nativeWiresAfterReopen": 0,
+    "savedFileShaStableAfterReopen": true,
+    "firstColdReadPageNotReady": true,
+    "readOnlyFollowupAfterPageReadyPassed": true,
+    "mutationsRetriedAfterUncertainResult": false
+  },
+  "acceptance": {
+    "result": "passed",
+    "scope": "local offline EasyEDA Pro 4.1.105 single schematic text add/delete only",
+    "notAccepted": [
+      "EasyEDA Pro 3.2.209 text BETA deletion",
+      "arbitrary editor builds",
+      "mixed or batch text deletions",
+      "cloud remote backend 1.16.0/write",
+      "real user production projects",
+      ".eprj3",
+      "manufacturing/electrical correctness"
+    ]
+  },
+  "evidenceLink": "https://github.com/oaslananka/easyeda-mcp-pro/issues/1060#issuecomment-7000129103"
+}
