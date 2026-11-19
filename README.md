@@ -16,6 +16,11 @@
   <a href="https://www.npmjs.com/package/easyeda-mcp-pro"><img src="https://img.shields.io/npm/dt/easyeda-mcp-pro?label=downloads" alt="Total npm downloads" /></a>
   <a href="https://gitgem.org/github/oaslananka/easyeda-mcp-pro"><img src="https://gitgem.org/api/badge/github/oaslananka/easyeda-mcp-pro.svg" alt="GitGem" /></a>
 </p>
+<p>
+  <a href="https://github.com/sponsors/oaslananka"><img src="https://img.shields.io/badge/GitHub-Sponsors-ea4aaa?logo=githubsponsors" alt="GitHub Sponsors" /></a>
+  <a href="https://www.buymeacoffee.com/oaslananka"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-ffdd00?logo=buymeacoffee&amp;logoColor=black" alt="Buy Me a Coffee" /></a>
+  <a href="https://github.com/oaslananka/easyeda-mcp-pro"><img src="https://img.shields.io/github/stars/oaslananka/easyeda-mcp-pro?label=Stars" alt="GitHub stars" /></a>
+</p>
 
 </div>
 
@@ -141,9 +146,3 @@ The experimental adapter is documented in the
 Reproducible bug reports, documentation improvements and patches are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). [DeepWiki](https://deepwiki.com/oaslananka/easyeda-mcp-pro) provides a secondary code-navigation reference.
 
 Project-authored source is licensed under **[AGPL-3.0-only](LICENSE)**. For extension, bundled and third-party materials see [LICENSING.md](LICENSING.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-<div align="center">
-  <a href="https://github.com/sponsors/oaslananka"><img src="https://img.shields.io/badge/GitHub-Sponsors-ea4aaa?logo=githubsponsors" alt="GitHub Sponsors" /></a>
-  <a href="https://www.buymeacoffee.com/oaslananka"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-ffdd00?logo=buymeacoffee&amp;logoColor=black" alt="Buy Me a Coffee" /></a>
-  <a href="https://github.com/oaslananka/easyeda-mcp-pro"><img src="https://img.shields.io/github/stars/oaslananka/easyeda-mcp-pro?label=Stars" alt="GitHub stars" /></a>
-</div>
