@@ -98,7 +98,17 @@ export function writePlanResponse(
 const openConfirmWriteOutputSchema = z.object({}).passthrough();
 
 export function registeredOutputSchema(tool: ToolDefinition): z.ZodType {
-  if (!tool.confirmWrite) return tool.outputSchema;
+  if (!tool.confirmWrite) {
+    // Artifact exports can return a remote approval-required structured error
+    // before producing their normal result. Strict MCP clients validate even
+    // isError structuredContent against this advertised schema; preserve its
+    // success fields, but allow the error envelope. The registry still checks
+    // successful tool results against the original strict outputSchema.
+    if (tool.sideEffect === 'artifact-write' && tool.outputSchema instanceof z.ZodObject) {
+      return tool.outputSchema.partial().passthrough();
+    }
+    return tool.outputSchema;
+  }
 
   // The MCP SDK's JSON schema conversion currently fails for Zod unions in
   // tool output schemas. Confirm-write tools can return either their declared
