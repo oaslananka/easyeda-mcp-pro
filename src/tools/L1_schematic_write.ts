@@ -1050,9 +1050,9 @@ function registerSchematicWriteTools(
     name: 'easyeda_schematic_delete_primitive',
     title: 'Delete schematic primitives',
     description:
-      'Delete supported schematic primitives by UUID. BETA text delete is blocked: ' +
-      'native success can be lost after restart. Native success does not prove persistence. ' +
-      'Use projectId + transactionId for supported rollback-backed deletion. ' +
+      'Delete primitives by UUID. Single text deletion is supported only on EasyEDA Pro 4.1.105; ' +
+      'unknown versions and mixed batches fail closed. Native success does not prove persistence: ' +
+      'cold reopen to verify. Use projectId + transactionId for rollback-backed deletion. ' +
       'Without transactionId, deletion is standalone.',
     profile: 'core',
     evidence: ['official-docs'],

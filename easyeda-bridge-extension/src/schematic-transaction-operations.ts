@@ -30,6 +30,8 @@ export interface SchematicTransactionDependencies {
   getCachedTextAlignMode(primitiveId: string): PublicTextAlignMode | undefined;
   setCachedTextAlignMode(primitiveId: string, alignMode: PublicTextAlignMode): void;
   deleteCachedTextAlignMode(primitiveId: string): void;
+  /** Native editor version from SYS_Environment, never the untrusted MCP request. */
+  getEasyedaVersion?(): string | undefined;
 }
 
 export interface SchematicTransactionOperations {
@@ -772,22 +774,60 @@ export function createSchematicTransactionOperations(
     return { primitiveKind, primitiveIds: Array.from(new Set(primitiveIds)) };
   }
 
-  // Native SCH_PrimitiveText.delete is BETA: in live Pro 3.2.209 it
-  // removed the object in memory but sch_Document.save() never persisted
-  // that removal. Probe the ENTIRE request before mutating any other ID.
+  // Native 3.2.209 BETA text deletion did not survive a cold reopen. A
+  // disposable 4.1.105 .eprj2 proved single-id BETA deletion + native save
+  // does survive. Never extend this evidence to other versions or batches.
+  function isVerifiedV4BetaTextRuntime(): boolean {
+    return dependencies.getEasyedaVersion?.() === '4.1.105';
+  }
+
+  // Probe the ENTIRE request before any unrelated primitive can be deleted.
   async function refuseUnpersistedTextDeletion(primitiveIds: string[]): Promise<void> {
     for (const path of TEXT_CLASS_PATHS) {
       const owner = readFirstPath<any>([path]);
       if (!owner || typeof owner.delete !== 'function') continue;
       for (const primitiveId of primitiveIds) {
-        if (await primitiveExistsInClass(owner, primitiveId)) {
+        if (!(await primitiveExistsInClass(owner, primitiveId))) continue;
+        if (!isVerifiedV4BetaTextRuntime() || primitiveIds.length !== 1) {
           throw newBridgeError(
             'UNSUPPORTED_RUNTIME',
-            'Native schematic text deletion is not durably verified on this EasyEDA runtime',
-            'Select the exact text in the EasyEDA editor, press Delete and save; reopen the document to confirm the change.',
+            'Native text deletion requires the verified EasyEDA Pro 4.1.105 single-text workflow',
+            'Use the editor Delete and Save workflow on other runtimes; reopen to confirm persistence.',
           );
         }
       }
+    }
+  }
+
+  async function deleteAcceptedV4Text(owner: any, primitiveId: string): Promise<void> {
+    // The BETA text API takes a scalar ID, unlike the other delete classes.
+    // Immediate inventory checks are necessary but never prove disk persistence.
+    if (!isVerifiedV4BetaTextRuntime()) {
+      throw newBridgeError(
+        'UNSUPPORTED_RUNTIME',
+        'Native text deletion is restricted to the accepted EasyEDA Pro 4.1.105 runtime',
+        'Use the editor Delete and Save workflow on other runtimes.',
+      );
+    }
+    if (typeof owner.getAll !== 'function') {
+      throw newBridgeError(
+        'NATIVE_DELETE_UNVERIFIED',
+        'Native text inventory cannot be verified before deletion',
+        'Inspect the focused schematic; do not retry blindly.',
+      );
+    }
+    const acknowledged = await owner.delete(primitiveId);
+    const remaining: unknown = await owner.getAll();
+    if (
+      acknowledged !== true ||
+      !Array.isArray(remaining) ||
+      remaining.some((text) => primitiveIdFromValue(text) === primitiveId)
+    ) {
+      throw newBridgeError(
+        'NATIVE_DELETE_UNVERIFIED',
+        'Native text deletion did not pass immediate exact-ID readback',
+        'Inspect the schematic, save, and independently cold reopen before another write.',
+      );
     }
   }
 
@@ -814,21 +854,23 @@ export function createSchematicTransactionOperations(
 
     for (const primitiveId of primitiveIds) {
       let owner: any;
+      let deletedText = false;
       for (const kind of kinds) {
         const primitiveClass = readFirstPath<any>(schematicPrimitiveClassPaths(kind));
         if (!primitiveClass || typeof primitiveClass.delete !== 'function') continue;
         if (await primitiveExistsInClass(primitiveClass, primitiveId)) {
           if (kind === 'text') {
-            throw newBridgeError(
-              'UNSUPPORTED_RUNTIME',
-              'Native schematic text deletion is not durably verified on this EasyEDA runtime',
-              'Delete the text in the EasyEDA editor and save, then cold reopen.',
-            );
+            await deleteAcceptedV4Text(primitiveClass, primitiveId);
+            dependencies.deleteCachedTextAlignMode(primitiveId);
+            deleted.push(primitiveId);
+            deletedText = true;
+            break;
           }
           owner = primitiveClass;
           break;
         }
       }
+      if (deletedText) continue;
       if (!owner) {
         notFound.push(primitiveId);
         continue;

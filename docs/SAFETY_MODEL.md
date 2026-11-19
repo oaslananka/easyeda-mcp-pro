@@ -4,37 +4,49 @@ This document explains the security posture, permission checks, data privacy con
 
 ---
 
-## Native schematic text deletion persistence (EasyEDA Pro 3.2.209)
+## Native schematic text deletion — version-gated persistence
 
-A controlled live test on a **disposable offline .eprj2 schematic** proved
-that the documented BETA `SCH_PrimitiveText.delete` call can return true,
-remove text from the in-memory inventory, and be followed by an affirmative
-SCH_Document.save, **without persisting the deletion**. The text returned
-after closing and reopening the editor. The same test text, selected and
-deleted with the editor's own **Delete → Ctrl+S** workflow, stayed absent after
-a full restart; a separately tested programmatic text addition also persisted.
-Therefore this is not evidence that every .eprj2 save fails.
+The EasyEDA Pro 3.2.209 BETA `SCH_PrimitiveText.delete` call can acknowledge a
+successful deletion and remove text from the in-memory inventory **without
+persisting it**. A controlled offline `.eprj2` test found the text returned
+after closing and reopening the editor. Selecting the same text in the GUI,
+pressing **Delete**, saving with **Ctrl+S** and reopening did persist the
+removal. This is a specific native API limitation, not a general claim that
+saving `.eprj2` fails.
 
-Until independent native persistence acceptance exists, the extension's
-schematic.deletePrimitive path **refuses** text deletion, and the advanced
-api.call entry point refuses both `SCH_PrimitiveText.delete` and the source-data
-`SCH_SourcePrimitiveText.remove` method. The latter is documented as an
-asynchronous source write: `ok: true` acknowledges a source update, not a
-cold-reopen persistence result. An API wrapper or type declaration alone is
-not runtime acceptance evidence. Keep both native API delete paths disabled
-until a disposable-project cold-reopen test passes on the target runtime.
-The multi-ID delete preflights its refusal _before_ removing any other
-primitive. No synthetic keypresses, direct SQLite edits, undocumented
-dirty-state hacks or automatic fallbacks are permitted. Users can delete the
-verified text in the EasyEDA editor and reopen the project to confirm it was
-saved.
+In **EasyEDA Pro 4.1.105**, a separate disposable offline `.eprj2` was tested
+with the actual **v1.16.0 source-built MCP server and imported extension**:
+`easyeda_schematic_add_text` and an explicit MCP save survived a complete
+cold restart; the isolated V4 BETA `SCH_PrimitiveText.delete(exactId)` path
+through `easyeda_schematic_delete_primitive` then removed that one text.
+After MCP save, stopping the editor and server and opening the same file in
+a new native process found **zero** matching markers, one remaining page-frame
+primitive and no wires. The installed extension dispatcher build was
+independently matched against the rebuilt package. This is **one runtime,
+one primitive ID, one project format**, not acceptance for every EasyEDA
+release, file format, Cloud route or later asynchronous editing session.
 
-Other accepted native delete responses are not automatically disk-persistence
-proof: the MCP result reports persistence_verified=false. The extension also
-refuses project.close(mode=save) on newly recognized schematic tabs with
-schematic_persistence_unverified rather than trusting a transient native
-save acknowledgment. Do not claim complete schematic mutation acceptance based
-only on API success or an in-memory readback.
+The extension therefore permits **a single text ID only** when the trusted
+native editor version is exactly `4.1.105` and the native API acknowledges
+the delete and a fresh native text inventory no longer contains that ID.
+Other versions (including `3.2.209`), unknown runtimes, mixed/multi-ID text
+requests and unavailable readback still fail closed before unrelated writes.
+The native BETA API expects a scalar ID; other primitive classes use their
+separate documented deletion contracts. The public MCP deletion and save
+responses **still report `persistence_verified=false`** until the user
+independently cold reopens and checks the exact document. Never blindly
+retry an ambiguous write.
+
+The advanced `easyeda_api_call` entry point **continues to refuse** both
+`SCH_PrimitiveText.delete` and `SCH_SourcePrimitiveText.remove` on all
+versions. The latter source API failed to persist its removal even on the
+isolated V4 editor. Do not expose either API as an undocumented bypass.
+No synthetic keypresses, direct SQLite edits or automatic persistence
+fallbacks are part of this implementation.
+
+The previous 3.2.209 native regression, the 4.1.105 direct-vendor API tests
+and the new source-built MCP path are separately tracked in
+[issue #1060](https://github.com/oaslananka/easyeda-mcp-pro/issues/1060).
 
 ### Project save: exact native target versus persisted outcome
 
