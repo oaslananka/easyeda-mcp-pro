@@ -24,6 +24,115 @@ function physicalBomQuantity(entry: { quantity?: unknown }): number {
   return value;
 }
 
+const INLINE_BOM_MAX_BYTES = 256 * 1024;
+const BOM_COLUMNS = [
+  'reference',
+  'value',
+  'footprint',
+  'lcsc',
+  'quantity',
+  'manufacturer',
+  'mpn',
+] as const;
+const bomExportEntrySchema = z.object({
+  reference: z.string().trim().min(1),
+  value: z.string().optional(),
+  footprint: z.string().optional(),
+  lcsc: z.string().optional(),
+  quantity: z.number().int().nonnegative(),
+  manufacturer: z.string().optional(),
+  mpn: z.string().optional(),
+});
+
+type BomExportEntry = { [K in (typeof BOM_COLUMNS)[number]]: string | number };
+
+function normalizeBomExportEntries(raw: unknown): BomExportEntry[] {
+  const entries = z.array(bomExportEntrySchema).parse(raw);
+  return entries.map((entry) => ({
+    reference: entry.reference,
+    value: entry.value ?? '',
+    footprint: entry.footprint ?? '',
+    lcsc: entry.lcsc ?? '',
+    quantity: entry.quantity,
+    manufacturer: entry.manufacturer ?? '',
+    mpn: entry.mpn ?? '',
+  }));
+}
+
+function csvBomCell(value: string | number): string {
+  let text = String(value);
+  // Quoting alone does not prevent spreadsheet formula execution.
+  let index = 0;
+  while (index < text.length) {
+    const code = text.charCodeAt(index);
+    if (code > 32 && code !== 0xa0 && code !== 0xfeff) break;
+    index++;
+  }
+  if (index < text.length && '=+@-'.includes(text.charAt(index))) text = "'" + text;
+  return '"' + text.replaceAll('"', '""') + '"';
+}
+
+function renderInlineBom(
+  entries: BomExportEntry[],
+  format: 'csv' | 'json',
+): { content: string; mimeType: string } {
+  if (format === 'json') {
+    return { content: JSON.stringify(entries, null, 2), mimeType: 'application/json' };
+  }
+  const rows = [
+    BOM_COLUMNS.join(','),
+    ...entries.map((entry) => BOM_COLUMNS.map((key) => csvBomCell(entry[key])).join(',')),
+  ];
+  return { content: rows.join('\r\n') + '\r\n', mimeType: 'text/csv' };
+}
+
+type BomExportFormat = 'csv' | 'json' | 'xlsx';
+
+function unavailableBomExport(projectId: string, format: BomExportFormat, error: string) {
+  return { project_id: projectId, format, exported: false, not_available: true, error };
+}
+
+/** Cloud return value stays inside the authorized MCP response, not on the host disk. */
+async function deliverInlineBom(
+  ctx: ToolContext,
+  projectId: string,
+  format: BomExportFormat,
+  filePath: string | undefined,
+) {
+  const rejected = (error: string) => unavailableBomExport(projectId, format, error);
+  if (filePath) {
+    return rejected(
+      'Inline BOM delivery does not accept filePath; save the returned content on the client device.',
+    );
+  }
+  if (format === 'xlsx') {
+    return rejected('Native XLSX file creation is unavailable in inline mode; choose CSV or JSON.');
+  }
+  try {
+    const result = await ctx.bridge.call('bom.generate', { projectId, format: 'json' });
+    const entries = normalizeBomExportEntries(result);
+    const { content, mimeType } = renderInlineBom(entries, format);
+    const byteLength = Buffer.byteLength(content, 'utf8');
+    if (byteLength > INLINE_BOM_MAX_BYTES) {
+      return rejected('BOM exceeds the 256 KiB inline delivery limit; use a local export.');
+    }
+    const safeId = projectId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64) || 'project';
+    return {
+      project_id: projectId,
+      format,
+      delivery: 'inline' as const,
+      file_name: safeId + '-bom.' + format,
+      mime_type: mimeType,
+      content,
+      byte_length: byteLength,
+      exported: true,
+      entry_count: entries.length,
+    };
+  } catch (err) {
+    return rejected(err instanceof Error ? err.message : String(err));
+  }
+}
+
 function isNonEmptyFile(filePath: string): boolean {
   try {
     const stat = fs.statSync(filePath);
@@ -251,11 +360,13 @@ function registerBomCoreTools(
   registry.register({
     name: 'easyeda_bom_export',
     title: 'Export BOM',
-    description: 'Export the bill of materials to a file on disk in the specified format.',
+    description:
+      'Export BOM to a local artifact file, or return downloadable CSV/JSON data directly to an MCP client in hosted Cloud mode. An inline payload is not automatically saved on the client device.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',
     confirmWrite: false,
+    sideEffect: 'artifact-write',
     group: 'bom',
     version: '1.0.0',
     annotations: {
@@ -265,22 +376,56 @@ function registerBomCoreTools(
     inputSchema: z.object({
       projectId: z.string(),
       format: z.enum(['csv', 'json', 'xlsx']).default('csv'),
-      filePath: z.string(),
+      filePath: z
+        .string()
+        .optional()
+        .describe(
+          'Local mode only: destination inside ARTIFACT_DIR. Omit for Cloud inline delivery.',
+        ),
+      delivery: z
+        .enum(['file', 'inline'])
+        .optional()
+        .describe(
+          'Cloud defaults to inline CSV/JSON content for the MCP client to save; local mode defaults to file.',
+        ),
     }),
     outputSchema: z.object({
       project_id: z.string(),
       format: z.string(),
-      file_path: z.string(),
+      file_path: z.string().optional(),
+      delivery: z.enum(['file', 'inline']).optional(),
+      file_name: z.string().optional(),
+      mime_type: z.string().optional(),
+      content: z.string().optional(),
+      byte_length: z.number().int().nonnegative().optional(),
+      error: z.string().optional(),
       exported: z.boolean(),
       entry_count: z.number().int().nonnegative().optional(),
       not_available: z.boolean().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, format, filePath } = params as {
+      const { projectId, format, filePath, delivery } = params as {
         projectId: string;
-        format: string;
-        filePath: string;
+        format: 'csv' | 'json' | 'xlsx';
+        filePath?: string;
+        delivery?: 'file' | 'inline';
       };
+      const isHosted = ctx.config.MCP_BRIDGE_BACKEND === 'remote_relay';
+      const targetDelivery = delivery ?? (isHosted ? 'inline' : 'file');
+      const rejected = (error: string) => unavailableBomExport(projectId, format, error);
+      if (targetDelivery === 'inline') {
+        return deliverInlineBom(ctx, projectId, format, filePath);
+      }
+
+      if (isHosted) {
+        return rejected(
+          'Hosted Cloud cannot write files on the MCP server; omit filePath to receive an inline BOM for client download.',
+        );
+      }
+      if (!filePath)
+        return rejected(
+          'Local file delivery requires filePath inside the configured artifact directory.',
+        );
       const resolved = path.resolve(filePath);
       const artifactDir = path.resolve(ctx.config.artifactDir as string);
       const relative = path.relative(artifactDir, resolved);

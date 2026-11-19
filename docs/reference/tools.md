@@ -15,7 +15,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_board_features`                           | `core`         | `low`    | Get counts of board features. zones counts copper Pour boundaries only; native Fill and Region primitives are reported separately as fills and regions.                                                                                                                                                                       |
 | `easyeda_board_layers`                             | `core`         | `low`    | List all layers in the PCB design including signal, power, plane, and mechanical layers.                                                                                                                                                                                                                                      |
 | `easyeda_board_stackup`                            | `core`         | `low`    | Get the PCB layer stackup including thickness, material, and dielectric constants.                                                                                                                                                                                                                                            |
-| `easyeda_bom_export`                               | `core`         | `low`    | Export the bill of materials to a file on disk in the specified format.                                                                                                                                                                                                                                                       |
+| `easyeda_bom_export`                               | `core`         | `low`    | Export BOM to a local artifact file, or return downloadable CSV/JSON data directly to an MCP client in hosted Cloud mode. An inline payload is not automatically saved on the client device.                                                                                                                                  |
 | `easyeda_bom_generate`                             | `core`         | `low`    | Generate a bill of materials for the project with grouping and formatting options.                                                                                                                                                                                                                                            |
 | `easyeda_bom_quality_report`                       | `core`         | `medium` | Generate a BOM quality report that identifies unavailable, single-source, missing-MPN, missing-footprint, and low-stock items across configured suppliers.                                                                                                                                                                    |
 | `easyeda_bom_sourcing`                             | `core`         | `medium` | Retrieve pricing and availability information for all parts in the project BOM from specified suppliers.                                                                                                                                                                                                                      |
@@ -402,15 +402,16 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Export the bill of materials to a file on disk in the specified format.
+> Export BOM to a local artifact file, or return downloadable CSV/JSON data directly to an MCP client in hosted Cloud mode. An inline payload is not automatically saved on the client device.
 
 ### Input Parameters
 
-| Parameter   | Type                            | Required | Description |
-| ----------- | ------------------------------- | -------- | ----------- |
-| `projectId` | `string`                        | Yes      |             |
-| `format`    | `'csv'` \| `'json'` \| `'xlsx'` | Yes      |             |
-| `filePath`  | `string`                        | Yes      |             |
+| Parameter   | Type                              | Required | Description                                                                                        |
+| ----------- | --------------------------------- | -------- | -------------------------------------------------------------------------------------------------- |
+| `projectId` | `string`                          | Yes      |                                                                                                    |
+| `format`    | `'csv'` \| `'json'` \| `'xlsx'`   | Yes      |                                                                                                    |
+| `filePath`  | `string (optional)`               | No       | Local mode only: destination inside ARTIFACT_DIR. Omit for Cloud inline delivery.                  |
+| `delivery`  | `'file'` \| `'inline' (optional)` | No       | Cloud defaults to inline CSV/JSON content for the MCP client to save; local mode defaults to file. |
 
 ### Output Format
 
@@ -420,7 +421,13 @@ Returns a JSON object matching the schema:
 {
   project_id: string;
   format: string;
-  file_path: string;
+  file_path: string(optional);
+  delivery: 'file' | 'inline'(optional);
+  file_name: string(optional);
+  mime_type: string(optional);
+  content: string(optional);
+  byte_length: number(optional);
+  error: string(optional);
   exported: boolean;
   entry_count: number(optional);
   not_available: boolean(optional);
