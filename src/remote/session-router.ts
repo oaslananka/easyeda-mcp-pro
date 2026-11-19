@@ -141,16 +141,21 @@ export class RemoteSessionRouter {
 
   heartbeat(sessionId: string): boolean {
     const session = this.sessions.get(sessionId);
-    if (!session || !session.connected) return false;
-    session.lastSeenAt = this.now();
+    const now = this.now();
+    // A heartbeat proves socket liveness, not an extension of owner pairing.
+    if (!session || !session.connected || session.expiresAt.getTime() <= now.getTime())
+      return false;
+    session.lastSeenAt = now;
     return true;
   }
 
   updateActiveProject(sessionId: string, activeProject?: ActiveProject): boolean {
     const session = this.sessions.get(sessionId);
-    if (!session) return false;
+    const now = this.now();
+    if (!session || !session.connected || session.expiresAt.getTime() <= now.getTime())
+      return false;
     session.activeProject = activeProject;
-    session.lastSeenAt = this.now();
+    session.lastSeenAt = now;
     return true;
   }
 
@@ -238,7 +243,9 @@ export class RemoteSessionRouter {
           mode,
           extensionVersion,
           activeProject,
-          connected,
+          // A socket may remain open after the immutable two-hour session TTL.
+          // Never display that unroutable session as a connected device.
+          connected: connected && expiresAt.getTime() > this.now().getTime(),
           lastSeenAt,
           expiresAt,
         }),

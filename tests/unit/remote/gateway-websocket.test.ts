@@ -184,6 +184,51 @@ afterEach(async () => {
   }
 });
 
+describe('RemoteGateway hard session expiry while the native socket stays open', () => {
+  it('closes an expired relay on heartbeat without renewing its owner grant', async () => {
+    const harness = await createHarness();
+    const sessionId = await registerSession(harness);
+    expect(harness.gateway.selectPairedProject(readIdentity, sessionId)).toBe(true);
+    const session = harness.gateway.router.getSession(sessionId);
+    expect(session).toBeDefined();
+    // The real endpoint has a fixed 2h TTL; force just that boundary without
+    // sleeping or bypassing any owner authorization.
+    session!.expiresAt = new Date(Date.now() - 1);
+    expect(harness.gateway.listPairedExtensions(readIdentity)[0]?.connected).toBe(false);
+    expect(harness.gateway.getSelectedProject(readIdentity)).toBeUndefined();
+
+    const closed = new Promise<number>((resolve) => {
+      harness.client.socket.once('close', (code) => resolve(code));
+    });
+    harness.client.send(
+      envelope('heartbeat', {
+        sessionId,
+        source: 'extension',
+        activeProject: {
+          projectId: 'relay-project',
+          documentId: 'relay-schematic',
+          documentType: 'schematic',
+        },
+      }),
+    );
+    await expect(
+      harness.client.waitFor(
+        (message) => message.type === 'error' && message.code === 'SESSION_EXPIRED',
+      ),
+    ).resolves.toMatchObject({ code: 'SESSION_EXPIRED' });
+    await expect(closed).resolves.toBe(1000);
+    expect(harness.gateway.listPairedExtensions(readIdentity)[0]?.connected).toBe(false);
+    await expect(
+      harness.gateway.routeToolRequest({
+        identity: readIdentity,
+        toolName: 'project.list',
+        riskLevel: 'read',
+      }),
+    ).resolves.toMatchObject({ ok: false });
+    expect(harness.gateway.getSelectedProject(readIdentity)).toBeUndefined();
+  });
+});
+
 describe('RemoteGateway WebSocket upgrade admission accounting', () => {
   it('advertises the configured bounded frame to an authenticated extension', async () => {
     const harness = await createHarness(10);

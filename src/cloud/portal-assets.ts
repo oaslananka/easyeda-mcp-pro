@@ -176,8 +176,13 @@ export const CLOUD_JS = String.raw`
       const info = el('div');
       info.appendChild(el('strong','', s.activeProject?.projectName || 'EasyEDA extension'));
       info.appendChild(el('p','', 'Version ' + s.extensionVersion + ' · ' + (s.mode === 'hosted' ? 'Cloud relay' : 'Remote relay')));
-      const state = el('span', 'status' + (s.connected ? '' : ' off'), s.connected ? 'Connected' : 'Disconnected');
+      const isExpired = !s.connected && typeof s.expiresAt === 'string' &&
+        Date.parse(s.expiresAt) <= Date.now();
+      const state = el('span','status' + (s.connected ? '' : ' off'),
+        s.connected ? 'Connected' : isExpired ? 'Session expired' : 'Disconnected');
       info.appendChild(state);
+      if (isExpired) info.appendChild(el('p','',
+        'Open EasyEDA to reconnect. A remembered device can reconnect automatically while its trust remains valid. Select the document again after reconnecting; otherwise pair with a new code.'));
       card.appendChild(info);
       if (s.connected && (s.activeProject?.projectId || s.activeProject?.projectName)) {
         const isSelected = selected?.sessionId === s.sessionId &&

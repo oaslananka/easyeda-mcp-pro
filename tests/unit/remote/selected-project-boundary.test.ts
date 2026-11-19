@@ -52,6 +52,51 @@ describe('explicit hosted extension/project selection', () => {
     expect(gateway.hasRoutableSession(owner)).toBe(false);
   });
 
+  it('clears the public selected-document view after a live socket passes its hard TTL', async () => {
+    let now = new Date('2026-11-19T09:00:00Z');
+    const gateway = new RemoteGateway({ now: () => now });
+    gateway.requireExplicitProjectSelection();
+    const session = gateway.registerExtension({
+      connectionId: 'private-socket',
+      mode: 'hosted',
+      extensionVersion: '1.16.0',
+      ttlMs: 50,
+      activeProject: {
+        projectId: 'private-project',
+        documentId: 'native-page',
+        documentType: 'schematic',
+        projectName: 'Private',
+      },
+      dispatch: async () => {
+        throw Error('An expired session must never dispatch.');
+      },
+    });
+    const code = gateway.createPairingCode({ identity: owner, sessionId: session.sessionId });
+    expect(gateway.completePairing({ identity: owner, code, sessionId: session.sessionId })).toBe(
+      true,
+    );
+    expect(gateway.selectPairedProject(owner, session.sessionId)).toBe(true);
+    expect(gateway.getSelectedProject(owner)).toMatchObject({
+      sessionId: session.sessionId,
+      projectId: 'private-project',
+    });
+    expect(gateway.listPairedExtensions(owner)[0]?.connected).toBe(true);
+    now = new Date(now.getTime() + 51);
+    expect(gateway.listPairedExtensions(owner)).toEqual([
+      expect.objectContaining({ sessionId: session.sessionId, connected: false }),
+    ]);
+    expect(gateway.getSelectedProject(owner)).toBeUndefined();
+    expect(gateway.getSelectedProject(outsider)).toBeUndefined();
+    expect(gateway.selectPairedProject(owner, session.sessionId)).toBe(false);
+    await expect(
+      gateway.routeToolRequest({
+        identity: owner,
+        toolName: 'easyeda_project_list',
+        riskLevel: 'read',
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'SESSION_EXPIRED' });
+  });
+
   it('requires an owner-selected project when multiple extensions are paired and fails closed after a project swap', async () => {
     const gateway = new RemoteGateway();
     const dispatched: string[] = [];
