@@ -154,9 +154,22 @@ describe('Hosted Cloud resource-owner identity through real MCP HTTP', () => {
         });
         const result = await client.callTool({
           name: 'easyeda_schematic_components',
-          arguments: { projectId: 'selected-schematic' },
+          arguments: { projectId: 'disposable-project' },
         });
         expect(result.isError).not.toBe(true);
+        expect(dispatched).toHaveLength(2);
+
+        // A valid owner token does not grant access to a different native design.
+        // Reject the foreign project before the bridge sees any request.
+        const foreign = await client.callTool({
+          name: 'easyeda_schematic_components',
+          arguments: { projectId: 'other-native-project' },
+        });
+        expect(foreign.isError).toBe(true);
+        expect(foreign.structuredContent).toMatchObject({
+          errorCode: 'ERR_REMOTE_RELAY',
+          details: { remoteCode: 'PROJECT_INACTIVE' },
+        });
         expect(dispatched).toHaveLength(2);
         expect(dispatched[0]).toMatchObject({ sessionId: session.sessionId });
 
@@ -284,7 +297,7 @@ describe('Hosted Cloud resource-owner identity through real MCP HTTP', () => {
           // session. Repeated calls from the original OAuth client still work.
           const ownerStillWorks = await client.callTool({
             name: 'easyeda_schematic_components',
-            arguments: { projectId: 'owner-after-foreign-delete' },
+            arguments: { projectId: 'disposable-project' },
           });
           expect(ownerStillWorks.isError).not.toBe(true);
           expect(dispatched).toHaveLength(4);

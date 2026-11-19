@@ -382,6 +382,11 @@ function hasNativeDocumentIdentity(
   return !required || Boolean(project?.projectId && project.documentId);
 }
 
+function requestedNativeProjectId(input: unknown): unknown {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined;
+  return (input as { projectId?: unknown }).projectId;
+}
+
 function projectIdentity(project?: ExtensionSession['activeProject']): string | undefined {
   if (project?.projectId) return `id:${project.projectId}:document:${project.documentId ?? ''}`;
   if (project?.projectName) {
@@ -565,6 +570,38 @@ export class RemoteGateway {
       );
     }
     return { ok: true, sessionId: selected.sessionId };
+  }
+
+  /** Hosted MCP calls must not relabel selected-editor data as a different project.
+   * The owner-selected native project is the authority, never a tool argument. */
+  private selectedProjectArgumentFailure(
+    session: ExtensionSession,
+    input: unknown,
+  ): RemoteGatewayFailure | undefined {
+    const projectId = requestedNativeProjectId(input);
+    if (
+      !this.explicitSelectionRequired ||
+      projectId === undefined ||
+      projectId === session.activeProject?.projectId
+    ) {
+      return undefined;
+    }
+    return gatewayError(
+      409,
+      'PROJECT_INACTIVE',
+      'The requested EasyEDA project differs from your Cloud-selected project. Select the intended design before retrying.',
+    );
+  }
+
+  private resolveProjectBoundConnection(input: {
+    identity: RemoteIdentity;
+    sessionId?: string;
+    riskLevel: RemoteRiskLevel;
+    toolInput?: unknown;
+  }): ResolvedRemoteConnection {
+    const route = this.resolveConnection(input);
+    if (!route.ok) return route;
+    return this.selectedProjectArgumentFailure(route.session, input.toolInput) ?? route;
   }
 
   private resolveEffectiveRisk(toolName: string, assertedRisk?: RemoteRiskLevel): RemoteRiskLevel {
@@ -1042,10 +1079,11 @@ export class RemoteGateway {
     const identity = input.identity;
     if (!identity) return gatewayError(401, 'IDENTITY_MISSING', 'Remote identity is required.');
 
-    const route = this.resolveConnection({
+    const route = this.resolveProjectBoundConnection({
       identity,
       riskLevel: effectiveRisk,
       sessionId: input.sessionId,
+      toolInput: input.input,
     });
     if (!route.ok) return route;
 
@@ -1142,10 +1180,11 @@ export class RemoteGateway {
       return gatewayError(401, 'IDENTITY_MISSING', 'Remote identity is required.');
     }
 
-    const route = this.resolveConnection({
+    const route = this.resolveProjectBoundConnection({
       identity,
       riskLevel: effectiveRisk,
       sessionId: input.sessionId,
+      toolInput: input.input,
     });
     if (!route.ok) return route;
     const connection = route.connection;
