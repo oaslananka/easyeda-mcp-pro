@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-11-15
+- **Last reviewed:** 2026-11-19
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.16.0               | 1.16.0                | 1.16.0            | Live validated  | 2026-11-19 | 2027-02-17 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.6               | 1.15.6                | 1.15.6            | Live validated  | 2026-11-15 | 2027-02-13 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.5               | 1.15.5                | 1.15.5            | Live validated  | 2026-11-14 | 2027-02-12 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.5               | 1.15.5                | 1.15.5            | Live validated  | 2026-11-14 | 2027-02-12 |
@@ -75,6 +76,54 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-19-597d236-v116-native-local-write-delete
+
+Record ID: `easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-19-597d236-v116-native-local-write-delete`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                                             |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `4.1.105.0339a6cd`                                                                                                      |
+| Electron                                 | `not independently recorded`                                                                                            |
+| Chromium                                 | `not independently recorded` (Exact Chromium runtime version not independently measured during this native QA session.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                                      |
+| Kernel                                   | `7.0.0-43-generic`                                                                                                      |
+| Architecture                             | `x86_64`                                                                                                                |
+| Node.js used by validation server        | `24.22.3`                                                                                                               |
+| Validation package version               | `1.16.0`                                                                                                                |
+| Fix version represented by evidence      | `1.16.0`                                                                                                                |
+| Compatibility-sensitive base commit      | `597d236ae887186b9a040399536e260e144f3a51`                                                                              |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                                |
+| Installed extension package metadata     | `1.16.0`                                                                                                                |
+| Live-validated extension package SHA-256 | `59d86a797e97b7fe04dd227ebbd7a2ec2d281eb508f83b326e3a28c993245bc4`                                                      |
+| Live-validated extension package size    | `237464 bytes`                                                                                                          |
+| Loader-reported version                  | `1.16.0`                                                                                                                |
+| Bridge contract                          | `1.0.0`                                                                                                                 |
+| Dispatcher                               | `baked`                                                                                                                 |
+| Method registry hash                     | `f71f5e22b7fec5db`                                                                                                      |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                                       |
+
+The installed extension package and loader both reported version `1.16.0` during this validation.
+
+### Capability evidence
+
+| Capability                                                              | Level  | Status   | Result                                                                                                                                                                                                                                                                                                                                                                                                                                      | Evidence                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------------------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Exact-source local editor/extension/server bridge identity              | `live` | `passed` | Exact release candidate 597d236 was built; its 237464-byte extension matched the previously imported QA archive byte-for-byte. The live dispatcher reported dcb0ex9ed6x082f; EasyEDA Pro reported 4.1.105, the server and extension each 1.16.0, and registry/version mismatch checks were false. Only isolated loopback MCP was exercised.                                                                                                 | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-v1.16.0-597d236-v4-native-local-mcp.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/1060#issuecomment-7000129103) |
+| Focused disposable schematic inventory, page and project identity       | `live` | `passed` | New copied offline .eprj2, one schematic page and a native-focused project; base 1 text, 1 page-frame component, 0 wires. The local MCP component read correctly excluded the non-BOM page frame.                                                                                                                                                                                                                                           | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-v1.16.0-597d236-v4-native-local-mcp.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/1060#issuecomment-7000129103) |
+| Confirmed MCP text creation/save survives independent cold reopen       | `live` | `passed` | Missing confirmWrite was rejected. Explicit one-text MCP add and save returned a native ACK but persistence_verified=false; after a complete native editor shutdown, a new process reopened the same file and independently read exactly 1 unique test marker (2 total text objects), 1 frame, 0 wires.                                                                                                                                     | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-v1.16.0-597d236-v4-native-local-mcp.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/1060#issuecomment-7000129103) |
+| V4.1.105-only exact-ID MCP beta text deletion/save survives cold reopen | `live` | `passed` | Only the intended test marker was deleted using the version-gated scalar beta method with confirmWrite:true; native inventory showed 0 markers and intact 1 frame/0 wires. MCP save retained persistence_verified=false; after a full second shutdown and fresh-process cold reopen the marker stayed absent and file SHA matched the saved copy. Initial cold read raced page loading; subsequent read succeeded without another mutation. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-19-ubuntu-24-04-easyeda-4.1.105-v1.16.0-597d236-v4-native-local-mcp.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/1060#issuecomment-7000129103) |
+
+### Known limitations
+
+- Native text deletion is accepted ONLY for one exact ID on EasyEDA Pro 4.1.105 with focused disposable .eprj2 evidence; no broader EasyEDA version, mixed/batch delete, .eprj3 or production-project persistence guarantee.
+- EasyEDA Pro 3.2.209 beta text deletion previously failed cold persistence and continues to fail closed; raw SCH_PrimitiveText.delete and SCH_SourcePrimitiveText.remove via advanced API remain denied.
+- This live record covers local MCP over private OS loopback only. Public Cloud/remote relay backend 1.16.0, cross-account isolation, remote WRITE/export and production deployment were NOT exercised or accepted; #850 remains HOLD.
+- External desktop Windows/macOS actual editor runtimes, long-running arbitrary GUI sessions, electronics/ERC/DRC or manufacturing approval are NOT validated by this scenario.
+- Electron and Chromium exact runtime versions were not independently inspected; no values are inferred from upstream release pages. One fresh-process read raced native page readiness and was repeated read-only only after the page was available.
+- The native MCP save API intentionally returns persistence_verified=false; durability here is a test-specific independent complete shutdown/reopen observation, not a runtime-guaranteed save contract.
 
 ## 3.2.209.8a704eab on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-3-2-209-ubuntu-24-04-x64-2026-11-15-304ef59-v1156-agpl-native-readonly
 
