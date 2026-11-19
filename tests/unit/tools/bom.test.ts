@@ -546,6 +546,58 @@ describe('BOM Tools Sourcing & Validate', () => {
       expect(oversized.error).toContain('256 KiB');
     });
 
+    it('supplies a safe empty value when a native BOM field is absent', async () => {
+      context.config.MCP_BRIDGE_BACKEND = 'remote_relay';
+      bridgeCall.mockResolvedValue([{ reference: 'R1', quantity: 1 }]);
+      const result = await registry.get('easyeda_bom_export')?.handler(context, {
+        projectId: 'proj-1',
+        format: 'json',
+      });
+      expect(result.exported).toBe(true);
+      expect(JSON.parse(result.content)[0].value).toBe('');
+    });
+
+    it('uses a safe fallback filename when an empty project identifier reaches delivery', async () => {
+      context.config.MCP_BRIDGE_BACKEND = 'remote_relay';
+      bridgeCall.mockResolvedValue([]);
+      const result = await registry.get('easyeda_bom_export')?.handler(context, {
+        projectId: '',
+        format: 'csv',
+      });
+      expect(result).toMatchObject({
+        exported: true,
+        file_name: 'project-bom.csv',
+        entry_count: 0,
+      });
+    });
+
+    it('reports non-Error failures from the native BOM producer without claiming an export', async () => {
+      context.config.MCP_BRIDGE_BACKEND = 'remote_relay';
+      bridgeCall.mockRejectedValue('native unavailable');
+      const result = await registry.get('easyeda_bom_export')?.handler(context, {
+        projectId: 'proj-1',
+        format: 'json',
+      });
+      expect(result).toMatchObject({
+        exported: false,
+        not_available: true,
+        error: 'native unavailable',
+      });
+    });
+
+    it('requires an explicit artifact path for local file delivery', async () => {
+      const result = await registry.get('easyeda_bom_export')?.handler(context, {
+        projectId: 'proj-1',
+        format: 'csv',
+      });
+      expect(result).toMatchObject({
+        exported: false,
+        not_available: true,
+      });
+      expect(result.error).toContain('requires filePath');
+      expect(bridgeCall).not.toHaveBeenCalled();
+    });
+
     it('exports only when the bridge materializes a non-empty artifact and counts array entries', async () => {
       const tool = registry.get('easyeda_bom_export');
       const filePath = path.join(tmpArtifactDir, 'bom.csv');
