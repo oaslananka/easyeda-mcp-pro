@@ -88,6 +88,9 @@ const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
 const HEARTBEAT_LIVENESS_MS = 45_000;
 const HEARTBEAT_SWEEP_MS = 15_000;
+// Renew through an authenticated device-resume handshake before the hard
+// gateway session TTL; never extend the TTL by sending a heartbeat.
+const SESSION_RECONNECT_MARGIN_MS = 60_000;
 
 let fallbackMessageSequence = 0;
 
@@ -169,6 +172,7 @@ export class RemoteRelayClient {
   private desiredConnection: RemoteRelayConnectInput | null = null;
   private reconnectTimer: RuntimeTimerHandle | null = null;
   private heartbeatTimer: RuntimeTimerHandle | null = null;
+  private sessionRenewalTimer: RuntimeTimerHandle | null = null;
   private lastHeartbeatSweepAtMs: number | null = null;
   private readonly pendingApprovalIds = new Set<string>();
 
@@ -201,6 +205,7 @@ export class RemoteRelayClient {
     this.desiredConnection = null;
     this.clearReconnectTimer();
     this.clearHeartbeatTimer();
+    this.clearSessionRenewalTimer();
 
     const socket = this.socket;
     this.socket = null;
@@ -340,7 +345,37 @@ export class RemoteRelayClient {
       pairingCode: undefined,
       sessionId: typeof message.sessionId === 'string' ? message.sessionId : this.status.sessionId,
     };
+    this.scheduleSessionRenewal(message);
     return;
+  }
+
+  private scheduleSessionRenewal(message: RemoteEnvelope): void {
+    this.clearSessionRenewalTimer();
+    if (message.paired !== true || typeof message.expiresAt !== 'string') return;
+    const expiresAt = Date.parse(message.expiresAt);
+    const remainingMs = expiresAt - Date.now();
+    if (!Number.isFinite(remainingMs) || remainingMs <= 0) return;
+    // This timer only closes the old socket. The existing reconnect path
+    // must present a current owner-bound credential and clear old selection.
+    const delay = Math.max(1_000, remainingMs - SESSION_RECONNECT_MARGIN_MS);
+    const socket = this.socket;
+    this.sessionRenewalTimer = this.options.timers.setTimeout(() => {
+      this.sessionRenewalTimer = null;
+      if (socket !== this.socket || this.status.state !== 'paired') return;
+      this.options.log('Cloud relay session nearing expiry; renewing device session');
+      try {
+        socket?.close();
+      } catch (error) {
+        this.options.log('Cloud relay renewal socket close failed', error);
+        this.scheduleReconnect('Cloud relay session expired');
+      }
+    }, delay);
+  }
+
+  private clearSessionRenewalTimer(): void {
+    if (!this.sessionRenewalTimer) return;
+    this.options.timers.clearTimeout(this.sessionRenewalTimer);
+    this.sessionRenewalTimer = null;
   }
 
   private rememberPairedCredential(message: RemoteEnvelope): void {
@@ -571,6 +606,7 @@ export class RemoteRelayClient {
     if (socket !== this.socket) return;
     this.socket = null;
     this.clearHeartbeatTimer();
+    this.clearSessionRenewalTimer();
     if (
       this.desiredConnection &&
       this.status.state === 'paired' &&

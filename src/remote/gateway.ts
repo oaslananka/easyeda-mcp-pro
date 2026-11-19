@@ -916,6 +916,17 @@ export class RemoteGateway {
   getSelectedProject(identity: RemoteIdentity): Omit<SelectedProject, 'projectKey'> | undefined {
     const selection = this.selectedProjects.get(identity.userId);
     if (!selection) return undefined;
+    const session = this.router.getSession(selection.sessionId);
+    // Keep the durable device association revocable, but never advertise an
+    // expired/disconnected session as an authorized selected document.
+    if (
+      !session ||
+      session.userId !== identity.userId ||
+      !session.connected ||
+      session.expiresAt.getTime() <= this.now().getTime() ||
+      projectIdentity(session.activeProject) !== selection.projectKey
+    )
+      return undefined;
     const { projectKey: _key, ...publicSelection } = selection;
     return publicSelection;
   }
@@ -1505,13 +1516,24 @@ export class RemoteGateway {
       activeProject?: ExtensionSession['activeProject'] | null;
     }) => {
       if (!sessionId || !messageMatchesCurrentSession(heartbeat.sessionId)) return;
+      // A live WebSocket can outlive its immutable session TTL. Close it so an
+      // extension with an owner-bound resume credential can reconnect through
+      // the normal authenticated handshake; never silently extend an expired grant.
+      if (!this.router.heartbeat(sessionId)) {
+        send({
+          type: 'error',
+          code: 'SESSION_EXPIRED',
+          message: 'Cloud relay session expired. Reconnect with valid device access.',
+        });
+        disconnectCurrentSession();
+        ws.close(1000, 'session_expired');
+        return;
+      }
       if (Object.hasOwn(heartbeat, 'activeProject')) {
         const previousProject = this.router.getSession(sessionId)?.activeProject?.projectId;
         const incomingProject = heartbeat.activeProject?.projectId;
         if (previousProject !== incomingProject) this.revokeProjectSessionGrants(sessionId);
         this.router.updateActiveProject(sessionId, heartbeat.activeProject ?? undefined);
-      } else {
-        this.router.heartbeat(sessionId);
       }
       // Only acknowledge extension-sourced heartbeats, never acknowledgements.
       if (heartbeat.source === 'extension') send({ type: 'heartbeat', source: 'server' });

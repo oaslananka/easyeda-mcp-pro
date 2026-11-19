@@ -251,6 +251,71 @@ describe('RemoteRelayClient resilience', () => {
     expect(JSON.stringify(client.getStatus())).not.toContain(secondToken);
   });
 
+  it('rotates owner-bound Cloud session before its hard TTL without replaying a pairing code', async () => {
+    vi.setSystemTime(new Date('2026-11-19T09:00:00Z'));
+    const { client } = makeClient();
+    const token = 'ers_' + 'd'.repeat(64);
+    client.connect({ mode: 'hosted', pairingCode: 'EDA-ABCDEF12' });
+    const initial = FakeWebSocket.instances[0];
+    initial.open();
+    initial.receive(
+      relayMessage('session_registered', {
+        paired: true,
+        sessionId: 'sess_before_expiry',
+        expiresAt: new Date(Date.now() + 120_000).toISOString(),
+        resumeCredential: token,
+      }),
+    );
+    expect(client.getStatus().state).toBe('paired');
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(initial.readyState).toBe(OPEN);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(initial.readyState).toBe(CLOSED);
+    expect(client.getStatus()).toMatchObject({ state: 'connecting', sessionId: undefined });
+    await vi.advanceTimersByTimeAsync(1_000);
+    const next = FakeWebSocket.instances[1];
+    next.open();
+    const registration = next.sent
+      .map((payload) => JSON.parse(payload))
+      .find((message) => message.type === 'register_session');
+    expect(registration.resumeCredential).toBe(token);
+    expect(registration.pairingCode).toBeUndefined();
+    // The new connection gets a new session ID; owner must reselect its document.
+    next.receive(
+      relayMessage('session_registered', {
+        paired: true,
+        sessionId: 'sess_fresh',
+        expiresAt: new Date(Date.now() + 120_000).toISOString(),
+        resumeCredential: 'ers_' + 'e'.repeat(64),
+      }),
+    );
+    expect(client.getStatus()).toMatchObject({ state: 'paired', sessionId: 'sess_fresh' });
+    client.disconnect();
+    await vi.advanceTimersByTimeAsync(121_000);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
+  it('fails closed at session expiry without a trusted resume credential', async () => {
+    vi.setSystemTime(new Date('2026-11-19T09:00:00Z'));
+    const { client, showToast } = makeClient();
+    client.connect({ mode: 'hosted', pairingCode: 'EDA-ABCDEF12' });
+    const initial = FakeWebSocket.instances[0];
+    initial.open();
+    initial.receive(
+      relayMessage('session_registered', {
+        paired: true,
+        sessionId: 'sess_legacy',
+        expiresAt: new Date(Date.now() + 120_000).toISOString(),
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(client.getStatus().state).toBe('disconnected');
+    expect(showToast).toHaveBeenCalledWith(expect.stringMatching(/new pairing code/i));
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
   it('fails closed when the server rejects an expired or revoked resume credential', async () => {
     const { client, showToast } = makeClient();
     client.connect({ mode: 'hosted', pairingCode: 'EDA-ABCDEF12' });

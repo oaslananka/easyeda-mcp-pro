@@ -255,6 +255,40 @@ describe('RemoteSessionRouter', () => {
     expect(result).toMatchObject({ ok: false, code: 'SESSION_EXPIRED' });
   });
 
+  it('never advertises expired socket sessions as online or extends pairing via heartbeat', () => {
+    const { router, advance } = makeRouter();
+    const s = router.registerSession({
+      connectionId: 'connected-socket',
+      mode: 'hosted',
+      extensionVersion: '1.16.0',
+      activeProject: {
+        projectId: 'private-project',
+        documentId: 'focused-page',
+        documentType: 'schematic',
+      },
+      ttlMs: 20,
+    });
+    const code = router.createPairingCode({ userId: 'user_1', sessionId: s.sessionId });
+    expect(router.completePairing({ code, userId: 'user_1', sessionId: s.sessionId })).toBe(true);
+    advance(15);
+    expect(router.heartbeat(s.sessionId)).toBe(true);
+    advance(5);
+    expect(router.resolve({ userId: 'user_1', riskLevel: 'read' })).toMatchObject({
+      ok: false,
+      code: 'SESSION_EXPIRED',
+    });
+    expect(router.heartbeat(s.sessionId)).toBe(false);
+    expect(router.updateActiveProject(s.sessionId, { projectId: 'changed' })).toBe(false);
+    expect(router.listPairedSessions('user_1')).toEqual([
+      expect.objectContaining({
+        sessionId: s.sessionId,
+        connected: false,
+        expiresAt: s.expiresAt,
+      }),
+    ]);
+    expect(router.listPairedSessions('other-user')).toEqual([]);
+  });
+
   it('resolve returns SESSION_AMBIGUOUS with multiple active sessions and no sessionId hint', () => {
     const { router } = makeRouter();
     const session1 = router.registerSession({

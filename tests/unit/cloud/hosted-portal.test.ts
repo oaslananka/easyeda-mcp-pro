@@ -433,6 +433,61 @@ describe('Hosted Cloud browser recovery', () => {
     expect(card.children.some((child) => child.textContent === 'Selected PCB')).toBe(false);
   });
 
+  it('shows an expired device as offline with an actionable reconnect hint and no stale selection', async () => {
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Owner' } }) };
+      if (url === '/cloud/api/extensions') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            sessions: [
+              {
+                sessionId: 'sess_expired',
+                connected: false,
+                expiresAt: '2020-01-01T00:00:00.000Z',
+                mode: 'hosted',
+                extensionVersion: '1.16.0',
+                activeProject: {
+                  projectId: 'private-project',
+                  documentId: 'private-document',
+                  projectName: 'Disposable PCB',
+                  documentType: 'pcb',
+                },
+              },
+            ],
+            selection: null,
+          }),
+        };
+      }
+      if (url === '/cloud/api/clients')
+        return { ok: true, status: 200, json: async () => ({ clients: [] }) };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            total: 0,
+            succeeded: 0,
+            failed: 0,
+            lastCallAt: null,
+          }),
+        };
+      throw Error('Unexpected request: ' + url);
+    });
+    expect(result.elements.get('device-count').textContent).toBe('0 connected');
+    // A single offline device remains directly accessible for easy revocation;
+    // only two or more offline devices are grouped in Previous connections.
+    const card = result.elements.get('extensions').children[0];
+    expect(card.children[0].children[2].textContent).toBe('Session expired');
+    expect(card.children[0].children[3].textContent).toContain('Select the document again');
+    expect(
+      card.children.some((item: { textContent: string }) => item.textContent === 'Selected PCB'),
+    ).toBe(false);
+    expect(card.children[1].textContent).toBe('Remove access');
+  });
+
   it('prioritizes connected devices and keeps old pairings removable without losing expansion on refresh', async () => {
     let sessions = [
       {
