@@ -1266,13 +1266,15 @@ describe('BridgeManager - waitForConnection', () => {
   });
 
   it('resolves once a connection is established', async () => {
-    const port = await getFreePort();
-    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
+    // CI may claim a probed port before connect() binds it. Use the actual
+    // listener selected from independent candidates rather than the first probe.
+    const portCandidates = await getFreePortCandidates();
+    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: portCandidates });
     const manager = new BridgeManager(config);
     await manager.connect();
 
     const waiter = manager.waitForConnection(2000);
-    const socket = await openSocket(port);
+    const socket = await openSocket(manager.activePort);
     sendHandshake(socket);
     await waitForMessage(socket);
 

@@ -559,6 +559,65 @@ describe('ToolRegistry', () => {
     });
   });
 
+  it('delivers an artifact-export approval error to a strict MCP client', async () => {
+    const server = new McpServer({ name: 'artifact-export-test', version: '1.0.0' });
+    const registered = new ToolRegistry();
+    registered.register(
+      createMockTool('approval_gated_export', 'core', {
+        sideEffect: 'artifact-write',
+        outputSchema: z.object({
+          project_id: z.string(),
+          format: z.string(),
+          exported: z.boolean(),
+        }),
+        handler: async () => {
+          throw new Error('Native export approval required');
+        },
+      }),
+    );
+    registered.registerAllOnServer(server, mockContext());
+    const client = new Client({ name: 'strict-artifact-client', version: '1.0.0' });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    try {
+      await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+      const result = await client.callTool({ name: 'approval_gated_export', arguments: {} });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        errorCode: ErrorCodes.TOOL_EXECUTION,
+        message: expect.stringContaining('Native export approval required'),
+      });
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it('advertises artifact-export approval errors without weakening successful result validation', () => {
+    const exportTool = createMockTool('artifact_export_contract', 'core', {
+      sideEffect: 'artifact-write',
+      outputSchema: z.object({
+        project_id: z.string(),
+        format: z.string(),
+        exported: z.boolean(),
+      }),
+    });
+    const advertised = registeredOutputSchema(exportTool);
+    const approvalError = {
+      errorCode: ErrorCodes.REMOTE_RELAY,
+      message: 'Remote approval required',
+      details: { remoteCode: 'APPROVAL_REQUIRED', approvalId: 'appr_test' },
+    };
+    expect(advertised.safeParse(approvalError).success).toBe(true);
+    expect(advertised.safeParse({ project_id: 'qa', format: 'csv', exported: true }).success).toBe(
+      true,
+    );
+    expect(exportTool.outputSchema.safeParse(approvalError).success).toBe(false);
+    expect(
+      registeredOutputSchema(createMockTool('strict_read_contract')).safeParse(approvalError)
+        .success,
+    ).toBe(false);
+  });
+
   describe('structured error codes', () => {
     it('should return ERR_INVALID_INPUT on ZodError', async () => {
       const tool = createMockTool('zod_fail', 'core', {
