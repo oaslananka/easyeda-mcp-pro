@@ -2184,6 +2184,7 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     setCachedTextAlignMode: (primitiveId, alignMode) =>
       textAlignModeCache.set(primitiveId, alignMode),
     deleteCachedTextAlignMode: (primitiveId) => textAlignModeCache.delete(primitiveId),
+    getEasyedaVersion: toolkit.getEasyedaVersion,
   });
   readOnlyOperations = createReadOnlyOperations({
     callFirst,

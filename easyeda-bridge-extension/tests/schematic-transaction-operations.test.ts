@@ -174,6 +174,123 @@ describe('schematic transaction operations', () => {
     expect(textDelete).not.toHaveBeenCalled();
   });
 
+  it('permits one exact text ID on verified V4.1.105 with scalar native delete and fresh readback', async () => {
+    const text = { getState_PrimitiveId: () => 'text-1' };
+    let present = true;
+    const nativeDelete = vi.fn(async (id: string) => {
+      if (id !== 'text-1') return false;
+      present = false;
+      return true;
+    });
+    const { operations, textAlignCache } = createSubject(
+      {
+        SCH_PrimitiveText: {
+          get: vi.fn(async (id: string) => (id === 'text-1' && present ? text : undefined)),
+          getAll: vi.fn(async () => (present ? [text] : [])),
+          delete: nativeDelete,
+        },
+      },
+      { getEasyedaVersion: () => '4.1.105' },
+    );
+    textAlignCache.set('text-1', 7);
+
+    await expect(operations.deletePrimitives(['text-1'])).resolves.toEqual({
+      success: true,
+      deleted: ['text-1'],
+      notFound: [],
+    });
+    expect(nativeDelete).toHaveBeenCalledExactlyOnceWith('text-1');
+    expect(textAlignCache.has('text-1')).toBe(false);
+  });
+
+  it.each(['3.2.209', '4.1.104', '4.1.106', '', undefined])(
+    'refuses beta deletion on any unaccepted native runtime %s before a write',
+    async (version) => {
+      const nativeDelete = vi.fn().mockResolvedValue(true);
+      const { operations } = createSubject(
+        {
+          SCH_PrimitiveText: {
+            get: vi.fn().mockResolvedValue({ primitiveId: 'text-1' }),
+            getAll: vi.fn().mockResolvedValue([{ primitiveId: 'text-1' }]),
+            delete: nativeDelete,
+          },
+        },
+        { getEasyedaVersion: () => version },
+      );
+      await expect(operations.deletePrimitives(['text-1'])).rejects.toMatchObject({
+        code: 'UNSUPPORTED_RUNTIME',
+      });
+      expect(nativeDelete).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses mixed V4 text/component batch before the component is touched', async () => {
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const textDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveComponent: {
+          get: vi.fn(async (id: string) => (id === 'cmp-1' ? { primitiveId: id } : undefined)),
+          delete: componentDelete,
+        },
+        SCH_PrimitiveText: {
+          get: vi.fn(async (id: string) => (id === 'text-1' ? { primitiveId: id } : undefined)),
+          getAll: vi.fn().mockResolvedValue([{ primitiveId: 'text-1' }]),
+          delete: textDelete,
+        },
+      },
+      { getEasyedaVersion: () => '4.1.105' },
+    );
+    await expect(operations.deletePrimitives(['cmp-1', 'text-1'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
+    });
+    expect(componentDelete).not.toHaveBeenCalled();
+    expect(textDelete).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { label: 'native deletion false', acknowledged: false, remaining: [] },
+    {
+      label: 'text remains in fresh native inventory',
+      acknowledged: true,
+      remaining: [{ primitiveId: 'text-1' }],
+    },
+    { label: 'native inventory unavailable', acknowledged: true, remaining: null },
+  ])('fails closed if V4 beta $label', async ({ acknowledged, remaining }) => {
+    const nativeDelete = vi.fn().mockResolvedValue(acknowledged);
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveText: {
+          get: vi.fn().mockResolvedValue({ primitiveId: 'text-1' }),
+          getAll: vi.fn().mockResolvedValue(remaining),
+          delete: nativeDelete,
+        },
+      },
+      { getEasyedaVersion: () => '4.1.105' },
+    );
+    await expect(operations.deletePrimitives(['text-1'])).rejects.toMatchObject({
+      code: 'NATIVE_DELETE_UNVERIFIED',
+    });
+    expect(nativeDelete).toHaveBeenCalledExactlyOnceWith('text-1');
+  });
+
+  it('refuses V4 beta deletion when a fresh native text inventory cannot be read', async () => {
+    const nativeDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveText: {
+          get: vi.fn().mockResolvedValue({ primitiveId: 'text-1' }),
+          delete: nativeDelete,
+        },
+      },
+      { getEasyedaVersion: () => '4.1.105' },
+    );
+    await expect(operations.deletePrimitives(['text-1'])).rejects.toMatchObject({
+      code: 'NATIVE_DELETE_UNVERIFIED',
+    });
+    expect(nativeDelete).not.toHaveBeenCalled();
+  });
+
   it('rejects component recreation without a complete creation descriptor', async () => {
     const { operations } = createSubject();
 
