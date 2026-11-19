@@ -18,6 +18,25 @@ async function markdownFiles(root: string): Promise<string[]> {
 }
 
 describe('documentation lifecycle policy', () => {
+  it('keeps sponsor and star badges immediately below the other README badges', async () => {
+    const readme = await read('README.md');
+    const hero = readme.split('## Start with a circuit question', 1)[0];
+    const downloads = hero.indexOf('alt="Total npm downloads"');
+    const gitGem = hero.indexOf('alt="GitGem"');
+    const sponsors = hero.indexOf('alt="GitHub Sponsors"');
+    const coffee = hero.indexOf('alt="Buy Me a Coffee"');
+    const stars = hero.indexOf('alt="GitHub stars"');
+
+    expect(downloads).toBeGreaterThan(-1);
+    expect(gitGem).toBeGreaterThan(downloads);
+    expect(sponsors).toBeGreaterThan(gitGem);
+    expect(coffee).toBeGreaterThan(sponsors);
+    expect(stars).toBeGreaterThan(coffee);
+    for (const label of ['GitHub Sponsors', 'Buy Me a Coffee', 'GitHub stars']) {
+      expect(readme.split(`alt="${label}"`)).toHaveLength(2);
+    }
+  });
+
   it('keeps temporary implementation plans out of durable public docs', async () => {
     const plansRoot = resolve(repoRoot, 'docs/superpowers/plans');
     const entries = await readdir(plansRoot, { recursive: true }).catch(

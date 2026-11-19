@@ -852,6 +852,14 @@ describe('Hosted Cloud browser portal', () => {
       const signedHtml = await signedLanding.text();
       expect(signedHtml).toContain('Your devices');
       expect(signedHtml).toContain('id="refresh-clients"');
+      // Setup text must have one flexible text column: bare text/strong children
+      // of a flex row shrink into separate narrow columns on a desktop card.
+      expect(signedHtml.match(/class="step-copy"/g)).toHaveLength(3);
+      expect(CLOUD_CSS).toContain('grid-template-columns:26px minmax(0,1fr)');
+      expect(CLOUD_CSS).toContain('.setup-steps .step-copy{min-width:0');
+      expect(signedHtml).toContain(
+        'https://github.com/oaslananka/easyeda-mcp-pro/releases/latest/download/easyeda-bridge-extension.eext',
+      );
 
       const login = await fetch(`${base}/sign-in`);
       const html = await login.text();
