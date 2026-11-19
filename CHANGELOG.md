@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.16.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.6...easyeda-mcp-pro-v1.16.0) (2026-11-19)
+
+
+### Features
+
+* **cloud:** implement opt-in hosted OAuth and native MCP relay ([#849](https://github.com/oaslananka/easyeda-mcp-pro/issues/849)) ([#1057](https://github.com/oaslananka/easyeda-mcp-pro/issues/1057)) ([a2d635b](https://github.com/oaslananka/easyeda-mcp-pro/commit/a2d635b60fd3eed26a1091cd95adc1a785accfba))
+* **ui:** improve accessibility, feedback states, and toast notifications ([#1068](https://github.com/oaslananka/easyeda-mcp-pro/issues/1068)) ([d5d82e0](https://github.com/oaslananka/easyeda-mcp-pro/commit/d5d82e0fcd98f397ce5a86f775c21d519abe07a3))
+
+
+### Bug Fixes
+
+* **bridge:** fail closed on unverified source-text removal ([#1076](https://github.com/oaslananka/easyeda-mcp-pro/issues/1076)) ([bc7fe65](https://github.com/oaslananka/easyeda-mcp-pro/commit/bc7fe65db78d0e9622cebc9b818f2e16eca4c9c2))
+* **cloud:** avoid false relay timeout after Web editor suspension ([#1079](https://github.com/oaslananka/easyeda-mcp-pro/issues/1079)) ([9f5227b](https://github.com/oaslananka/easyeda-mcp-pro/commit/9f5227bce23d27bf6fe2c35e54be66c59ab8001e))
+* **cloud:** remember approved device pairing across editor restarts ([#1077](https://github.com/oaslananka/easyeda-mcp-pro/issues/1077)) ([2d1d801](https://github.com/oaslananka/easyeda-mcp-pro/commit/2d1d8017ffba197dc1f9e118fbc70dd1f927e80c))
+* **extension:** clarify native approval expiry window ([#1071](https://github.com/oaslananka/easyeda-mcp-pro/issues/1071)) ([ecf96c5](https://github.com/oaslananka/easyeda-mcp-pro/commit/ecf96c54b73f17c7246538d8532dd0dbe285f87a))
+* **onboarding:** make first connection clear and report setup failures ([#1075](https://github.com/oaslananka/easyeda-mcp-pro/issues/1075)) ([dccb5ac](https://github.com/oaslananka/easyeda-mcp-pro/commit/dccb5ac6750f42d224134c02e0b0afc5cdc90991))
+* **release:** align measured extension archive size with v1.16.0 ([#1080](https://github.com/oaslananka/easyeda-mcp-pro/issues/1080)) ([2cc540c](https://github.com/oaslananka/easyeda-mcp-pro/commit/2cc540c1cb1f40fc53f17c268509db0a137908d0))
+* **schematic:** enable verified single-text deletion on EasyEDA Pro 4.1.105 ([#1081](https://github.com/oaslananka/easyeda-mcp-pro/issues/1081)) ([82385a4](https://github.com/oaslananka/easyeda-mcp-pro/commit/82385a46fb60c63adb30402a9518928168dba3d6))
+* **security:** resolve audit vulnerabilities in remote gateway, bridge, and tool scopes ([#1070](https://github.com/oaslananka/easyeda-mcp-pro/issues/1070)) ([1d737dd](https://github.com/oaslananka/easyeda-mcp-pro/commit/1d737dd5c1d6155c6e524fec357507a896e0403a))
+* **windows,security:** restore native bridge and harden picomatch ([#1072](https://github.com/oaslananka/easyeda-mcp-pro/issues/1072)) ([b769d53](https://github.com/oaslananka/easyeda-mcp-pro/commit/b769d537e89c783bbed6f45061c444eb16d4df70))
+
 ## [1.15.6](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.15.5...easyeda-mcp-pro-v1.15.6) (2026-11-15)
 
 
