@@ -166,3 +166,87 @@ describe('explicit hosted extension/project selection', () => {
     expect(gateway.getSelectedProject(owner)).toBeUndefined();
   });
 });
+
+describe('hosted MCP request project identity', () => {
+  it('rejects a foreign project ID before either read dispatch or native write approval', async () => {
+    const gateway = new RemoteGateway();
+    gateway.requireExplicitProjectSelection();
+    const dispatched: string[] = [];
+    const session = gateway.registerExtension({
+      connectionId: 'real-editor-disposable',
+      mode: 'hosted',
+      extensionVersion: '1.16.1',
+      activeProject: {
+        projectId: 'selected-native-project',
+        documentId: 'selected-schematic-page',
+        documentType: 'schematic',
+        projectName: 'Selected disposable project',
+      },
+      dispatch: async (request: ToolRequestMessage) => {
+        dispatched.push(request.toolName);
+        return {
+          protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+          type: 'tool_response' as const,
+          messageId: 'response-' + dispatched.length,
+          sessionId: request.sessionId,
+          requestMessageId: request.messageId,
+          timestamp: new Date().toISOString(),
+          ok: true as const,
+          result: { currentPage: { uuid: 'selected-schematic-page' } },
+          durationMs: 1,
+        };
+      },
+    });
+    const code = gateway.createPairingCode({ identity: owner, sessionId: session.sessionId });
+    expect(gateway.completePairing({ identity: owner, code, sessionId: session.sessionId })).toBe(
+      true,
+    );
+    expect(gateway.selectPairedProject(owner, session.sessionId)).toBe(true);
+
+    const foreignProject = { projectId: 'different-native-project', scope: 'focused' };
+    await expect(
+      gateway.routeToolRequest({
+        identity: owner,
+        riskLevel: 'read',
+        toolName: 'schematic.getSheetInfo',
+        input: foreignProject,
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'PROJECT_INACTIVE' });
+    await expect(
+      gateway.routeToolRequest({
+        identity: owner,
+        riskLevel: 'read',
+        toolName: 'schematic.getSheetInfo',
+        input: { projectId: null },
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'PROJECT_INACTIVE' });
+
+    await expect(
+      gateway.authorizeToolInvocation({
+        identity: { userId: owner.userId, scopes: ['easyeda.read', 'easyeda.write'] },
+        riskLevel: 'write',
+        toolName: 'schematic.addText',
+        input: { projectId: 'different-native-project', content: 'must never reach editor' },
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'PROJECT_INACTIVE' });
+    expect(dispatched).toEqual([]);
+
+    await expect(
+      gateway.routeToolRequest({
+        identity: owner,
+        riskLevel: 'read',
+        toolName: 'schematic.getSheetInfo',
+        input: { projectId: 'selected-native-project', scope: 'focused' },
+      }),
+    ).resolves.toMatchObject({ ok: true, sessionId: session.sessionId });
+    await expect(
+      gateway.routeToolRequest({
+        identity: owner,
+        riskLevel: 'read',
+        toolName: 'schematic.getSheetInfo',
+        input: { scope: 'focused' },
+      }),
+    ).resolves.toMatchObject({ ok: true, sessionId: session.sessionId });
+    expect(dispatched).toEqual(['schematic.getSheetInfo', 'schematic.getSheetInfo']);
+  });
+});
