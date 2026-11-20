@@ -3,7 +3,9 @@ import { z } from 'zod';
 export const EasyedaApiMethodSchema = z.enum([
   'project.list',
   'project.open',
+  'project.create',
   'project.close',
+  'document.activate',
   'project.save',
   'project.export',
   'schematic.listNets',
@@ -44,6 +46,8 @@ export const EasyedaApiMethodSchema = z.enum([
   'board.getDimensions',
   'board.getFeatures',
   'board.exportGerbers',
+  'board.export3d',
+  'pcb.importFromSchematic',
   'bom.generate',
   'bom.validate',
   'inventory.search',

@@ -10,6 +10,9 @@ export interface ProjectOperations {
   close(params: Record<string, unknown>): Promise<unknown>;
   save(params: Record<string, unknown>): Promise<unknown>;
   export(params: Record<string, unknown>): Promise<unknown>;
+  activateDocument(params: Record<string, unknown>): Promise<unknown>;
+  create(params: Record<string, unknown>): Promise<unknown>;
+  importSchematicToPcb(params: Record<string, unknown>): Promise<unknown>;
 }
 
 type Data = Record<string, unknown>;
@@ -401,5 +404,144 @@ export function createProjectOperations({
     );
   }
 
-  return { list, open, close, save, export: exportProject };
+  async function focusedDocument(): Promise<Data | undefined> {
+    return object(await native('dmt_SelectControl.getCurrentDocumentInfo'));
+  }
+
+  // Resolve a document of the ACTIVE project, or the status that explains why it is unusable.
+  async function activeProjectDocument(
+    projectId: string,
+    documentId: string,
+  ): Promise<{ doc?: Document; status?: string }> {
+    const active = await current();
+    if (id(active?.uuid) !== projectId) return { status: 'project_not_active' };
+    const doc = documentTree(active as Data).find((entry) => entry.documentId === documentId);
+    if (!doc) return { status: 'document_not_in_project' };
+    if (doc.type === 'panel') return { status: 'panel_activation_unsupported' };
+    return { doc };
+  }
+
+  async function waitForFocus(projectId: string, documentId: string): Promise<boolean> {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const focused = await focusedDocument();
+      if (id(focused?.uuid) === documentId && id(focused?.parentProjectUuid) === projectId)
+        return true;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return false;
+  }
+
+  // Open (if needed) and bring one document of the ACTIVE project to the front, then prove the
+  // focus by read-back. Only UI focus changes; no design data is written.
+  async function activateDocument(params: Record<string, unknown>): Promise<unknown> {
+    const projectId = id(params.projectId);
+    const documentId = id(params.documentId);
+    if (!projectId || !documentId) return { success: false, status: 'invalid_params' };
+    const base = { projectId, documentId };
+    const { doc, status } = await activeProjectDocument(projectId, documentId);
+    if (!doc) return { success: false, status, ...base };
+    const tabId = id(await native('dmt_EditorControl.openDocument', documentId));
+    if (!tabId) return { success: false, status: 'native_open_failed', ...base };
+    if ((await native('dmt_EditorControl.activateDocument', tabId)) !== true)
+      return { success: false, status: 'native_activation_failed', ...base, tabId };
+    return (await waitForFocus(projectId, documentId))
+      ? { success: true, status: 'activated', ...base, type: doc.type, tabId }
+      : { success: false, status: 'focus_not_verified', ...base, tabId };
+  }
+
+  async function waitForBoardDocuments(projectId: string): Promise<Data | undefined> {
+    await native('dmt_Project.waitForReady').catch(() => undefined);
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const value = await current();
+      const docs = id(value?.uuid) === projectId ? documentTree(value as Data) : [];
+      if (docs.some((d) => d.type === 'pcb') && docs.some((d) => d.type === 'schematic'))
+        return value;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    return undefined;
+  }
+
+  // Create a project. EasyEDA Pro 4.1.105 adds a default board (schematic + PCB) when the new
+  // project is opened, although the API reference says createProject initialises no document.
+  // Opening switches projects, so it is refused while user documents may hold unsaved edits.
+  async function create(params: Record<string, unknown>): Promise<unknown> {
+    if (params.confirmWrite !== true) return { success: false, status: 'confirm_write_required' };
+    const friendlyName = id(params.friendlyName);
+    if (!friendlyName) return { success: false, status: 'invalid_friendly_name' };
+    const openAfterCreate = params.open !== false;
+    if (openAfterCreate) {
+      const tabs = await readTabs();
+      if (!tabs || tabs.some((tab) => !startPage(tab)))
+        return { success: false, status: 'open_documents_may_be_dirty' };
+    }
+    const projectId = id(
+      await native(
+        'dmt_Project.createProject',
+        friendlyName,
+        id(params.projectName),
+        undefined,
+        undefined,
+        typeof params.description === 'string' ? params.description : undefined,
+      ),
+    );
+    if (!projectId) return { success: false, status: 'native_create_failed' };
+    if (!openAfterCreate) return { success: true, status: 'created', projectId };
+    if ((await native('dmt_Project.openProject', projectId)) !== true)
+      return { success: false, status: 'created_open_failed', projectId };
+    const after = await waitForBoardDocuments(projectId);
+    if (!after) return { success: false, status: 'created_tree_not_ready', projectId };
+    return {
+      success: true,
+      status: 'created_and_opened',
+      projectId,
+      documents: withTabIds(documentTree(after), (await readTabs()) ?? [], projectId),
+    };
+  }
+
+  // The focused PCB of the active project and the schematic of its board, or why not.
+  async function focusedPcbWithSchematic(
+    projectId: string,
+  ): Promise<{ pcbId?: string; schematicId?: string; status?: string }> {
+    const active = await current();
+    if (id(active?.uuid) !== projectId) return { status: 'project_not_active' };
+    const focused = await focusedDocument();
+    const pcbId = id(focused?.uuid);
+    const isPcb = focused?.documentType === 3 && id(focused?.parentProjectUuid) === projectId;
+    if (!isPcb || !pcbId) return { status: 'pcb_not_focused' };
+    const rows = Array.isArray(active?.data) ? (active?.data as unknown[]) : [];
+    const board = rows.map(object).find((row) => id(object(row?.pcb)?.uuid) === pcbId);
+    const schematicId = id(object(board?.schematic)?.uuid);
+    return schematicId ? { pcbId, schematicId } : { pcbId, status: 'pcb_has_no_schematic' };
+  }
+
+  // Schematic -> PCB update without the confirmation dialog. SCH_Document.importChanges imports
+  // in the other direction (PCB -> schematic). PCB_Document.importChanges(schematicUuid, true)
+  // skips the dialog and waits for the import (live-verified on EasyEDA Pro 4.1.105).
+  async function importSchematicToPcb(params: Record<string, unknown>): Promise<unknown> {
+    const projectId = id(params.projectId);
+    if (!projectId) return { success: false, status: 'invalid_project_id' };
+    if (params.confirmWrite !== true)
+      return { success: false, status: 'confirm_write_required', projectId };
+    const { pcbId, schematicId, status } = await focusedPcbWithSchematic(projectId);
+    if (!schematicId) return { success: false, status, projectId, ...(pcbId ? { pcbId } : {}) };
+    const imported = await native('pcb_Document.importChanges', schematicId, true);
+    return {
+      success: imported === true,
+      status: imported === true ? 'imported' : 'native_import_failed',
+      projectId,
+      pcbId,
+      schematicId,
+    };
+  }
+
+  return {
+    list,
+    open,
+    close,
+    save,
+    export: exportProject,
+    activateDocument,
+    create,
+    importSchematicToPcb,
+  };
 }

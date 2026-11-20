@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
@@ -13,6 +14,9 @@ interface BinaryBridgeResult {
   base64?: string;
   fileName?: string;
 }
+
+/** Building a STEP/OBJ model of the board takes longer than an ordinary bridge call. */
+const EXPORT_3D_TIMEOUT_MS = 5 * 60 * 1000;
 
 interface WriteExportResult {
   ok: boolean;
@@ -895,6 +899,113 @@ function registerExportTools(
         return {
           project_id: projectId,
           format,
+          exported: false,
+          not_available: true,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_export_3d',
+    title: 'Export the board 3D model (STEP or OBJ)',
+    description:
+      'Export the focused PCB as STEP or OBJ (PCB_ManufactureData.get3DFile, beta) for mechanical integration. Only component models imported as STEP appear; others can be boxed by height.',
+    profile: 'pro',
+    evidence: ['official-docs', 'runtime-probe'],
+    risk: 'low',
+    confirmWrite: false,
+    sideEffect: 'artifact-write',
+    group: 'export',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().trim().min(1),
+      filePath: z.string().optional(),
+      fileType: z.enum(['step', 'obj']).default('step'),
+      elements: z
+        .array(z.enum(['Component Model', 'Via', 'Silkscreen', 'Wire In Signal Layer']))
+        .default(['Component Model']),
+      modelMode: z.enum(['Outfit', 'Parts']).default('Outfit'),
+      autoGenerateModels: z.boolean().default(true),
+    }),
+    outputSchema: z.object({
+      project_id: z.string(),
+      file_type: z.enum(['step', 'obj']).optional(),
+      file_path: z.string().optional(),
+      byte_length: z.number().int().nonnegative().optional(),
+      sha256: z.string().optional(),
+      exported: z.boolean(),
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId, filePath, fileType, elements, modelMode, autoGenerateModels } = params as {
+        projectId: string;
+        filePath?: string;
+        fileType: 'step' | 'obj';
+        elements: string[];
+        modelMode: 'Outfit' | 'Parts';
+        autoGenerateModels: boolean;
+      };
+      try {
+        // Generating the 3D model takes longer than an ordinary bridge call.
+        const result = await ctx.bridge.call(
+          'board.export3d',
+          {
+            projectId,
+            fileName: `${projectId}-3d`,
+            fileType,
+            elements,
+            modelMode,
+            autoGenerateModels,
+          },
+          { timeoutMs: EXPORT_3D_TIMEOUT_MS },
+        );
+        // This native API is expected to return a binary STEP/OBJ Blob, not
+        // structured JSON. Never publish empty/malformed data as a model file.
+        const binary = result as BinaryBridgeResult | null;
+        const base64 = binary?.base64;
+        if (
+          typeof base64 !== 'string' ||
+          base64.length === 0 ||
+          !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64) ||
+          Buffer.from(base64, 'base64').byteLength === 0
+        ) {
+          return {
+            project_id: projectId,
+            exported: false,
+            not_available: true,
+            error: 'Bridge returned an empty or invalid 3D model payload.',
+          };
+        }
+        const written = writeExportPayload(ctx, result, filePath, `${projectId}-3d.${fileType}`);
+        if (!written.ok) {
+          return {
+            project_id: projectId,
+            exported: false,
+            not_available: true,
+            error: written.error,
+          };
+        }
+        return {
+          project_id: projectId,
+          file_type: fileType,
+          file_path: written.filePath,
+          byte_length: written.byteLength,
+          sha256: createHash('sha256')
+            .update(fs.readFileSync(written.filePath as string))
+            .digest('hex'),
+          exported: true,
+        };
+      } catch (err) {
+        return {
+          project_id: projectId,
           exported: false,
           not_available: true,
           error: err instanceof Error ? err.message : String(err),

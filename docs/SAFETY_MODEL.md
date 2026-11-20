@@ -377,10 +377,27 @@ expected outcome (`available: false`) rather than a tool failure.
 
 ---
 
+### 1.3a Unattended design cycle (`easyeda_document_activate`, `easyeda_project_create`, `easyeda_pcb_import_from_schematic`)
+
+- `easyeda_document_activate` (profile `core`, no `confirmWrite`, `local-state-write`) only changes UI
+  focus: it opens and activates one schematic page or PCB of the **active** project and reports success
+  only after reading the focused document back. It refuses documents of other projects and panels.
+- `easyeda_project_create` (profile `core`, `confirmWrite`) creates a project and, by default, opens it.
+  Opening switches projects, so it applies the same rule as `easyeda_project_open`: it is refused while
+  any user document tab is open, because unsaved edits cannot be proven absent.
+- `easyeda_pcb_import_from_schematic` (profile `pro`, `confirmWrite`, risk `high`, `design-mutation`)
+  calls `PCB_Document.importChanges(schematicUuid, true)` on the focused PCB of the active project. The
+  `force` flag skips EasyEDA's confirmation dialog, so the MCP-level `confirmWrite` is the only approval:
+  remote callers get the destructive risk class. It refuses when the PCB is not focused or the board has
+  no schematic, and reports `native_import_failed` when EasyEDA does not acknowledge the import. Imported
+  nets arrive unrouted; run DRC afterwards.
+
+---
+
 ### 1.4 Artifact exports
 
-`easyeda_export_gerbers`, `easyeda_export_pick_place`, `easyeda_export_pdf`, and
-`easyeda_export_netlist` are explicitly classified as `artifact-write`. They call the bridge to
+`easyeda_export_gerbers`, `easyeda_export_pick_place`, `easyeda_export_pdf`,
+`easyeda_export_netlist`, and `easyeda_export_3d` are explicitly classified as `artifact-write`. They call the bridge to
 produce export data and write the resulting payload only inside `ARTIFACT_DIR`; they do not alter
 schematic or PCB state and therefore do not require the local design-mutation parameter
 `confirmWrite=true`.
