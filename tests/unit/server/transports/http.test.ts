@@ -261,37 +261,52 @@ describe('createHttpTransport', () => {
     });
     const transport = createHttpTransport(config);
     const server = http.createServer(transport.app);
-    await new Promise<void>((resolve) => server.listen(3899, '127.0.0.1', resolve));
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
 
     try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Missing loopback test port');
+      const request = (
+        path: string,
+        method: string,
+        headers: Record<string, string>,
+      ): Promise<{ status: number; headers: http.IncomingHttpHeaders }> =>
+        new Promise((resolve, reject) => {
+          const outgoing = http.request(
+            { hostname: '127.0.0.1', port: address.port, path, method, headers },
+            (incoming) => {
+              incoming.resume();
+              incoming.on('end', () =>
+                resolve({ status: incoming.statusCode ?? 0, headers: incoming.headers }),
+              );
+            },
+          );
+          outgoing.on('error', reject);
+          outgoing.end();
+        });
+
       const origin = 'http://127.0.0.1:6274';
-      const preflight = await fetch('http://127.0.0.1:3899/mcp', {
-        method: 'OPTIONS',
-        headers: {
-          Origin: origin,
-          'Access-Control-Request-Method': 'POST',
-          'Access-Control-Request-Headers': 'authorization,content-type,mcp-protocol-version',
-        },
+      const preflight = await request('/mcp', 'OPTIONS', {
+        Origin: origin,
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'authorization,content-type,mcp-protocol-version',
       });
       expect(preflight.status).toBe(204);
-      expect(preflight.headers.get('access-control-allow-origin')).toBe(origin);
-      expect(preflight.headers.get('access-control-allow-methods')).toContain('POST');
+      expect(preflight.headers['access-control-allow-origin']).toBe(origin);
+      expect(preflight.headers['access-control-allow-methods']).toContain('POST');
 
-      const allowed = await fetch('http://127.0.0.1:3899/healthz', { headers: { Origin: origin } });
+      const allowed = await request('/healthz', 'GET', { Origin: origin });
       expect(allowed.status).toBe(200);
-      expect(allowed.headers.get('access-control-allow-origin')).toBe(origin);
-      expect(allowed.headers.get('access-control-expose-headers')).toContain('WWW-Authenticate');
+      expect(allowed.headers['access-control-allow-origin']).toBe(origin);
+      expect(allowed.headers['access-control-expose-headers']).toContain('WWW-Authenticate');
 
-      const other = await fetch('http://127.0.0.1:3899/mcp', {
-        method: 'OPTIONS',
-        headers: {
-          Origin: 'https://untrusted.example.com',
-          'Access-Control-Request-Method': 'POST',
-          'Access-Control-Request-Headers': 'authorization,content-type',
-        },
+      const other = await request('/mcp', 'OPTIONS', {
+        Origin: 'https://untrusted.example.com',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'authorization,content-type',
       });
       expect(other.status).toBe(403);
-      expect(other.headers.get('access-control-allow-origin')).toBeNull();
+      expect(other.headers['access-control-allow-origin']).toBeUndefined();
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
