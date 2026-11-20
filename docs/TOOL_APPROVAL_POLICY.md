@@ -78,6 +78,11 @@ A previous approval must not authorize a materially different input payload.
 ## Default policy
 
 - Read tools: no prompt after auth and pairing.
+- Beginning a document transaction reserves an exclusive write lock. It requires
+  project-write capability and the remote write approval boundary, even though
+  creating an empty transaction does not edit a native primitive. Transaction
+  status and validation remain read-only; actual rollback retains its native
+  approval requirements.
 - Allowlisted routine writes: one native approval per authenticated client and native project session (up to 30 minutes).
 - Local artifact exports: a separate first native approval per authenticated client and native project session (up to 30 minutes).
 - Other writes/exports: require a fresh native approval per action.

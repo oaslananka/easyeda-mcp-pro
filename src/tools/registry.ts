@@ -172,6 +172,9 @@ const STATIC_GROUP_SCOPES: Partial<Record<ToolDefinition['group'], string[]>> = 
 };
 
 function specialToolScopes(tool: ToolDefinition): string[] | undefined {
+  // Beginning a transaction reserves an exclusive document lock even before
+  // the first native write. A read-only client must not be able to hold it.
+  if (tool.name === 'easyeda_project_begin_transaction') return ['project:write'];
   if (tool.name === 'easyeda_execute') return ['bridge:execute'];
   if (tool.name === 'easyeda_dev_hot_swap') return ['bridge:execute'];
   if (tool.name === 'easyeda_live_write_regression') return ['diagnostics:write'];

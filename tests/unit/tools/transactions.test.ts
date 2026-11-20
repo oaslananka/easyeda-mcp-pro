@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EnvSchema } from '../../../src/config/env.js';
-import { ToolRegistry } from '../../../src/tools/registry.js';
+import {
+  ToolRegistry,
+  ErrorCodes,
+  getRequiredToolScopes,
+  remoteRiskForTool,
+  sideEffectForTool,
+  handleRegisteredToolCall,
+} from '../../../src/tools/registry.js';
+import { checkRemoteScope, requiredScopeForRisk } from '../../../src/remote/scope.js';
 import { registerTransactionTools } from '../../../src/tools/L1_transactions.js';
 import { type ToolContext } from '../../../src/tools/types.js';
 import {
@@ -45,6 +53,54 @@ describe('Project transaction tools', () => {
     expect(registry.get('easyeda_project_get_transaction_status')?.annotations.readOnlyHint).toBe(
       true,
     );
+  });
+
+  it('requires write authorization for a document-locking transaction begin', async () => {
+    const begin = registry.get('easyeda_project_begin_transaction');
+    expect(begin).toBeDefined();
+    expect(begin?.confirmWrite).toBe(false);
+    expect(begin?.annotations.readOnlyHint).toBe(false);
+    expect(sideEffectForTool(begin!)).toBe('local-state-write');
+    expect(remoteRiskForTool(begin!)).toBe('write');
+    expect(getRequiredToolScopes(begin!)).toEqual(['project:write']);
+    expect(requiredScopeForRisk(remoteRiskForTool(begin!))).toBe('easyeda.write');
+
+    expect(checkRemoteScope({ userId: 'reader', scopes: ['easyeda.read'] }, 'write')).toMatchObject(
+      { ok: false },
+    );
+
+    const blocked = await handleRegisteredToolCall(
+      begin!,
+      { ...context, config: { ...context.config, TOOL_SCOPES: 'project:read' } },
+      { projectId: 'proj-1' },
+      {},
+    );
+    expect(blocked).toMatchObject({
+      isError: true,
+      structuredContent: {
+        errorCode: ErrorCodes.FORBIDDEN_SCOPE,
+        details: { requiredScopes: ['project:write'] },
+      },
+    });
+
+    // A refused read-scoped request must not reserve the document.
+    expect(getGlobalTransactionManager().begin({ documentId: 'proj-1' }).state).toBe('active');
+  });
+
+  it('allows explicitly authorized project writers to begin without a native design write', async () => {
+    const begin = registry.get('easyeda_project_begin_transaction');
+    const result = await handleRegisteredToolCall(
+      begin!,
+      { ...context, config: { ...context.config, TOOL_SCOPES: 'project:write' } },
+      { projectId: 'proj-2', maxOperations: 1, ttlSeconds: 60 },
+      {},
+    );
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({
+      success: true,
+      transaction: { document_id: 'proj-2', state: 'active', operation_count: 0 },
+    });
+    expect(bridgeCall).not.toHaveBeenCalled();
   });
 
   it('states that opening a project transaction does not auto-capture standalone schematic writes', () => {
