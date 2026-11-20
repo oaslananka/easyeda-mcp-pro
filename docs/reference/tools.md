@@ -77,7 +77,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_post_write_qa`                            | `core`         | `medium` | Run and classify post-write schematic QA after generated edits. Combines native DRC/ERC results with policy-aware classification so duplicate net names, free networks, and unconnected pins are reported as pass/fail/inconclusive instead of raw warning counts.                                                            |
 | `easyeda_power_tree_analyze`                       | `core`         | `medium` | Analyze supply sources, regulators, loads, protection, bulk capacitance, current budget, dropout, and regulator thermal risk. Returns machine-readable issues and a human-readable summary.                                                                                                                                   |
 | `easyeda_production_qa_artifacts`                  | `pro`          | `low`    | Generate testpoint, assembly and bring-up QA handoff artifacts; explicit human review is required and generated files never certify fabrication approval.                                                                                                                                                                     |
-| `easyeda_project_begin_transaction`                | `core`         | `low`    | Open an in-memory, document-scoped transaction for snapshot-backed schematic writes. Only tools passed transactionId participate; standalone schematic writes are not auto-captured. Only one active transaction is allowed per document. Beginning a transaction does not modify EasyEDA.                                    |
+| `easyeda_project_begin_transaction`                | `core`         | `medium` | Reserve one document write lock for snapshot-backed schematic writes. Only tools with transactionId participate; standalone schematic writes are not auto-captured. Requires project-write authorization but does not change EasyEDA.                                                                                         |
 | `easyeda_project_close`                            | `core`         | `high`   | Default refuses when dirty status is unknown. Explicit confirmed save-and-close requires a trusted native save; schematic pages with unverified durable persistence fail closed instead of risking data loss. Explicit discard is destructive.                                                                                |
 | `easyeda_project_commit_transaction`               | `core`         | `medium` | Finalize a transaction after its writes and validation gates succeed. Commit removes rollback eligibility and releases the document transaction lock.                                                                                                                                                                         |
 | `easyeda_project_get_transaction_status`           | `core`         | `low`    | Read transaction state, validation results, operation hashes, and rollback status without exposing captured primitive snapshots.                                                                                                                                                                                              |
@@ -2622,9 +2622,9 @@ Returns a JSON object matching the schema:
 
 ## `easyeda_project_begin_transaction`
 
-**Profile:** `core` | **Risk Level:** `low`
+**Profile:** `core` | **Risk Level:** `medium`
 
-> Open an in-memory, document-scoped transaction for snapshot-backed schematic writes. Only tools passed transactionId participate; standalone schematic writes are not auto-captured. Only one active transaction is allowed per document. Beginning a transaction does not modify EasyEDA.
+> Reserve one document write lock for snapshot-backed schematic writes. Only tools with transactionId participate; standalone schematic writes are not auto-captured. Requires project-write authorization but does not change EasyEDA.
 
 ### Input Parameters
 
