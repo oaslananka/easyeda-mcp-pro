@@ -328,12 +328,79 @@ describe('Hosted Cloud browser recovery', () => {
 
     clients = [{ id: 'qa-client', name: 'MCP Inspector', scopes: ['easyeda.read'] }];
     await result.elements.get('refresh-clients').dispatch('click');
+    expect(result.elements.get('progress-access').dataset.state).toBe('current');
+    expect(result.elements.get('progress-ask').dataset.state).toBe('waiting');
+    expect(result.elements.get('guided-access-status').textContent).toContain('MCP Inspector');
+    expect(result.elements.get('copy-first-question').disabled).toBe(true);
+    await result.elements.get('client-other').dispatch('click');
     expect(result.elements.get('progress-access').dataset.state).toBe('done');
-    expect(result.elements.get('progress-ask').dataset.state).toBe('done');
+    expect(result.elements.get('progress-ask').dataset.state).toBe('current');
     expect(result.elements.get('copy-first-question').disabled).toBe(false);
     clients = [];
     await result.elements.get('refresh-clients').dispatch('click');
     expect(result.elements.get('copy-first-question').disabled).toBe(true);
+  });
+
+  it('does not tell a selected AI client it is ready when only another client has Read access', async () => {
+    let consents = [{ id: 'jam', name: 'MCPJam', scopes: ['easyeda.read'] }];
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Owner' } }) };
+      if (url === '/cloud/api/extensions')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            sessions: [
+              {
+                sessionId: 'sess_qa',
+                connected: true,
+                mode: 'hosted',
+                extensionVersion: '1.16.1',
+                activeProject: { projectId: 'qa', documentId: 'P1', documentType: 'schematic' },
+              },
+            ],
+            selection: { sessionId: 'sess_qa', projectId: 'qa', documentId: 'P1' },
+          }),
+        };
+      if (url === '/cloud/api/clients')
+        return { ok: true, status: 200, json: async () => ({ clients: consents }) };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ total: 0, succeeded: 0, failed: 0, lastCallAt: null }),
+        };
+      throw Error('Unexpected request ' + url);
+    });
+    // Default ChatGPT must not inherit authorization from an unrelated MCPJam client.
+    expect(result.elements.get('guided-hint').textContent).toContain('ChatGPT');
+    expect(result.elements.get('guided-hint').textContent).toContain('not listed');
+    expect(result.elements.get('guided-access-status').textContent).toContain('MCPJam');
+    expect(result.elements.get('progress-ask').dataset.state).toBe('waiting');
+    expect(result.elements.get('copy-first-question').disabled).toBe(true);
+
+    // Choosing Other is an explicit escape hatch for custom-named clients.
+    await result.elements.get('client-other').dispatch('click');
+    expect(result.elements.get('copy-first-question').disabled).toBe(false);
+    expect(result.elements.get('progress-ask').dataset.state).toBe('current');
+    expect(result.elements.get('guided-hint').textContent).toContain(
+      'Read access is listed for MCPJam',
+    );
+    expect(result.elements.get('guided-hint').textContent).not.toContain('named MCP client');
+
+    // Switching to Cursor resets readiness until it has its own named consent.
+    await result.elements.get('client-cursor').dispatch('click');
+    expect(result.elements.get('guided-hint').textContent).toContain('Cursor');
+    expect(result.elements.get('copy-first-question').disabled).toBe(true);
+    consents = [
+      { id: 'jam', name: 'MCPJam', scopes: ['easyeda.read'] },
+      { id: 'cursor', name: 'Cursor', scopes: ['easyeda.read'] },
+    ];
+    await result.elements.get('refresh-clients').dispatch('click');
+    expect(result.elements.get('copy-first-question').disabled).toBe(false);
+    expect(result.elements.get('progress-ask').dataset.state).toBe('current');
+    expect(result.elements.get('guided-hint').textContent).toContain('Cursor');
   });
 
   it('renders persistent owner call totals and refreshes them without reloading', async () => {
@@ -743,7 +810,14 @@ describe('Hosted Cloud browser recovery', () => {
     const list = result.elements.get('extensions');
     expect(result.elements.get('device-count').textContent).toBe('0 connected');
     expect(result.elements.get('workspace-grid').dataset.empty).toBe('true');
-    expect(list.children[0].textContent).toContain('Connect EasyEDA');
+    expect(result.elements.get('guided-device-status').textContent).toContain(
+      'Saved pairing offline',
+    );
+    expect(result.elements.get('guided-hint').textContent).toContain('saved pairing');
+    expect(result.elements.get('guided-hint').textContent).not.toContain('install the bridge');
+    expect(result.elements.get('guided-connect-link').textContent).toContain('Reconnect EasyEDA');
+    expect(result.elements.get('guided-connect-link').href).toBe('#extensions-title');
+    expect(list.children[0].textContent).toContain('Reopen EasyEDA');
     expect(list.children[1].children[0].textContent).toBe('Previous connections (2)');
     expect(list.children[1].children[2].children[1].textContent).toBe('Remove access');
   });

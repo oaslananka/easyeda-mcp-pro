@@ -222,28 +222,49 @@ export const CLOUD_JS = String.raw`
     let deviceLoaded = false;
     let clientsLoaded = false;
     let hasOnlineDevice = false;
+    let hasPreviousPairings = false;
     let hasSelectedDesign = false;
     let readClientCount = 0;
+    let readClientNames = [];
+    // OAuth grants are authoritative; client display names are only a UI cue,
+    // never a security boundary or proof that the selected app is connected.
+    const selectedClientHasReadAccess = () => readClientCount > 0 &&
+      (selectedClient === 'other' || readClientNames.some((name) =>
+        name.toLowerCase().includes(selectedClient)));
     const updateGuided = () => {
+      const chosenClientName = clientOptions[selectedClient].name;
+      const chosenClientHasReadAccess = selectedClientHasReadAccess();
       const deviceStage = get('progress-device');
       const accessStage = get('progress-access');
       const questionStage = get('progress-ask');
       if (deviceStage) deviceStage.dataset.state = hasSelectedDesign ? 'done' : 'current';
-      if (accessStage) accessStage.dataset.state = readClientCount && hasSelectedDesign ? 'done' : hasSelectedDesign ? 'current' : 'waiting';
-      if (questionStage) questionStage.dataset.state = hasSelectedDesign && readClientCount ? 'done' : 'waiting';
+      if (accessStage) accessStage.dataset.state = chosenClientHasReadAccess && hasSelectedDesign ? 'done' : hasSelectedDesign ? 'current' : 'waiting';
+      // The sample question still needs to be asked inside the actual MCP client.
+      if (questionStage) questionStage.dataset.state = hasSelectedDesign && chosenClientHasReadAccess ? 'current' : 'waiting';
       setText('guided-device-status', !deviceLoaded ? 'Checking connection…' :
-        hasSelectedDesign ? 'Connected · design selected' : hasOnlineDevice ? 'Connected · choose a design below' : 'Not connected');
+        hasSelectedDesign ? 'Connected · design selected' : hasOnlineDevice ? 'Connected · choose a design below' :
+        hasPreviousPairings ? 'Saved pairing offline' : 'Not connected');
       setText('guided-access-status', !clientsLoaded ? 'Checking authorization…' :
-        readClientCount ? readClientCount + ' MCP client(s) have Read access' : 'No MCP client authorized yet');
+        readClientCount ? 'Read access: ' + readClientNames.slice(0, 2).join(' · ') +
+          (readClientCount > 2 ? ' +' + (readClientCount - 2) : '') : 'No MCP client authorized yet');
       const prompt = get('copy-first-question');
-      if (prompt) prompt.disabled = !hasSelectedDesign || !readClientCount;
+      if (prompt) prompt.disabled = !hasSelectedDesign || !chosenClientHasReadAccess;
       const connect = get('guided-connect-link');
-      if (connect) { connect.textContent = hasOnlineDevice ? 'Choose the open design ↓' : 'Connect EasyEDA ↓'; connect.href = hasOnlineDevice ? '#extensions-title' : '#pair-title'; }
+      if (connect) {
+        connect.textContent = hasOnlineDevice ? 'Choose the open design ↓' :
+          hasPreviousPairings ? 'Reconnect EasyEDA ↓' : 'Connect EasyEDA ↓';
+        connect.href = hasOnlineDevice || hasPreviousPairings ? '#extensions-title' : '#pair-title';
+      }
       setText('guided-hint', !deviceLoaded || !clientsLoaded ? 'Checking your connection and permissions…' :
+        !hasOnlineDevice && hasPreviousPairings ?
+          'A saved pairing is offline. Reopen EasyEDA and let MCP Bridge reconnect; pair again only if access expired or was removed.' :
         !hasOnlineDevice ? 'Next: install the bridge once, then pair EasyEDA below.' :
         !hasSelectedDesign ? 'Next: choose the open schematic or PCB on your device card. No new pairing needed.' :
         !readClientCount ? 'Next: add the MCP server in your AI app and approve Read access. Write and Export can be added later.' :
-        'Ready to ask. Confirm the AI client you chose is listed in Permissions, then use the sample question.');
+        !chosenClientHasReadAccess ? chosenClientName + ' is not listed as Read-authorized. Check Authorized MCP clients, or choose Other MCP app for a custom-named connector.' :
+        selectedClient === 'other' ?
+          'Read access is listed for ' + readClientNames[0] + '. Confirm that this is your MCP client in Permissions, then try the sample question.' :
+          'A client with a ' + chosenClientName + ' label has Read access. Check its identity in Permissions, then try the sample question.');
     };
     const selectClient = (key) => {
       const choice = clientOptions[key];
@@ -269,6 +290,7 @@ export const CLOUD_JS = String.raw`
           link.textContent = 'Add to Cursor ↗';
         }
       }
+      updateGuided();
     };
     Object.keys(clientOptions).forEach((key) => {
       const button = get('client-' + key);
@@ -286,7 +308,8 @@ export const CLOUD_JS = String.raw`
     get('copy-client-config')?.addEventListener('click', () =>
       copyGuided(get('client-config')?.textContent || mcpUrl, 'Connection details copied. Add them in your AI app and approve Read access.'));
     get('copy-first-question')?.addEventListener('click', () => {
-      if (hasSelectedDesign && readClientCount) void copyGuided(firstQuestion, 'Question copied. Ask it in your authorized MCP client.');
+      if (hasSelectedDesign && selectedClientHasReadAccess())
+        void copyGuided(firstQuestion, 'Question copied. Ask it in the selected, authorized MCP client.');
     });
     selectClient(selectedClient);
     updateGuided();
@@ -383,6 +406,7 @@ export const CLOUD_JS = String.raw`
         selected.documentId === session.activeProject?.documentId);
       deviceLoaded = true;
       hasOnlineDevice = online.length > 0;
+      hasPreviousPairings = offline.length > 0;
       hasSelectedDesign = selectedOnline;
       updateGuided();
       const pairingStatus = get('pairing-code');
@@ -404,7 +428,7 @@ export const CLOUD_JS = String.raw`
         return sessions;
       }
       if (!online.length && offline.length > 1) {
-        list.appendChild(el('div', 'empty', 'No devices online. Connect EasyEDA to choose an active design.'));
+        list.appendChild(el('div', 'empty', 'No devices online. Reopen EasyEDA to reconnect a saved pairing, then choose the active design.'));
       }
       online.forEach((session) => list.appendChild(addSession(session)));
       if (offline.length && (online.length || offline.length > 1)) {
@@ -454,8 +478,12 @@ export const CLOUD_JS = String.raw`
         const data = await request('/cloud/api/clients');
         const consents = Array.isArray(data?.clients) ? data.clients : [];
         clientsLoaded = true;
-        readClientCount = consents.filter((consent) => Array.isArray(consent?.scopes) &&
-          (consent.scopes.includes('easyeda.read') || consent.scopes.includes('easyeda.project_admin'))).length;
+        const readableClients = consents.filter((consent) => Array.isArray(consent?.scopes) &&
+          (consent.scopes.includes('easyeda.read') || consent.scopes.includes('easyeda.project_admin')));
+        readClientCount = readableClients.length;
+        readClientNames = readableClients.map((consent) =>
+          typeof consent.name === 'string' && consent.name.trim() ?
+            consent.name.trim().slice(0, 64) : 'Unrecognized MCP client');
         updateGuided();
         dest.replaceChildren();
         if (!consents.length) { dest.appendChild(el('div','empty','No MCP clients have your authorization yet.')); return; }
