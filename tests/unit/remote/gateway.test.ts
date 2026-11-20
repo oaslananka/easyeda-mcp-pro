@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   REMOTE_RELAY_PROTOCOL_VERSION,
   type ToolRequestMessage,
@@ -366,6 +366,39 @@ describe('RemoteGateway', () => {
       code: 'REMOTE_EXTENSION_TIMEOUT',
       message: expect.stringContaining('5ms'),
     });
+  });
+
+  it('bounds untrusted dispatcher deadlines before allocating a timer', async () => {
+    const { gateway } = makeGateway();
+    const session = registerFakeExtension(gateway);
+    const code = gateway.createPairingCode({
+      identity: readIdentity,
+      sessionId: session.sessionId,
+    });
+    expect(
+      gateway.completePairing({ identity: readIdentity, code, sessionId: session.sessionId }),
+    ).toBe(true);
+
+    const timerSpy = vi.spyOn(globalThis, 'setTimeout');
+    try {
+      await expect(
+        gateway.routeToolRequest({
+          identity: readIdentity,
+          sessionId: session.sessionId,
+          toolName: 'schematic.getDocument',
+          riskLevel: 'read',
+          deadlineMs: Number.MAX_SAFE_INTEGER,
+        }),
+      ).resolves.toMatchObject({ ok: true });
+
+      const scheduledDeadlines = timerSpy.mock.calls
+        .map(([, duration]) => duration)
+        .filter((duration): duration is number => typeof duration === 'number');
+      expect(scheduledDeadlines).toContain(120_000);
+      expect(scheduledDeadlines.every((duration) => duration <= 120_000)).toBe(true);
+    } finally {
+      timerSpy.mockRestore();
+    }
   });
 
   it('keeps non-timeout dispatcher failures in the extension error category', async () => {

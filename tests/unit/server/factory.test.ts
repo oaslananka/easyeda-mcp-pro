@@ -135,6 +135,15 @@ describe('createServer', () => {
     expect(mocks.close).toHaveBeenCalledTimes(1);
   });
 
+  it('does not disclose environment-originated configuration in startup logs', async () => {
+    const sensitiveProfile = 'PRIVATE_PROFILE_VALUE_DO_NOT_LOG';
+    const instance = await createServer(
+      config({ TOOL_PROFILE: sensitiveProfile as EnvConfig['TOOL_PROFILE'] }),
+    );
+    expect(JSON.stringify(mocks.logger.info.mock.calls)).not.toContain(sensitiveProfile);
+    await instance.shutdown();
+  });
+
   it('keeps the MCP server available when a legacy owner exposes no follower relay', async () => {
     const ownershipConflict = {
       blockedByOtherInstance: true as const,

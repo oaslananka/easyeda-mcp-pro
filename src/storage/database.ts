@@ -95,7 +95,7 @@ export class Storage {
     `);
 
     this.initialized = true;
-    logger.info({ path: this.config.SQLITE_PATH }, 'storage initialized');
+    logger.info('storage initialized');
   }
 
   /** Insert or replace a verified-device cache entry, keyed by LCSC id. Returns true only on commit. */

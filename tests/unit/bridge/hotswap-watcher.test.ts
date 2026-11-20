@@ -84,10 +84,20 @@ describe('startHotSwapWatcher', () => {
       bridge as unknown as BridgeManager,
       makeConfig({ BRIDGE_HOT_SWAP_WATCH: '/nonexistent/dispatcher.js' }),
     );
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ bundlePath: '/nonexistent/dispatcher.js' }),
-      expect.stringContaining('does not exist'),
+    expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain('/nonexistent/dispatcher.js');
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('does not exist'));
+  });
+
+  it('never writes the watched path to operational logs', () => {
+    const bundlePath = makeBundle('PRIVATE_WATCH_PATH_DO_NOT_LOG');
+    const bridge = new FakeBridge();
+    bridge.connected = false;
+    stop = startHotSwapWatcher(
+      bridge as unknown as BridgeManager,
+      makeConfig({ BRIDGE_HOT_SWAP_WATCH: bundlePath }),
     );
+    expect(JSON.stringify(mockLogger.info.mock.calls)).not.toContain(bundlePath);
+    expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(bundlePath);
   });
 
   it('pushes the dispatcher when the extension reports a different build', async () => {

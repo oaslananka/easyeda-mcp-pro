@@ -23,10 +23,7 @@ export function startHotSwapWatcher(bridge: BridgeManager, config: EnvConfig): (
     return () => {};
   }
   if (!existsSync(bundlePath)) {
-    logger.warn(
-      { bundlePath },
-      'BRIDGE_HOT_SWAP_WATCH does not exist yet; hot-swap auto-push waits for it',
-    );
+    logger.warn('BRIDGE_HOT_SWAP_WATCH does not exist yet; hot-swap auto-push waits for it');
   }
 
   let syncing = false;
@@ -68,8 +65,8 @@ export function startHotSwapWatcher(bridge: BridgeManager, config: EnvConfig): (
         { buildId: result.buildId, methodCount: result.methodCount },
         'dispatcher hot-swap complete',
       );
-    } catch (err) {
-      logger.error({ err, reason }, 'dispatcher hot-swap push failed');
+    } catch {
+      logger.error({ reason }, 'dispatcher hot-swap push failed');
     } finally {
       syncing = false;
       if (pendingResync) {
@@ -94,8 +91,8 @@ export function startHotSwapWatcher(bridge: BridgeManager, config: EnvConfig): (
   const startFileWatcher = (): void => {
     try {
       watcher = watch(bundlePath, () => scheduleSync('bundle changed'));
-    } catch (err) {
-      logger.warn({ err, bundlePath }, 'could not watch dispatcher bundle; retrying in 5s');
+    } catch {
+      logger.warn('could not watch dispatcher bundle; retrying in 5s');
       setTimeout(() => {
         if (!stopped) startFileWatcher();
       }, 5000);
@@ -103,7 +100,7 @@ export function startHotSwapWatcher(bridge: BridgeManager, config: EnvConfig): (
   };
   startFileWatcher();
 
-  logger.info({ bundlePath }, 'dispatcher hot-swap watcher active');
+  logger.info('dispatcher hot-swap watcher active');
 
   return () => {
     stopped = true;
