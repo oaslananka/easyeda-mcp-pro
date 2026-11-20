@@ -43,6 +43,21 @@ export async function collectExtensionPackageFiles(root) {
   return files.sort((left, right) => comparePaths(relative(root, left), relative(root, right)));
 }
 
+export function prepareExtensionPackageContent(name, data) {
+  // Keep the editable source manifest readable but avoid publishing its whitespace.
+  // The EasyEDA loader consumes JSON, not the source file's formatting.
+  if (name === 'extension.json') {
+    return Buffer.from(JSON.stringify(JSON.parse(data.toString('utf8'))), 'utf8');
+  }
+
+  // Windows autocrlf must not change package bytes or their release checksums.
+  if (name === 'README.md' || name === 'CHANGELOG.md') {
+    return Buffer.from(data.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+  }
+
+  return data;
+}
+
 export async function writeExtensionArchive({ root, packagePath, date }) {
   const output = createWriteStream(packagePath);
   const archive = new ZipArchive({
@@ -60,11 +75,7 @@ export async function writeExtensionArchive({ root, packagePath, date }) {
   for (const path of await collectExtensionPackageFiles(root)) {
     const name = normalizePath(relative(root, path));
     const data = await readFile(path);
-    // Git's Windows autocrlf setting changes these checkout files, not their meaning.
-    // Normalize package inputs so the signed distribution does not depend on the OS.
-    const packagedData = ['README.md', 'CHANGELOG.md', 'extension.json'].includes(name)
-      ? Buffer.from(data.toString('utf8').replace(/\r\n/g, '\n'), 'utf8')
-      : data;
+    const packagedData = prepareExtensionPackageContent(name, data);
     archive.append(packagedData, {
       name,
       date,
