@@ -62,6 +62,33 @@ footer{padding:29px 0 38px;display:flex;align-items:center;justify-content:space
 .session strong{font-size:14px}.session p{font-size:13px}
 .provider-button .provider-mark svg{display:block}
 .provider-button.secondary .provider-mark.google-mark{background:#f8fafc;color:#3978ec}
+
+.guided-panel{padding:clamp(22px,3vw,35px);margin-bottom:20px;border-color:#45647d;background:radial-gradient(ellipse 40% 90% at 0% 0%,#19425575,transparent 80%),linear-gradient(145deg,#162436,#101b2b)}
+.guided-panel .section-heading{margin-bottom:7px}.guided-panel h2{letter-spacing:-.035em}.guided-panel .section-description{max-width:750px;margin:0 0 19px}
+.guided-progress{padding:0;margin:0 0 25px;list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.guided-progress li{display:flex;gap:9px;align-items:center;min-width:0;font-size:12px;color:#8eabc8;padding:11px;border:1px solid #35475b;border-radius:11px;background:#112133}
+.guided-progress .guided-number{flex-shrink:0;display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#233a52;font-weight:800}
+.guided-progress li[data-state="done"]{border-color:#38796b;background:#17372f;color:#b8f5dd}.guided-progress li[data-state="done"] .guided-number{background:#265a4b}
+.guided-progress li[data-state="current"]{border-color:#82cfff;background:#153751;color:#eef7ff}.guided-progress li[data-state="current"] .guided-number{background:#38739b}
+.guided-grid{display:grid;grid-template-columns:minmax(0,1.22fr) minmax(0,.78fr);gap:22px}
+.guided-choice,.guided-status{min-width:0}.guided-choice h3{font-size:14px;margin:0 0 11px;font-weight:760}
+.client-chooser{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:13px}
+.client-choice{border:1px solid #425775;border-radius:10px;background:#182b41;color:#bfd3ec;padding:10px 13px;min-height:44px;cursor:pointer;font-size:13px;font-weight:700}
+.client-choice[aria-pressed="true"]{background:#a2dcff;color:#092439;border-color:#a2dcff}
+.client-choice:hover{border-color:#9ad5ff}.client-choice:focus-visible{outline:3px solid #7dc9ff;outline-offset:2px}
+.guided-instructions{border:1px solid #3d526e;background:#0d192c;border-radius:13px;padding:17px;min-width:0}
+.guided-instructions strong{font-size:14px}.guided-instructions p{line-height:1.6;margin:6px 0 12px}
+.guided-config{display:block;white-space:pre-wrap;overflow-wrap:anywhere;background:#050e1b;color:#b7e5fe;border:1px solid #304764;border-radius:9px;font-size:12px;max-height:160px;overflow:auto;padding:12px;user-select:all}
+.guided-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}.guided-actions .btn{min-height:42px}
+.guided-status{border:1px solid #334965;border-radius:13px;background:#111f31;padding:5px 17px}
+.guided-status-line{padding:13px 0;border-bottom:1px solid #31445c;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.guided-status-line:last-child{border-bottom:0}.guided-status-line>span{font-size:11px;text-transform:uppercase;color:#8eadcf;font-weight:760;letter-spacing:.065em}
+.guided-status-line strong{font-size:13px;color:#e5f3ff}.guided-status-line a{font-size:12px;text-underline-offset:3px}
+.guided-status-line p{margin:3px 0 6px;font-size:12px}.guided-hint{margin:17px 0 0;border-top:1px solid #2c4964;padding-top:14px;color:#a9dff9;font-size:13px}
+.consent-advanced{border:1px solid #405572;border-radius:13px;padding:12px 16px;margin:12px 0 19px;background:#16263b}
+.consent-advanced summary{cursor:pointer;min-height:30px;font-size:14px;font-weight:750;color:#cdeaff}.consent-advanced summary:focus-visible{outline:3px solid #7dc9ff;outline-offset:3px}
+@media(max-width:960px){.guided-grid{grid-template-columns:1fr}}
+@media(max-width:640px){.guided-progress{grid-template-columns:repeat(2,minmax(0,1fr))}.guided-progress li{padding:9px}.guided-panel{padding:18px}.guided-actions>.btn{flex:1 1 160px}.guided-status{padding:5px 12px}}
 @media(max-width:960px){.landing-grid{grid-template-columns:1fr;gap:32px;min-height:0}.landing-intro{max-width:690px}.auth-card{max-width:600px}.workspace-grid{grid-template-columns:1fr}.trust-strip{margin-top:40px}}
 @media(max-width:640px){.landing-intro .journey{display:none}.workspace-grid[data-empty="true"] .pairing-panel{grid-row:1}.workspace-grid[data-empty="true"] .device-panel{grid-row:2}.wrap{width:min(100% - 28px,1180px)}.nav{min-height:75px}.nav-right{gap:9px}.tag{display:none}.nav-link{font-size:12px}main{padding:35px 0 52px}.hero{font-size:clamp(35px,9vw,48px)}.subtitle{font-size:15px}.auth-card,.panel{padding:22px;border-radius:18px}.trust-strip{grid-template-columns:1fr;gap:10px}.workspace-head{flex-direction:column;align-items:stretch}.account-identity{width:100%}.section-heading{align-items:flex-start}.section-heading>.btn{flex-shrink:0}.session{flex-direction:column;align-items:stretch}.session button{width:100%}.session-actions{width:100%;flex-direction:column;align-items:stretch}.code{font-size:19px}.usage-grid{grid-template-columns:1fr 1fr 1fr;gap:7px}.usage-stat{padding:12px}.usage-stat strong{font-size:25px}.usage-stat span{font-size:10px}footer{flex-direction:column;align-items:flex-start}}
 @media(max-width:400px){
@@ -166,6 +193,103 @@ export const CLOUD_JS = String.raw`
     });
   }
   if (page === 'account') {
+    // The URL is public configuration, never a bearer token or extension WSS link.
+    const mcpUrl = (window.location.origin || 'https://easyeda-mcp-pro.oaslananka.dev') + '/mcp';
+    const firstQuestion = 'Inspect the focused schematic and explain its power connections. Do not change anything.';
+    const clientOptions = {
+      chatgpt: {
+        name: 'ChatGPT', instructions: 'In ChatGPT Plugins, choose Add custom MCP server. Paste this URL and approve Read access when prompted.',
+        link: 'https://chatgpt.com/plugins', linkText: 'Open ChatGPT Plugins', format: 'url',
+      },
+      claude: {
+        name: 'Claude', instructions: 'In Claude, open Customize → Connectors → Add custom connector. Paste this URL, then authorize Read.',
+        link: 'https://claude.ai/', linkText: 'Open Claude', format: 'url',
+      },
+      cursor: {
+        name: 'Cursor', instructions: 'Add the remote MCP server in Cursor. Use one-click install where supported, then complete the OAuth Read approval.',
+        link: 'https://cursor.com/docs/mcp', linkText: 'Cursor MCP guide', format: 'cursor',
+      },
+      codex: {
+        name: 'Codex', instructions: 'Run this command in a terminal with Codex installed. Codex will open OAuth when you connect.',
+        link: 'https://developers.openai.com/codex/mcp', linkText: 'Codex MCP guide', format: 'command',
+      },
+      other: {
+        name: 'MCP client', instructions: 'Add a remote HTTP MCP server in your app with this URL and authorize Read access. Your client must support the server OAuth flow.',
+        link: 'https://modelcontextprotocol.io/', linkText: 'MCP documentation', format: 'url',
+      },
+    };
+    let selectedClient = 'chatgpt';
+    let deviceLoaded = false;
+    let clientsLoaded = false;
+    let hasOnlineDevice = false;
+    let hasSelectedDesign = false;
+    let readClientCount = 0;
+    const updateGuided = () => {
+      const deviceStage = get('progress-device');
+      const accessStage = get('progress-access');
+      const questionStage = get('progress-ask');
+      if (deviceStage) deviceStage.dataset.state = hasSelectedDesign ? 'done' : 'current';
+      if (accessStage) accessStage.dataset.state = readClientCount && hasSelectedDesign ? 'done' : hasSelectedDesign ? 'current' : 'waiting';
+      if (questionStage) questionStage.dataset.state = hasSelectedDesign && readClientCount ? 'done' : 'waiting';
+      setText('guided-device-status', !deviceLoaded ? 'Checking connection…' :
+        hasSelectedDesign ? 'Connected · design selected' : hasOnlineDevice ? 'Connected · choose a design below' : 'Not connected');
+      setText('guided-access-status', !clientsLoaded ? 'Checking authorization…' :
+        readClientCount ? readClientCount + ' MCP client(s) have Read access' : 'No MCP client authorized yet');
+      const prompt = get('copy-first-question');
+      if (prompt) prompt.disabled = !hasSelectedDesign || !readClientCount;
+      const connect = get('guided-connect-link');
+      if (connect) { connect.textContent = hasOnlineDevice ? 'Choose the open design ↓' : 'Connect EasyEDA ↓'; connect.href = hasOnlineDevice ? '#extensions-title' : '#pair-title'; }
+      setText('guided-hint', !deviceLoaded || !clientsLoaded ? 'Checking your connection and permissions…' :
+        !hasOnlineDevice ? 'Next: install the bridge once, then pair EasyEDA below.' :
+        !hasSelectedDesign ? 'Next: choose the open schematic or PCB on your device card. No new pairing needed.' :
+        !readClientCount ? 'Next: add the MCP server in your AI app and approve Read access. Write and Export can be added later.' :
+        'Ready to ask. Confirm the AI client you chose is listed in Permissions, then use the sample question.');
+    };
+    const selectClient = (key) => {
+      const choice = clientOptions[key];
+      if (!choice) return;
+      selectedClient = key;
+      Object.keys(clientOptions).forEach((name) => {
+        const button = get('client-' + name);
+        if (button) button.setAttribute('aria-pressed', String(name === key));
+      });
+      const text = choice.format === 'command' ? 'codex mcp add easyeda-mcp-pro --url ' + mcpUrl :
+        choice.format === 'cursor' ? JSON.stringify({url:mcpUrl}, null, 2) : mcpUrl;
+      setText('client-instructions-title', 'Connect ' + choice.name);
+      setText('client-instructions', choice.instructions);
+      setText('client-config', text);
+      setText('copy-client-config', choice.format === 'command' ? 'Copy Codex command' : choice.format === 'cursor' ? 'Copy Cursor config' : 'Copy server URL');
+      const link = get('open-client');
+      if (link) {
+        link.href = choice.link;
+        link.textContent = choice.linkText + ' ↗';
+        if (key === 'cursor' && typeof window.btoa === 'function') {
+          link.href = 'cursor://anysphere.cursor-deeplink/mcp/install?name=easyeda-mcp-pro&config=' +
+            encodeURIComponent(window.btoa(JSON.stringify({url:mcpUrl})));
+          link.textContent = 'Add to Cursor ↗';
+        }
+      }
+    };
+    Object.keys(clientOptions).forEach((key) => {
+      const button = get('client-' + key);
+      if (button) button.addEventListener('click', () => selectClient(key));
+    });
+    const copyGuided = async (value, message) => {
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error('Clipboard is unavailable');
+        await navigator.clipboard.writeText(value);
+        setText('notice', message);
+      } catch {
+        setText('notice', 'Clipboard unavailable. Select the displayed text to copy it manually.');
+      }
+    };
+    get('copy-client-config')?.addEventListener('click', () =>
+      copyGuided(get('client-config')?.textContent || mcpUrl, 'Connection details copied. Add them in your AI app and approve Read access.'));
+    get('copy-first-question')?.addEventListener('click', () => {
+      if (hasSelectedDesign && readClientCount) void copyGuided(firstQuestion, 'Question copied. Ask it in your authorized MCP client.');
+    });
+    selectClient(selectedClient);
+    updateGuided();
     const list = get('extensions');
     let selected = null;
     let visibleSessionIds = new Set();
@@ -257,6 +381,10 @@ export const CLOUD_JS = String.raw`
         selected?.sessionId === session.sessionId &&
         selected.projectId === session.activeProject?.projectId &&
         selected.documentId === session.activeProject?.documentId);
+      deviceLoaded = true;
+      hasOnlineDevice = online.length > 0;
+      hasSelectedDesign = selectedOnline;
+      updateGuided();
       const pairingStatus = get('pairing-code');
       if (!online.length && pairingStatus?.textContent === 'Connected') {
         setText('pairing-code', 'Disconnected');
@@ -325,6 +453,10 @@ export const CLOUD_JS = String.raw`
       try {
         const data = await request('/cloud/api/clients');
         const consents = Array.isArray(data?.clients) ? data.clients : [];
+        clientsLoaded = true;
+        readClientCount = consents.filter((consent) => Array.isArray(consent?.scopes) &&
+          (consent.scopes.includes('easyeda.read') || consent.scopes.includes('easyeda.project_admin'))).length;
+        updateGuided();
         dest.replaceChildren();
         if (!consents.length) { dest.appendChild(el('div','empty','No MCP clients have your authorization yet.')); return; }
         consents.forEach((consent) => {
@@ -377,6 +509,8 @@ export const CLOUD_JS = String.raw`
           dest.appendChild(card);
         });
       } catch (error) {
+        clientsLoaded = false;
+        updateGuided();
         dest.replaceChildren(el('div','empty','Client authorizations could not be loaded. Select Refresh to retry.'));
         throw error;
       } finally {

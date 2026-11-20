@@ -8,6 +8,10 @@ class TestElement {
   dataset: Record<string, string> = {};
   textContent = '';
   className = '';
+  attributes: Record<string, string> = {};
+  setAttribute(name: string, value: string): void {
+    this.attributes[name] = value;
+  }
   disabled = false;
   hidden = false;
   children: TestElement[] = [];

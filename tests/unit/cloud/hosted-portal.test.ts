@@ -164,6 +164,10 @@ describe('Hosted Cloud browser recovery', () => {
         dataset: {} as Record<string, string>,
         children: [] as any[],
         classList: { add() {}, remove() {} },
+        attributes: {} as Record<string, string>,
+        setAttribute(this: { attributes: Record<string, string> }, name: string, value: string) {
+          this.attributes[name] = value;
+        },
         replaceChildren(this: { children: any[] }, ...nodes: any[]) {
           this.children = nodes;
         },
@@ -214,8 +218,10 @@ describe('Hosted Cloud browser recovery', () => {
       window: {
         location: {
           search: '',
+          origin: 'https://easyeda-mcp-pro.oaslananka.dev',
           assign: (url: string) => redirects.push(url),
         },
+        btoa: (value: string) => Buffer.from(value, 'utf8').toString('base64'),
         addEventListener: (name: string, callback: () => void) => {
           windowListeners.set(name, callback);
         },
@@ -262,6 +268,73 @@ describe('Hosted Cloud browser recovery', () => {
       },
     };
   }
+
+  it('guides new users from AI choice through device selection and a read-only first question', async () => {
+    let sessions: any[] = [];
+    let selection: any = null;
+    let clients: any[] = [];
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'QA owner' } }) };
+      if (url === '/cloud/api/extensions')
+        return { ok: true, status: 200, json: async () => ({ sessions, selection }) };
+      if (url === '/cloud/api/clients')
+        return { ok: true, status: 200, json: async () => ({ clients }) };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ total: 0, succeeded: 0, failed: 0, lastCallAt: null }),
+        };
+      throw Error('Unexpected request ' + url);
+    });
+    expect(result.elements.get('guided-device-status').textContent).toBe('Not connected');
+    expect(result.elements.get('guided-access-status').textContent).toBe(
+      'No MCP client authorized yet',
+    );
+    expect(result.elements.get('progress-device').dataset.state).toBe('current');
+    expect(result.elements.get('copy-first-question').disabled).toBe(true);
+
+    await result.elements.get('client-cursor').dispatch('click');
+    const cursorLink = result.elements.get('open-client').href as string;
+    expect(cursorLink).toContain('cursor://anysphere.cursor-deeplink/mcp/install?');
+    const cursorConfig = new URLSearchParams(cursorLink.split('?')[1]).get('config') || '';
+    expect(JSON.parse(Buffer.from(cursorConfig, 'base64').toString())).toEqual({
+      url: 'https://easyeda-mcp-pro.oaslananka.dev/mcp',
+    });
+    expect(result.elements.get('client-cursor').attributes['aria-pressed']).toBe('true');
+    await result.elements.get('client-codex').dispatch('click');
+    expect(result.elements.get('client-config').textContent).toBe(
+      'codex mcp add easyeda-mcp-pro --url https://easyeda-mcp-pro.oaslananka.dev/mcp',
+    );
+
+    sessions = [
+      {
+        sessionId: 'qa-session',
+        connected: true,
+        extensionVersion: '1.16.1',
+        mode: 'hosted',
+        activeProject: { projectId: 'qa', documentId: 'P1', documentType: 'schematic' },
+      },
+    ];
+    selection = { sessionId: 'qa-session', projectId: 'qa', documentId: 'P1' };
+    await result.elements.get('refresh-extensions').dispatch('click');
+    expect(result.elements.get('guided-device-status').textContent).toBe(
+      'Connected · design selected',
+    );
+    expect(result.elements.get('progress-device').dataset.state).toBe('done');
+    expect(result.elements.get('progress-access').dataset.state).toBe('current');
+    expect(result.elements.get('copy-first-question').disabled).toBe(true);
+
+    clients = [{ id: 'qa-client', name: 'MCP Inspector', scopes: ['easyeda.read'] }];
+    await result.elements.get('refresh-clients').dispatch('click');
+    expect(result.elements.get('progress-access').dataset.state).toBe('done');
+    expect(result.elements.get('progress-ask').dataset.state).toBe('done');
+    expect(result.elements.get('copy-first-question').disabled).toBe(false);
+    clients = [];
+    await result.elements.get('refresh-clients').dispatch('click');
+    expect(result.elements.get('copy-first-question').disabled).toBe(true);
+  });
 
   it('renders persistent owner call totals and refreshes them without reloading', async () => {
     let usage = { total: 4, succeeded: 3, failed: 1, lastCallAt: '2026-11-15T18:00:00Z' };
@@ -929,6 +1002,12 @@ describe('Hosted Cloud browser portal', () => {
       const signedHtml = await signedLanding.text();
       expect(signedHtml).toContain('Your devices');
       expect(signedHtml).toContain('id="refresh-clients"');
+      for (const client of ['chatgpt', 'claude', 'cursor', 'codex', 'other']) {
+        expect(signedHtml).toContain('id="client-' + client + '"');
+      }
+      expect(signedHtml).toContain('aria-label="Connection progress"');
+      expect(signedHtml).toContain('id="copy-first-question"');
+      expect(signedHtml).toContain('id="pair-title"');
       // Setup text must have one flexible text column: bare text/strong children
       // of a flex row shrink into separate narrow columns on a desktop card.
       expect(signedHtml.match(/class="step-copy"/g)).toHaveLength(3);
@@ -1000,6 +1079,9 @@ describe('Hosted Cloud browser portal', () => {
       });
       expect(response.status).toBe(200);
       const html = await response.text();
+      expect(html).toContain('More permissions (optional)');
+      expect(html).toContain('class="consent-advanced"');
+      expect(html).toContain('Start with Read access');
       expect(html).toContain('Request design changes');
       expect(html).toContain(
         'Routine edits need one EasyEDA project-session approval for up to 30 minutes',
