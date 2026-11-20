@@ -560,6 +560,20 @@ export class RemoteGateway {
     }
     const current = this.router.getSession(selected.sessionId);
     if (!current || current.userId !== identity.userId) {
+      // A resumed extension has a different session ID: do not silently carry
+      // the previous project's authorization over to the new connection.
+      // Give the owner the actual recovery action only if one of their own
+      // connected devices is visible. Other owners' devices never qualify.
+      const replacementAvailable = this.listPairedExtensions(identity).some(
+        (session) => session.connected && session.sessionId !== selected.sessionId,
+      );
+      if (replacementAvailable) {
+        return gatewayError(
+          409,
+          'PROJECT_INACTIVE',
+          'Your previous EasyEDA session is unavailable. Select the open schematic or PCB on your connected device in Cloud; no new pairing code is needed.',
+        );
+      }
       return gatewayError(404, 'SESSION_UNPAIRED', 'Selected EasyEDA session is unavailable.');
     }
     if (projectIdentity(current.activeProject) !== selected.projectKey) {

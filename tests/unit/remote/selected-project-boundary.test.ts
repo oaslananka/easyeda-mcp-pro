@@ -97,6 +97,89 @@ describe('explicit hosted extension/project selection', () => {
     ).resolves.toMatchObject({ ok: false, code: 'SESSION_EXPIRED' });
   });
 
+  it('guides a paired owner to reselect a replacement editor without silently routing', async () => {
+    const gateway = new RemoteGateway();
+    gateway.requireExplicitProjectSelection();
+    const dispatches: string[] = [];
+    const register = (connectionId: string) =>
+      gateway.registerExtension({
+        connectionId,
+        mode: 'hosted',
+        extensionVersion: '1.16.1',
+        activeProject: {
+          projectId: 'disposable-project',
+          documentId: 'native-schematic',
+          documentType: 'schematic',
+          projectName: 'Disposable',
+        },
+        dispatch: async (request: ToolRequestMessage) => {
+          dispatches.push(request.sessionId);
+          return {
+            protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+            type: 'tool_response' as const,
+            messageId: 'reply',
+            sessionId: request.sessionId,
+            requestMessageId: request.messageId,
+            timestamp: new Date().toISOString(),
+            ok: true as const,
+            result: { ok: true },
+            durationMs: 1,
+          };
+        },
+      });
+    const pair = (sessionId: string) => {
+      const code = gateway.createPairingCode({ identity: owner, sessionId });
+      expect(gateway.completePairing({ identity: owner, code, sessionId })).toBe(true);
+    };
+    const read = () =>
+      gateway.routeToolRequest({
+        identity: owner,
+        riskLevel: 'read',
+        toolName: 'easyeda_project_list',
+        input: { projectId: 'disposable-project' },
+      });
+
+    const original = register('old-device-connection');
+    pair(original.sessionId);
+    expect(gateway.selectPairedProject(owner, original.sessionId)).toBe(true);
+    expect(gateway.hasRoutableSession(owner)).toBe(true);
+
+    // An interrupted transport can leave an old owner selection while a new
+    // paired socket uses a new session ID. A live device is not consent to
+    // redirect MCP calls without another explicit project selection.
+    gateway.router.forgetSession(original.sessionId);
+    await expect(read()).resolves.toMatchObject({ ok: false, code: 'SESSION_UNPAIRED' });
+
+    // An unrelated owner's online editor is NOT a replacement for this user's
+    // lost selection and must not even change the error classification.
+    const foreign = register('foreign-owner-device');
+    const foreignCode = gateway.createPairingCode({
+      identity: outsider,
+      sessionId: foreign.sessionId,
+    });
+    expect(
+      gateway.completePairing({
+        identity: outsider,
+        code: foreignCode,
+        sessionId: foreign.sessionId,
+      }),
+    ).toBe(true);
+    await expect(read()).resolves.toMatchObject({ ok: false, code: 'SESSION_UNPAIRED' });
+
+    const replacement = register('replacement-device-connection');
+    pair(replacement.sessionId);
+    expect(gateway.hasRoutableSession(owner)).toBe(false);
+    await expect(read()).resolves.toMatchObject({
+      ok: false,
+      code: 'PROJECT_INACTIVE',
+      message: expect.stringContaining('Select'),
+    });
+    expect(dispatches).toEqual([]);
+    expect(gateway.selectPairedProject(owner, replacement.sessionId)).toBe(true);
+    await expect(read()).resolves.toMatchObject({ ok: true, sessionId: replacement.sessionId });
+    expect(dispatches).toEqual([replacement.sessionId]);
+  });
+
   it('requires an owner-selected project when multiple extensions are paired and fails closed after a project swap', async () => {
     const gateway = new RemoteGateway();
     const dispatched: string[] = [];
