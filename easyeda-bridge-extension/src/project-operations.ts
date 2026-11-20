@@ -100,24 +100,26 @@ function sameSaveTarget(
   );
 }
 
+function tabMatchesDocument(tab: Tab, doc: Document, projectId: string): boolean {
+  const tabId = id(tab.tabId);
+  const data = object(tab.data);
+  if (!tabId || !tabId.startsWith(doc.documentId) || id(data?.pid) !== projectId) return false;
+  // EasyEDA Pro 3.2.209 schematic tabs identify the page through the
+  // exact model-sheet UUID, not creator (an unrelated native metadata ID).
+  if (doc.type === 'schematic')
+    return data?.doctype === 1 && id(data?.['data-model-sheet-uuid']) === doc.documentId;
+  if (id(data?.creator) === doc.documentId) return true;
+  // EasyEDA Pro 4.1.105 PCB tabs carry the USER id in creator; their tab ID is exactly
+  // `<pcb uuid>@<project uuid>` with doctype 3. Accept that exact composite, never a prefix.
+  return doc.type === 'pcb' && data?.doctype === 3 && tabId === `${doc.documentId}@${projectId}`;
+}
+
 function withTabIds(documents: Document[], tabs: Tab[], projectId: string): Document[] {
   // EasyEDA 3.2.209 builds tab IDs by prefixing the native document UUID;
   // tab.data.creator identifies that exact document and tab.data.pid its project.
   // Never trust a title, a prefix alone, or a project PID alone for destructive close.
   return documents.map((doc) => {
-    const matches = tabs.filter((tab) => {
-      const tabId = id(tab.tabId);
-      const data = object(tab.data);
-      // EasyEDA Pro 3.2.209 schematic tabs identify the page through the
-      // exact model-sheet UUID, not creator (an unrelated native metadata ID).
-      const pageMatches =
-        doc.type === 'schematic'
-          ? data?.doctype === 1 && id(data?.['data-model-sheet-uuid']) === doc.documentId
-          : id(data?.creator) === doc.documentId;
-      return (
-        !!tabId && tabId.startsWith(doc.documentId) && id(data?.pid) === projectId && pageMatches
-      );
-    });
+    const matches = tabs.filter((tab) => tabMatchesDocument(tab, doc, projectId));
     return { ...doc, tabId: matches.length === 1 ? (id(matches[0]?.tabId) ?? null) : null };
   });
 }
