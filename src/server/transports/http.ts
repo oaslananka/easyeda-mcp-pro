@@ -805,7 +805,8 @@ export function createHttpTransport(
     return new Promise<void>((resolve) => {
       server = app.listen(config.HTTP_PORT, config.HTTP_HOST, () => {
         if (server) gateway.attachWebSocketServer(server, config, options.hostedAuth?.origin);
-        logger.info({ host: config.HTTP_HOST, port: config.HTTP_PORT }, 'HTTP transport listening');
+        // Listener coordinates can originate in the process environment.
+        logger.info('HTTP transport listening');
         resolve();
       });
     });

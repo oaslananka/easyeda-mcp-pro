@@ -143,14 +143,23 @@ export function createExportOperations({
   // 3D model of the focused PCB (PCB_ManufactureData.get3DFile, beta). Only component models
   // imported as STEP appear in a STEP export; autoGenerateModels boxes the others by height.
   async function export3d(params: Record<string, unknown>): Promise<unknown> {
-    requireProjectId(params, '3D export');
+    const projectId = requireProjectId(params, '3D export');
     const info = (await callFirst(['DMT_SelectControl.getCurrentDocumentInfo'])) as
-      { documentType?: number } | undefined;
+      { documentType?: number; parentProjectUuid?: string } | undefined;
     if (info?.documentType !== 3) {
       throw createBridgeError(
         'DOCUMENT_NOT_FOCUSED',
         '3D export requires the PCB document to be focused.',
         'Activate the PCB document, then retry.',
+      );
+    }
+    // The native 3D export is scoped to the focused PCB, not the supplied projectId.
+    // Reject absent or mismatched native identity before requesting the file.
+    if (info.parentProjectUuid !== projectId) {
+      throw createBridgeError(
+        'PROJECT_MISMATCH',
+        'The focused PCB does not belong to the requested project.',
+        'Select the intended project and focus its PCB before exporting.',
       );
     }
     const fileType = params.fileType === 'obj' ? 'obj' : 'step';

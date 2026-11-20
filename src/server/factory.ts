@@ -11,7 +11,6 @@ import { SERVER_VERSION } from '../config/version.js';
 import { createLogger } from '../utils/logger.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { type ToolContext } from '../tools/types.js';
-import { redactObject } from '../utils/redaction.js';
 import { loadFeatureFlags } from '../config/feature-flags.js';
 import { Storage } from '../storage/index.js';
 import { type HttpTransportInstance } from './transports/http.js';
@@ -79,20 +78,8 @@ export async function createServer(
 
   const localBridgeEnabled = config.MCP_BRIDGE_BACKEND !== 'remote_relay';
 
-  logger.info(
-    {
-      profile: config.TOOL_PROFILE,
-      transport: config.TRANSPORT,
-      nodeVersion: process.version,
-      flags: redactObject(flags),
-      bridgeMode: localBridgeEnabled
-        ? process.env.EASYEDA_BRIDGE === 'cdp'
-          ? 'cdp'
-          : 'extension'
-        : 'remote_relay',
-    },
-    'server initializing',
-  );
+  // Startup diagnostics must not serialize environment-derived configuration.
+  logger.info({ nodeVersion: process.version }, 'server initializing');
 
   const bridge =
     process.env.EASYEDA_BRIDGE === 'cdp' ? new CdpBridgeManager(config) : new BridgeManager(config);

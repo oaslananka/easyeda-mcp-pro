@@ -232,7 +232,7 @@ describe('board.export3d', () => {
   function exportOperations(focusedType: number, file: unknown) {
     const callFirst = vi.fn(async (paths: readonly string[]) =>
       paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo'
-        ? { documentType: focusedType }
+        ? { documentType: focusedType, uuid: 'pcb1', parentProjectUuid: 'p1' }
         : file,
     );
     const normalizeBinaryResult = vi.fn(async (value: unknown, name: string) => ({ value, name }));
@@ -281,6 +281,30 @@ describe('board.export3d', () => {
       'Outfit',
       true,
     );
+  });
+
+  it('rejects a focused PCB owned by another project before native 3D export', async () => {
+    const { callFirst, operations } = exportOperations(3, 'FILE');
+    await expect(operations.export3d({ projectId: 'p2' })).rejects.toThrow(
+      /focused PCB.*requested project/i,
+    );
+    expect(callFirst).not.toHaveBeenCalledWith(
+      ['PCB_ManufactureData.get3DFile'],
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it('fails closed when the focused document has no project identity', async () => {
+    const { callFirst, operations } = exportOperations(3, 'FILE');
+    callFirst.mockResolvedValueOnce({ documentType: 3, uuid: 'pcb1' });
+    await expect(operations.export3d({ projectId: 'p1' })).rejects.toThrow(
+      /focused PCB.*requested project/i,
+    );
+    expect(callFirst).toHaveBeenCalledTimes(1);
   });
 
   it('reports a missing native file as an error, not an empty export', async () => {

@@ -730,7 +730,9 @@ try {
     throw new Error(`Transaction smoke report failed: ${JSON.stringify(report.checks)}`);
   }
   await writeSchematicTransactionSmokeReport(REPORT_PATH, report);
-  console.log(JSON.stringify({ ok: true, reportPath: REPORT_PATH, report, results }, null, 2));
+  // The full report is written to the explicitly configured local file.
+  // Do not echo local paths, tool responses or project state into shared logs.
+  console.log(JSON.stringify({ ok: true, status: 'passed' }));
 } catch (error) {
   const failureMessage = error instanceof Error ? error.message : String(error);
   for (const id of [...cleanupIds]) {
@@ -760,20 +762,9 @@ try {
       `report-write: ${reportError instanceof Error ? reportError.message : String(reportError)}`,
     );
   }
-  console.error(
-    JSON.stringify(
-      {
-        ok: false,
-        error: failureMessage,
-        cleanupErrors,
-        reportPath: REPORT_PATH,
-        report,
-        results,
-      },
-      null,
-      2,
-    ),
-  );
+  // Failure messages and cleanup errors may contain untrusted extension
+  // responses, local paths or environment values; keep diagnostics on disk.
+  console.error(JSON.stringify({ ok: false, status: 'failed' }));
   process.exitCode = 1;
 } finally {
   bridge.disconnect('live atomic batch smoke complete');

@@ -156,6 +156,18 @@ describe('autonomous cycle tools', () => {
     expect(options.timeoutMs).toBeGreaterThanOrEqual(60_000);
   });
 
+  it.each([
+    { label: 'empty base64', reply: { base64: '', fileName: 'p1-3d.step' } },
+    { label: 'malformed base64', reply: { base64: '!!!!', fileName: 'p1-3d.step' } },
+    { label: 'non-binary reply', reply: { other: 'unsupported native data' } },
+  ])('easyeda_export_3d rejects $label before artifact creation', async ({ reply }) => {
+    const tool = registry.get('easyeda_export_3d')!;
+    call.mockResolvedValue(reply);
+    const result = await tool.handler(context, tool.inputSchema.parse({ projectId: 'p1' }));
+    expect(result).toMatchObject({ exported: false, not_available: true });
+    expect(fs.readdirSync(artifactDir)).toEqual([]);
+  });
+
   it('easyeda_export_3d reports a bridge failure without writing a file', async () => {
     const tool = registry.get('easyeda_export_3d')!;
     call.mockRejectedValue(new Error('3D export requires the PCB document to be focused.'));

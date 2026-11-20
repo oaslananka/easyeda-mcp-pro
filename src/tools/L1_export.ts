@@ -967,6 +967,23 @@ function registerExportTools(
           },
           { timeoutMs: EXPORT_3D_TIMEOUT_MS },
         );
+        // This native API is expected to return a binary STEP/OBJ Blob, not
+        // structured JSON. Never publish empty/malformed data as a model file.
+        const binary = result as BinaryBridgeResult | null;
+        const base64 = binary?.base64;
+        if (
+          typeof base64 !== 'string' ||
+          base64.length === 0 ||
+          !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64) ||
+          Buffer.from(base64, 'base64').byteLength === 0
+        ) {
+          return {
+            project_id: projectId,
+            exported: false,
+            not_available: true,
+            error: 'Bridge returned an empty or invalid 3D model payload.',
+          };
+        }
         const written = writeExportPayload(ctx, result, filePath, `${projectId}-3d.${fileType}`);
         if (!written.ok) {
           return {

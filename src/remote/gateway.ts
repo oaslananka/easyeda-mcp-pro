@@ -204,7 +204,15 @@ async function dispatchWithDeadline(
   dispatch: RemoteToolDispatcher,
   request: ToolRequestMessage,
 ): Promise<ToolResponseMessage> {
-  const timeoutMs = request.deadlineMs ?? 30_000;
+  // Remote tool deadlines can originate from a client. Bound timer lifetime
+  // even when a valid integer vastly exceeds the safe per-call budget.
+  const requestedTimeoutMs = request.deadlineMs;
+  const timeoutMs =
+    requestedTimeoutMs !== undefined &&
+    Number.isSafeInteger(requestedTimeoutMs) &&
+    requestedTimeoutMs > 0
+      ? Math.min(requestedTimeoutMs, 120_000)
+      : 30_000;
   return await new Promise<ToolResponseMessage>((resolve, reject) => {
     const timeout = setTimeout(() => reject(new RemoteDispatchTimeoutError(timeoutMs)), timeoutMs);
     void Promise.resolve()

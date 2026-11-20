@@ -357,14 +357,9 @@ export class BridgeManager extends EventEmitter {
     try {
       await this.attachFollowerRelay(error.relayEndpoint, error.conflict);
       return true;
-    } catch (relayError) {
+    } catch {
+      // Relay failures can carry local endpoint paths or credentials in errors.
       getLogger().debug(
-        {
-          ownerPid: error.conflict.ownerPid,
-          ownerPort: error.conflict.ownerPort,
-          relayPort: error.relayEndpoint.port,
-          err: relayError instanceof Error ? relayError.message : String(relayError),
-        },
         'local bridge owner relay was not ready; retrying ownership/follower attach',
       );
       return false;
@@ -402,10 +397,9 @@ export class BridgeManager extends EventEmitter {
       this.followerRelayServer = server;
       ownership.updateRelayPort(relayPort);
       logger.info({ relayPort }, 'local bridge follower relay listening');
-    } catch (error) {
+    } catch {
       server.close();
       logger.warn(
-        { err: error instanceof Error ? error.message : String(error) },
         'local bridge follower relay unavailable; continuing with single-process ownership',
       );
     }
@@ -413,7 +407,7 @@ export class BridgeManager extends EventEmitter {
 
   private async attachFollowerRelay(
     endpoint: LocalBridgeRelayEndpoint,
-    conflict: BridgeOwnershipConflict,
+    _conflict: BridgeOwnershipConflict,
   ): Promise<void> {
     const client = new LocalBridgeRelayClient(endpoint);
     const snapshot = await client.connect();
@@ -426,10 +420,7 @@ export class BridgeManager extends EventEmitter {
       this.handleFollowerRelayClose(client, error);
     });
     this.applyFollowerSnapshot(snapshot);
-    getLogger().info(
-      { ownerPid: conflict.ownerPid, ownerPort: conflict.ownerPort, relayPort: endpoint.port },
-      'attached to existing local EasyEDA bridge owner',
-    );
+    getLogger().info('attached to existing local EasyEDA bridge owner');
   }
 
   private applyFollowerSnapshot(snapshot: SharedBridgeSnapshot): void {
@@ -1252,8 +1243,8 @@ export class BridgeManager extends EventEmitter {
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      this.connect().catch((err) => {
-        getLogger().error({ err }, 'bridge reconnect failed');
+      this.connect().catch(() => {
+        getLogger().error('bridge reconnect failed');
         this.scheduleReconnect();
       });
     }, delay);
