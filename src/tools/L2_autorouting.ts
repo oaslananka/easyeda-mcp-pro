@@ -215,14 +215,125 @@ function summaryForVerdict(verdict: 'success' | 'partial' | 'failed'): string {
   return 'Autoroute did not complete successfully.';
 }
 
+/**
+ * The native autorouter runs far longer than an ordinary bridge call. With the default bridge
+ * timeout (15 s) the call was reported as failed on a 33-component, 2-layer board while EasyEDA
+ * Pro 4.1.105 kept routing and added the tracks. Wait up to 10 minutes for the result.
+ */
+const AUTOROUTE_TIMEOUT_MS = 10 * 60 * 1000;
+
+type GateMode = 'warn' | 'block';
+
+interface AutoroutePreflightSummary {
+  error_count: number;
+  warning_count: number;
+  unknown_count: number;
+  unknown_checks: Array<{ area: string; missingFields: string[] }>;
+  gate_mode: GateMode;
+}
+
+/**
+ * Pre-flight for easyeda_pcb_autoroute. Bridge-derived evidence is the base and caller-supplied
+ * boardData overrides it field by field, so a caller that knows a few facts does not lose what
+ * the bridge already measured. Errors always block. Unknown checks (missing
+ * evidence) block only in 'block' mode, the default: autorouting is a layout step, not a
+ * production sign-off, so a caller may choose 'warn' to route while the unknowns stay reported.
+ */
+async function runAutoroutePreflight(
+  ctx: ToolContext,
+  projectId: string,
+  boardData: Partial<PcbConstraintInput> | undefined,
+  gateMode: GateMode,
+): Promise<{ response?: Record<string, unknown>; summary: AutoroutePreflightSummary }> {
+  let bridgeInput: PcbConstraintInput = {};
+  try {
+    bridgeInput = await fetchBoardDataFromBridge(ctx, projectId);
+  } catch (err) {
+    if (!boardData) {
+      return {
+        response: {
+          success: false,
+          project_id: projectId,
+          overall_verdict: 'failed' as const,
+          blocked_by_preflight: false,
+          summary: 'Failed to gather board data for the pre-flight constraint check.',
+          not_available: true,
+          error: err instanceof Error ? err.message : String(err),
+        },
+        summary: emptyPreflightSummary(gateMode),
+      };
+    }
+  }
+  const result = validatePcbConstraints(mergeBoardData(bridgeInput, boardData));
+  const summary: AutoroutePreflightSummary = {
+    error_count: result.errors.length,
+    warning_count: result.warnings.length,
+    unknown_count: result.unknownChecks.length,
+    unknown_checks: result.unknownChecks,
+    gate_mode: gateMode,
+  };
+  // Known errors block in every mode: gateMode only decides what missing evidence does.
+  const blockedByErrors = summary.error_count > 0;
+  const blockedByUnknowns = gateMode === 'block' && summary.unknown_count > 0;
+  if (!blockedByErrors && !blockedByUnknowns) return { summary };
+  return {
+    response: {
+      success: false,
+      project_id: projectId,
+      overall_verdict: 'blocked' as const,
+      blocked_by_preflight: true,
+      preflight: { passed: false, ...summary },
+      summary: preflightBlockSummary(summary),
+    },
+    summary,
+  };
+}
+
+function emptyPreflightSummary(gateMode: GateMode): AutoroutePreflightSummary {
+  return {
+    error_count: 0,
+    warning_count: 0,
+    unknown_count: 0,
+    unknown_checks: [],
+    gate_mode: gateMode,
+  };
+}
+
+function mergeBoardData(
+  bridgeData: PcbConstraintInput,
+  callerData: Partial<PcbConstraintInput> | undefined,
+): PcbConstraintInput {
+  if (!callerData) return bridgeData;
+  const merged: Record<string, unknown> = { ...bridgeData };
+  for (const [key, value] of Object.entries(callerData)) {
+    if (value !== undefined) merged[key] = value;
+  }
+  return merged as PcbConstraintInput;
+}
+
+function preflightBlockSummary(summary: AutoroutePreflightSummary): string {
+  const counts =
+    `${summary.error_count} error(s), ${summary.warning_count} warning(s), ` +
+    `${summary.unknown_count} unknown check(s)`;
+  if (summary.error_count > 0) {
+    return `Autoroute blocked by the pre-flight constraint check: ${counts}. Fix the errors before autorouting.`;
+  }
+  const areas = summary.unknown_checks.map((u) => u.area).join(', ');
+  return (
+    `Autoroute blocked by the pre-flight constraint check (gateMode '${summary.gate_mode}'): ` +
+    `${counts}. No evidence for: ${areas}. Supply those fields in boardData, or pass gateMode ` +
+    "'warn' to route while reporting them."
+  );
+}
+
 function registerAutorouteTool(registry: { register: (def: ToolDefinition) => void }) {
   registry.register({
     name: 'easyeda_pcb_autoroute',
     title: 'Run EasyEDA Pro autorouting with pre-flight and post-route checks',
     description:
-      "Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, a @beta API) after a " +
-      'pre-flight constraint check, then run DRC and a constraint report before reporting success. ' +
-      'Never reports success without that evidence attached (confirmWrite required).',
+      "Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, @beta) after a pre-flight " +
+      'check (boardData merged over bridge evidence; errors block, unknown checks block unless ' +
+      "gateMode is 'warn'), then attach DRC and a constraint report (confirmWrite required).",
     profile: 'pro',
     evidence: ['pro-api-types'],
     risk: 'high',
@@ -245,6 +356,7 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
       layers: z.array(z.number().int()).optional(),
       ignoreNets: z.array(z.string()).optional(),
       boardData: pcbBoardDataSchema.optional(),
+      gateMode: z.enum(['warn', 'block']).optional(),
       confirmWrite: z.boolean().optional(),
     }),
     outputSchema: z.object({
@@ -257,6 +369,11 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
           passed: z.boolean(),
           error_count: z.number().int().nonnegative(),
           warning_count: z.number().int().nonnegative(),
+          unknown_count: z.number().int().nonnegative().optional(),
+          unknown_checks: z
+            .array(z.object({ area: z.string(), missingFields: z.array(z.string()) }))
+            .optional(),
+          gate_mode: z.enum(['warn', 'block']).optional(),
         })
         .optional(),
       autoroute_result: z
@@ -296,8 +413,10 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
         layers?: number[];
         ignoreNets?: string[];
         boardData?: Partial<PcbConstraintInput>;
+        gateMode?: 'warn' | 'block';
         confirmWrite?: boolean;
       };
+      const gateMode = p.gateMode ?? 'block';
 
       if (p.confirmWrite !== true) {
         return {
@@ -310,40 +429,9 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
         };
       }
 
-      let preflightInput: PcbConstraintInput;
-      try {
-        preflightInput = p.boardData
-          ? (p.boardData as PcbConstraintInput)
-          : await fetchBoardDataFromBridge(ctx, p.projectId);
-      } catch (err) {
-        return {
-          success: false,
-          project_id: p.projectId,
-          overall_verdict: 'failed' as const,
-          blocked_by_preflight: false,
-          summary: 'Failed to gather board data for the pre-flight constraint check.',
-          not_available: true,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-
-      const preflightResult = validatePcbConstraints(preflightInput);
-      if (!preflightResult.valid) {
-        return {
-          success: false,
-          project_id: p.projectId,
-          overall_verdict: 'blocked' as const,
-          blocked_by_preflight: true,
-          preflight: {
-            passed: false,
-            error_count: preflightResult.errors.length,
-            warning_count: preflightResult.warnings.length,
-          },
-          summary:
-            'Autoroute blocked: pre-flight PCB constraint check found ' +
-            `${preflightResult.errors.length} error(s). Fix them before autorouting.`,
-        };
-      }
+      const preflight = await runAutoroutePreflight(ctx, p.projectId, p.boardData, gateMode);
+      if (preflight.response) return preflight.response;
+      const preflightSummary = preflight.summary;
 
       let autorouteStarted: boolean;
       let autorouteResult:
@@ -366,10 +454,11 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
           layers: p.layers,
           ignoreNets: p.ignoreNets,
         };
-        const result = await ctx.bridge.call('api.call', {
-          path: 'PCB_Document.autoRouting',
-          args: [props],
-        });
+        const result = await ctx.bridge.call(
+          'api.call',
+          { path: 'PCB_Document.autoRouting', args: [props] },
+          { timeoutMs: AUTOROUTE_TIMEOUT_MS },
+        );
         const data = result as { result?: Record<string, unknown> };
         const inner = (data.result ?? data) as {
           success?: boolean;
@@ -393,11 +482,7 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
           project_id: p.projectId,
           overall_verdict: 'failed' as const,
           blocked_by_preflight: false,
-          preflight: {
-            passed: true,
-            error_count: preflightResult.errors.length,
-            warning_count: preflightResult.warnings.length,
-          },
+          preflight: { passed: true, ...preflightSummary },
           summary:
             'Autoroute call failed. PCB_Document.autoRouting is a @beta EasyEDA Pro API and may ' +
             'not be available in every EasyEDA Pro version — check easyeda_api_inventory.',
@@ -458,11 +543,7 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
         project_id: p.projectId,
         overall_verdict: overallVerdict,
         blocked_by_preflight: false,
-        preflight: {
-          passed: true,
-          error_count: preflightResult.errors.length,
-          warning_count: preflightResult.warnings.length,
-        },
+        preflight: { passed: true, ...preflightSummary },
         autoroute_result: autorouteResult,
         post_route_drc: drcSummary,
         post_route_constraint_report: constraintReportSummary,
