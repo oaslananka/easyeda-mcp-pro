@@ -25,6 +25,48 @@ function nativeApi(handlers: Record<string, Handler>) {
 }
 
 describe('document.activate', () => {
+  it('rejects missing activation identifiers without touching the editor', async () => {
+    const callFirst = nativeApi({});
+    const operations = createProjectOperations({ callFirst });
+    await expect(operations.activateDocument({ projectId: 'p1' })).resolves.toMatchObject({
+      success: false,
+      status: 'invalid_params',
+    });
+    await expect(operations.activateDocument({ documentId: 'pcb1' })).resolves.toMatchObject({
+      success: false,
+      status: 'invalid_params',
+    });
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
+  it('reports native open refusal without attempting activation', async () => {
+    const callFirst = nativeApi({
+      'dmt_Project.getCurrentProjectInfo': () => project,
+      'dmt_EditorControl.openDocument': () => undefined,
+    });
+    const operations = createProjectOperations({ callFirst });
+    await expect(
+      operations.activateDocument({ projectId: 'p1', documentId: 'pcb1' }),
+    ).resolves.toMatchObject({ success: false, status: 'native_open_failed' });
+    expect(callFirst).not.toHaveBeenCalledWith(
+      ['dmt_EditorControl.activateDocument'],
+      expect.anything(),
+    );
+  });
+
+  it('reports native activation refusal without claiming focus', async () => {
+    const callFirst = nativeApi({
+      'dmt_Project.getCurrentProjectInfo': () => project,
+      'dmt_EditorControl.openDocument': () => 'pcb1@p1',
+      'dmt_EditorControl.activateDocument': () => false,
+    });
+    const operations = createProjectOperations({ callFirst });
+    await expect(
+      operations.activateDocument({ projectId: 'p1', documentId: 'pcb1' }),
+    ).resolves.toMatchObject({ success: false, status: 'native_activation_failed' });
+    expect(callFirst).not.toHaveBeenCalledWith(['dmt_SelectControl.getCurrentDocumentInfo']);
+  });
+
   it('opens, activates and verifies the focused document by read-back', async () => {
     let focused: unknown = { uuid: 'pcb1', parentProjectUuid: 'p1', documentType: 3 };
     const callFirst = nativeApi({
@@ -90,6 +132,50 @@ describe('document.activate', () => {
 });
 
 describe('project.create', () => {
+  it('rejects an empty project name before any native API call', async () => {
+    const callFirst = nativeApi({});
+    await expect(
+      createProjectOperations({ callFirst }).create({ friendlyName: '   ', confirmWrite: true }),
+    ).resolves.toMatchObject({ success: false, status: 'invalid_friendly_name' });
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
+  it('creates without opening when open is explicitly false', async () => {
+    const callFirst = nativeApi({ 'dmt_Project.createProject': () => 'new1' });
+    await expect(
+      createProjectOperations({ callFirst }).create({
+        friendlyName: 'New',
+        confirmWrite: true,
+        open: false,
+      }),
+    ).resolves.toEqual({ success: true, status: 'created', projectId: 'new1' });
+    expect(callFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      name: 'native create refusal',
+      createResult: undefined,
+      openResult: undefined,
+      status: 'native_create_failed',
+    },
+    {
+      name: 'native open refusal',
+      createResult: 'new1',
+      openResult: false,
+      status: 'created_open_failed',
+    },
+  ])('reports $name without success', async ({ createResult, openResult, status }) => {
+    const callFirst = nativeApi({
+      'dmt_EditorControl.getSplitScreenTree': () => ({ tabs: [startTab] }),
+      'dmt_Project.createProject': () => createResult,
+      'dmt_Project.openProject': () => openResult,
+    });
+    await expect(
+      createProjectOperations({ callFirst }).create({ friendlyName: 'New', confirmWrite: true }),
+    ).resolves.toMatchObject({ success: false, status });
+  });
+
   it('requires confirmWrite before any native call', async () => {
     const callFirst = nativeApi({});
     const operations = createProjectOperations({ callFirst });
@@ -164,6 +250,48 @@ describe('project.create', () => {
 });
 
 describe('pcb.importFromSchematic', () => {
+  it('rejects missing and inactive project identities without mutation', async () => {
+    const callFirst = nativeApi({ 'dmt_Project.getCurrentProjectInfo': () => project });
+    const operations = createProjectOperations({ callFirst });
+    await expect(operations.importSchematicToPcb({ confirmWrite: true })).resolves.toMatchObject({
+      success: false,
+      status: 'invalid_project_id',
+    });
+    await expect(
+      operations.importSchematicToPcb({ projectId: 'p2', confirmWrite: true }),
+    ).resolves.toMatchObject({ success: false, status: 'project_not_active' });
+    expect(callFirst).not.toHaveBeenCalledWith(
+      ['pcb_Document.importChanges'],
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it('refuses import when the focused board has no linked schematic', async () => {
+    const callFirst = nativeApi({
+      'dmt_Project.getCurrentProjectInfo': () => ({
+        uuid: 'p1',
+        data: [{ name: 'Board1', pcb: { uuid: 'pcb1', name: 'PCB1' } }],
+      }),
+      'dmt_SelectControl.getCurrentDocumentInfo': () => ({
+        uuid: 'pcb1',
+        parentProjectUuid: 'p1',
+        documentType: 3,
+      }),
+    });
+    await expect(
+      createProjectOperations({ callFirst }).importSchematicToPcb({
+        projectId: 'p1',
+        confirmWrite: true,
+      }),
+    ).resolves.toMatchObject({ success: false, status: 'pcb_has_no_schematic', pcbId: 'pcb1' });
+    expect(callFirst).not.toHaveBeenCalledWith(
+      ['pcb_Document.importChanges'],
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
   it('imports the schematic of the focused PCB with force', async () => {
     const callFirst = nativeApi({
       'dmt_Project.getCurrentProjectInfo': () => project,
