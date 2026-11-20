@@ -353,16 +353,16 @@ describe('BridgeManager', () => {
 
 describe('BridgeManager - token enforcement', () => {
   it('should reject handshake with missing token when BRIDGE_TOKEN is set', async () => {
-    const port = await getFreePort();
+    const candidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: candidates,
       BRIDGE_TOKEN: 'secret123',
     });
     const manager = new BridgeManager(config);
     await manager.connect();
 
-    const socket = await openSocket(port);
+    const socket = await openSocket(manager.activePort);
     // Send handshake WITHOUT sessionToken
     sendHandshake(socket);
 
@@ -372,16 +372,16 @@ describe('BridgeManager - token enforcement', () => {
   });
 
   it('should reject handshake with wrong token when BRIDGE_TOKEN is set', async () => {
-    const port = await getFreePort();
+    const candidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: candidates,
       BRIDGE_TOKEN: 'secret123',
     });
     const manager = new BridgeManager(config);
     await manager.connect();
 
-    const socket = await openSocket(port);
+    const socket = await openSocket(manager.activePort);
     sendHandshake(socket, { sessionToken: 'wrong-token' });
 
     const code = await waitForClose(socket);
@@ -390,16 +390,16 @@ describe('BridgeManager - token enforcement', () => {
   });
 
   it('should accept handshake with correct token', async () => {
-    const port = await getFreePort();
+    const candidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: candidates,
       BRIDGE_TOKEN: 'secret123',
     });
     const manager = new BridgeManager(config);
     await manager.connect();
 
-    const socket = await openSocket(port);
+    const socket = await openSocket(manager.activePort);
     sendHandshake(socket, { sessionToken: 'secret123' });
 
     const msg = await waitForMessage(socket);
@@ -408,6 +408,39 @@ describe('BridgeManager - token enforcement', () => {
 
     socket.close();
     manager.disconnect('test complete');
+  });
+});
+
+describe('BridgeManager - contested token listener ports', () => {
+  it('enforces the token after falling back from a concurrently occupied port', async () => {
+    const occupied = createServer();
+    await new Promise<void>((resolve, reject) => {
+      occupied.once('error', reject);
+      occupied.listen(0, '127.0.0.1', resolve);
+    });
+    const address = occupied.address();
+    if (!address || typeof address === 'string') throw new Error('No occupied port');
+    const availablePort = await getFreePort();
+    const manager = new BridgeManager(
+      createTestConfig({
+        BRIDGE_HOST: '127.0.0.1',
+        BRIDGE_PORT_SCAN: `${address.port},${availablePort}`,
+        BRIDGE_TOKEN: 'secret123',
+      }),
+    );
+    let socket: WebSocket | undefined;
+    try {
+      await manager.connect();
+      expect(manager.activePort).toBe(availablePort);
+      socket = await openSocket(manager.activePort);
+      const closed = waitForClose(socket);
+      sendHandshake(socket);
+      await expect(closed).resolves.toBe(4001);
+    } finally {
+      socket?.close();
+      manager.disconnect('test complete');
+      await new Promise<void>((resolve) => occupied.close(() => resolve()));
+    }
   });
 });
 

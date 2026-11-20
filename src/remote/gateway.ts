@@ -204,8 +204,9 @@ async function dispatchWithDeadline(
   dispatch: RemoteToolDispatcher,
   request: ToolRequestMessage,
 ): Promise<ToolResponseMessage> {
-  // Remote tool deadlines can originate from a client. Bound timer lifetime
-  // even when a valid integer vastly exceeds the safe per-call budget.
+  // A client may request a shorter deadline, but it must never control the
+  // allocation duration of a timer. Keep at most one bounded, fixed-delay
+  // timer active, checking the monotonic elapsed time between chunks.
   const requestedTimeoutMs = request.deadlineMs;
   const timeoutMs =
     requestedTimeoutMs !== undefined &&
@@ -213,17 +214,45 @@ async function dispatchWithDeadline(
     requestedTimeoutMs > 0
       ? Math.min(requestedTimeoutMs, 120_000)
       : 30_000;
+  const startedAt = performance.now();
+
   return await new Promise<ToolResponseMessage>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new RemoteDispatchTimeoutError(timeoutMs)), timeoutMs);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let settled = false;
+
+    const checkDeadline = (): void => {
+      if (settled) return;
+      const remainingMs = timeoutMs - (performance.now() - startedAt);
+      if (remainingMs <= 0) {
+        settled = true;
+        reject(new RemoteDispatchTimeoutError(timeoutMs));
+        return;
+      }
+
+      // These are policy-owned literal durations, not client-supplied values.
+      // Larger chunks avoid one timer per millisecond during long EDA exports;
+      // shorter chunks near expiry retain millisecond-level deadlines.
+      if (remainingMs >= 120_000) timeout = setTimeout(checkDeadline, 120_000);
+      else if (remainingMs >= 30_000) timeout = setTimeout(checkDeadline, 30_000);
+      else if (remainingMs >= 10_000) timeout = setTimeout(checkDeadline, 10_000);
+      else if (remainingMs >= 1_000) timeout = setTimeout(checkDeadline, 1_000);
+      else if (remainingMs >= 100) timeout = setTimeout(checkDeadline, 100);
+      else if (remainingMs >= 10) timeout = setTimeout(checkDeadline, 10);
+      else timeout = setTimeout(checkDeadline, 1);
+    };
+
+    checkDeadline();
     void Promise.resolve()
       .then(() => dispatch(request))
       .then(
         (response) => {
-          clearTimeout(timeout);
+          settled = true;
+          if (timeout) clearTimeout(timeout);
           resolve(response);
         },
         (error: unknown) => {
-          clearTimeout(timeout);
+          settled = true;
+          if (timeout) clearTimeout(timeout);
           reject(error instanceof Error ? error : new Error(String(error)));
         },
       );
