@@ -1,5 +1,6 @@
 import {
   CanonicalComponentSchema,
+  isVerifiedMultiUnitGroup,
   CanonicalNetSchema,
   SchematicModelSchema,
   type CanonicalComponent,
@@ -213,6 +214,8 @@ export function normalizeSchematicComponent(
     rawReference,
     annotated,
     unit: primitive(read(raw, 'unit', 'subPartName')),
+    physicalUniqueId: primitive(read(raw, 'uniqueId')),
+    deviceUuid: primitive(read(raw, 'deviceUuid')),
     symbolSource: inferSymbolSource(raw),
     componentKind,
     bomEligible: componentKind === 'part',
@@ -294,6 +297,29 @@ export function normalizeSchematicNets(rawNets: RawSchematicNet[]): CanonicalNet
     .sort((a, b) => a.canonicalNetName.localeCompare(b.canonicalNetName));
 }
 
+function countPhysicalBomComponents(components: CanonicalComponent[]): number {
+  const groups = new Map<string, CanonicalComponent[]>();
+  let unannotated = 0;
+  for (const component of components) {
+    if (!component.bomEligible) continue;
+    if (!component.annotated) {
+      unannotated += 1;
+      continue;
+    }
+    const key = component.reference.toUpperCase();
+    const group = groups.get(key) ?? [];
+    group.push(component);
+    groups.set(key, group);
+  }
+  return (
+    unannotated +
+    [...groups.values()].reduce(
+      (total, group) => total + (isVerifiedMultiUnitGroup(group) ? 1 : group.length),
+      0,
+    )
+  );
+}
+
 export function buildCanonicalSchematicModel(input: BuildSchematicModelInput): SchematicModel {
   const components = (input.components ?? []).map((component, index) =>
     normalizeSchematicComponent(component, index),
@@ -343,7 +369,7 @@ export function buildCanonicalSchematicModel(input: BuildSchematicModelInput): S
     diagnostics,
     summary: {
       componentCount: components.length,
-      bomComponentCount: components.filter((component) => component.bomEligible).length,
+      bomComponentCount: countPhysicalBomComponents(components),
       electricalComponentCount: components.filter((component) => component.electricalEligible)
         .length,
       netCount: nets.length,
