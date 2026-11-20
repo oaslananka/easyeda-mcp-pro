@@ -64,6 +64,52 @@ Leave the existing reverse proxy and unrelated applications untouched.
    with genuine users before changing the public DNS/ingress. Both social
    providers must retain their exact registered callback origin.
 
+## Repeatable in-place VPS upgrades
+
+Once a stable release image has passed publication checks, use the existing
+single-VM deployment and its **already-authorized** Doppler access. The provider
+of the Ubuntu VPS does not affect this command. No new VM, staging instance,
+database, CI runner, or secret store is required.
+
+First resolve the immutable Linux image digest from the published release
+and pull it **on the deployment VPS** (building on a 1 GiB machine is not
+supported):
+
+```bash
+sudo docker pull ghcr.io/oaslananka/easyeda-mcp-pro@sha256:<verified-64-hex-digest>
+```
+
+Then invoke the repository's update helper from the operator's working copy.
+The second argument must be the same immutable GHCR digest:
+
+```bash
+bash deploy/oracle-free/update.sh \
+  /home/ubuntu/services/easyeda-cloud \
+  ghcr.io/oaslananka/easyeda-mcp-pro@sha256:<verified-64-hex-digest>
+```
+
+The helper fails closed if the runtime secret-manager configuration is not
+available or if another SQLite writer is detected. It validates Compose
+without printing secrets, creates an independent consistent SQLite online
+backup, retains the original non-secret image pin, and replaces the **same**
+Compose container with no second database writer. It verifies exact running
+image identity and local health, and attempts to restore the previous image
+on failure. SQLite backups are retained for explicit recovery; the helper
+does **not** blindly overwrite live data or claim schema rollback safety.
+
+The current owner-operated VPS has a working authenticated Doppler CLI session.
+For sustainable unattended operation, provision a **project/config-scoped
+read-only Doppler service identity** through an authorized local provider
+procedure. Never write credentials into `.env`, the repository, GitHub
+Actions, copied shell commands, or logs. A CLI login by itself must not be
+mistaken for that durable scoped service identity. No token transfer or
+provider-specific account changes are part of the update helper.
+
+After an update, separately verify public OAuth discovery, unauthenticated
+401 responses, authenticated sign-in, editor reconnect/selection, real native
+MCP operations and any outstanding release acceptance. A healthy container
+does not close the Cloud real-user acceptance issue.
+
 ## Persistence and rollback
 
 The named Docker volume cloud-data contains hosted-cloud.sqlite and other
