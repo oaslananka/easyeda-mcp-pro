@@ -88,8 +88,14 @@ describe('Hosted Cloud pairing-code user experience', () => {
       document: {
         getElementById: (id: string) => get(id),
         createElement: () => new TestElement(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
       },
-      window: { location: { search: '', assign: vi.fn() }, addEventListener: vi.fn() },
+      window: {
+        location: { search: '', assign: vi.fn() },
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
       navigator: { clipboard: { writeText: clipboard } },
       fetch,
       Date: { now: () => clock },
@@ -203,8 +209,14 @@ describe('Hosted Cloud pairing-code user experience', () => {
       document: {
         getElementById: (id: string) => get(id),
         createElement: () => new TestElement(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
       },
-      window: { location: { search: '', assign: vi.fn() }, addEventListener: vi.fn() },
+      window: {
+        location: { search: '', assign: vi.fn() },
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
       navigator: {},
       fetch,
       Date: { now: () => clock },
@@ -298,8 +310,14 @@ describe('Hosted Cloud pairing-code user experience', () => {
       document: {
         getElementById: (id: string) => get(id),
         createElement: () => new TestElement(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
       },
-      window: { location: { search: '', assign: vi.fn() }, addEventListener: vi.fn() },
+      window: {
+        location: { search: '', assign: vi.fn() },
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
       navigator: {},
       fetch,
       Date: { now: () => clock },
@@ -387,8 +405,14 @@ describe('Hosted Cloud pairing-code user experience', () => {
       document: {
         getElementById: (id: string) => get(id),
         createElement: () => new TestElement(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
       },
-      window: { location: { search: '', assign: vi.fn() }, addEventListener: vi.fn() },
+      window: {
+        location: { search: '', assign: vi.fn() },
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
       navigator: {},
       fetch,
       setInterval: vi.fn(() => 1),

@@ -317,7 +317,10 @@ export const CLOUD_JS = String.raw`
         usagePending = false;
       }
     };
+    let clientsPending = false;
     const loadClients = async () => {
+      if (clientsPending) return;
+      clientsPending = true;
       const dest = get('clients');
       try {
         const data = await request('/cloud/api/clients');
@@ -376,6 +379,8 @@ export const CLOUD_JS = String.raw`
       } catch (error) {
         dest.replaceChildren(el('div','empty','Client authorizations could not be loaded. Select Refresh to retry.'));
         throw error;
+      } finally {
+        clientsPending = false;
       }
     };
     (async () => {
@@ -387,18 +392,31 @@ export const CLOUD_JS = String.raw`
         const initialLoad = await Promise.allSettled([refreshExtensions(), loadClients(), loadUsage()]);
         if (initialLoad[0].status === 'rejected') fail(initialLoad[0].reason);
         if (initialLoad[1].status === 'rejected') fail(initialLoad[1].reason);
-        // Low-cost near-live counts: only signed-in, foreground workspaces poll.
-        // No background requests and no timers left after page navigation.
+        // Refresh permission grants made in another OAuth tab when the owner
+        // returns, as well as on the existing foreground polling interval.
+        const refreshVisibleClients = () => {
+          if (!document.hidden) void loadClients().catch(() => {
+            // The Permissions card retains its manual Refresh fallback.
+          });
+        };
+        document.addEventListener('visibilitychange', refreshVisibleClients);
+        window.addEventListener('focus', refreshVisibleClients);
+        // No polling in background tabs or after leaving the workspace.
         const usageTimer = setInterval(() => {
           if (!document.hidden) {
             void loadUsage();
+            refreshVisibleClients();
             // A device can disconnect while this page remains open.
             void refreshExtensions().catch(() => {
               // Manual Refresh is available when a status poll fails.
             });
           }
         }, 30000);
-        window.addEventListener('pagehide', () => clearInterval(usageTimer), { once: true });
+        window.addEventListener('pagehide', () => {
+          clearInterval(usageTimer);
+          document.removeEventListener('visibilitychange', refreshVisibleClients);
+          window.removeEventListener('focus', refreshVisibleClients);
+        }, { once: true });
         const pair = get('generate-pairing');
         const copy = get('copy-pairing');
         let currentCode = '';

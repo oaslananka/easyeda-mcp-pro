@@ -154,6 +154,7 @@ describe('Hosted Cloud browser recovery', () => {
     const elements = new Map<string, any>();
     const intervals = new Map<number, { delay: number; callback: () => void }>();
     const windowListeners = new Map<string, () => void>();
+    const documentListeners = new Map<string, () => void>();
     let nextTimerId = 0;
     const documentState = { hidden: false };
     function fakeElement() {
@@ -203,6 +204,12 @@ describe('Hosted Cloud browser recovery', () => {
           return elements.get(id);
         },
         createElement: () => fakeElement(),
+        addEventListener: (name: string, callback: () => void) => {
+          documentListeners.set(name, callback);
+        },
+        removeEventListener: (name: string) => {
+          documentListeners.delete(name);
+        },
       },
       window: {
         location: {
@@ -211,6 +218,9 @@ describe('Hosted Cloud browser recovery', () => {
         },
         addEventListener: (name: string, callback: () => void) => {
           windowListeners.set(name, callback);
+        },
+        removeEventListener: (name: string) => {
+          windowListeners.delete(name);
         },
       },
       setInterval: (callback: () => void, delay: number) => {
@@ -235,6 +245,14 @@ describe('Hosted Cloud browser recovery', () => {
       },
       setHidden(hidden: boolean) {
         documentState.hidden = hidden;
+      },
+      async visibilityChange() {
+        documentListeners.get('visibilitychange')?.();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      },
+      async focus() {
+        windowListeners.get('focus')?.();
+        await new Promise<void>((resolve) => setImmediate(resolve));
       },
       leave() {
         windowListeners.get('pagehide')?.();
@@ -792,6 +810,65 @@ describe('Hosted Cloud browser recovery', () => {
       'No MCP clients have your authorization yet.',
     );
     expect(result.notice.textContent).toContain('MCP client access revoked.');
+  });
+
+  it('updates OAuth client permissions when returning from consent without background polling', async () => {
+    let authorized = false;
+    let requests = 0;
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'QA owner' } }) };
+      if (url === '/cloud/api/extensions')
+        return { ok: true, status: 200, json: async () => ({ sessions: [], selection: null }) };
+      if (url === '/cloud/api/clients') {
+        requests += 1;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            clients: authorized
+              ? [{ id: 'oauth-qa', name: 'MCP QA client', scopes: ['easyeda.read'] }]
+              : [],
+          }),
+        };
+      }
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ total: 0, succeeded: 0, failed: 0, lastCallAt: null }),
+        };
+      throw Error('Unexpected request ' + url);
+    });
+    expect(requests).toBe(1);
+    expect(result.elements.get('clients').children[0].textContent).toBe(
+      'No MCP clients have your authorization yet.',
+    );
+    result.setHidden(true);
+    authorized = true; // Consent was granted in another browser tab.
+    await result.visibilityChange();
+    await result.tickUsage();
+    expect(requests).toBe(1);
+
+    result.setHidden(false);
+    await result.visibilityChange();
+    expect(requests).toBe(2);
+    expect(result.elements.get('clients').children[0].children[0].children[0].textContent).toBe(
+      'MCP QA client',
+    );
+    await result.focus();
+    expect(requests).toBe(3);
+    authorized = false; // Consent was revoked in another browser tab.
+    await result.tickUsage();
+    expect(requests).toBe(4);
+    expect(result.elements.get('clients').children[0].textContent).toBe(
+      'No MCP clients have your authorization yet.',
+    );
+    result.leave();
+    await result.focus();
+    await result.visibilityChange();
+    expect(requests).toBe(4);
+    expect(result.activeUsageTimers()).toBe(0);
   });
 
   it('lets a signed-in owner retry MCP client permissions without reloading the pairing page', async () => {
