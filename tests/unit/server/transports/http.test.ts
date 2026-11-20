@@ -253,6 +253,50 @@ describe('createHttpTransport', () => {
     }
   });
 
+  it('permits an explicitly trusted browser MCP origin and exposes OAuth challenges', async () => {
+    const config = createTestConfig({
+      HTTP_PORT: 3899,
+      HTTP_HOST: '0.0.0.0',
+      ALLOWED_ORIGINS: 'https://cloud.example.com,http://127.0.0.1:6274,https://app.mcpjam.com',
+    });
+    const transport = createHttpTransport(config);
+    const server = http.createServer(transport.app);
+    await new Promise<void>((resolve) => server.listen(3899, '127.0.0.1', resolve));
+
+    try {
+      const origin = 'http://127.0.0.1:6274';
+      const preflight = await fetch('http://127.0.0.1:3899/mcp', {
+        method: 'OPTIONS',
+        headers: {
+          Origin: origin,
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers': 'authorization,content-type,mcp-protocol-version',
+        },
+      });
+      expect(preflight.status).toBe(204);
+      expect(preflight.headers.get('access-control-allow-origin')).toBe(origin);
+      expect(preflight.headers.get('access-control-allow-methods')).toContain('POST');
+
+      const allowed = await fetch('http://127.0.0.1:3899/healthz', { headers: { Origin: origin } });
+      expect(allowed.status).toBe(200);
+      expect(allowed.headers.get('access-control-allow-origin')).toBe(origin);
+      expect(allowed.headers.get('access-control-expose-headers')).toContain('WWW-Authenticate');
+
+      const other = await fetch('http://127.0.0.1:3899/mcp', {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'https://untrusted.example.com',
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers': 'authorization,content-type',
+        },
+      });
+      expect(other.status).toBe(403);
+      expect(other.headers.get('access-control-allow-origin')).toBeNull();
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it('should accept configured origin in ALLOWED_ORIGINS', async () => {
     const config = createTestConfig({
       HTTP_PORT: 3898,

@@ -27,8 +27,8 @@ services:
       MCP_APPS_ENABLED: 'true'
       OAUTH_REQUIRED_SCOPES: easyeda.read
       HTTP_AUTH_DISABLED: 'false'
-      # Allow the official EasyEDA Pro web editor to pair; never use a wildcard.
-      ALLOWED_ORIGINS: ${EASYEDA_PUBLIC_ORIGIN:?Set canonical HTTPS domain},https://pro.easyeda.com
+      # Allow the EasyEDA editor and known browser MCP inspectors; never use a wildcard.
+      ALLOWED_ORIGINS: ${EASYEDA_PUBLIC_ORIGIN:?Set canonical HTTPS domain},https://pro.easyeda.com,http://127.0.0.1:6274,http://localhost:6274,https://app.mcpjam.com
       CLOUD_HOSTED_ENABLED: 'true'
       CLOUD_HOSTED_ORIGIN: ${EASYEDA_PUBLIC_ORIGIN}
       OAUTH_ISSUER: ${EASYEDA_PUBLIC_ORIGIN}/api/auth
