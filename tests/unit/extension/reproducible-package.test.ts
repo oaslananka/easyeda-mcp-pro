@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   collectExtensionPackageFiles,
+  prepareExtensionPackageContent,
   writeExtensionArchive,
 } from '../../../easyeda-bridge-extension/scripts/archive.mjs';
 import { resolveReproducibleEpochSeconds } from '../../../easyeda-bridge-extension/scripts/reproducible-time.mjs';
@@ -47,6 +48,27 @@ describe('reproducible extension archive', () => {
       join(root, 'extension.json'),
       join(root, 'images/logo.png'),
     ]);
+  });
+
+  it('compacts extension JSON without changing its contents or other package inputs', () => {
+    const pretty = Buffer.from(
+      '{\r\n  "version": "1.17.0",\r\n  "menu": { "enabled": true }\r\n}\r\n',
+    );
+    const compact = prepareExtensionPackageContent('extension.json', pretty);
+
+    expect(compact.toString('utf8')).toBe('{"version":"1.17.0","menu":{"enabled":true}}');
+    expect(JSON.parse(compact.toString('utf8'))).toEqual(JSON.parse(pretty.toString('utf8')));
+
+    const readme = Buffer.from('# Bridge\r\n');
+    expect(prepareExtensionPackageContent('README.md', readme).toString('utf8')).toBe('# Bridge\n');
+    const image = Buffer.from([0, 255, 10]);
+    expect(prepareExtensionPackageContent('images/logo.png', image)).toEqual(image);
+  });
+
+  it('rejects malformed extension JSON rather than packaging invalid metadata', () => {
+    expect(() =>
+      prepareExtensionPackageContent('extension.json', Buffer.from('not valid JSON')),
+    ).toThrow();
   });
 
   it('produces identical archives for identical inputs and epoch', async () => {
