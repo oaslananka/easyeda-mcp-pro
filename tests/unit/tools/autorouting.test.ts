@@ -168,7 +168,216 @@ describe('Autorouting Tools', () => {
       })) as any;
       expect(result.blocked_by_preflight).toBe(true);
       expect(result.overall_verdict).toBe('blocked');
+      // The pre-flight reads board evidence from the bridge, but never reaches the autorouter.
+      expect(bridgeCall.mock.calls.some(([method]) => method === 'api.call')).toBe(false);
+    });
+
+    it('names the unknown checks when it blocks a board with no errors (default gateMode block)', async () => {
+      bridgeCall.mockImplementation(async () => ({}));
+      const tool = registry.get('easyeda_pcb_autoroute');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-1',
+        confirmWrite: true,
+        boardData: { hasOutline: true, layerCount: 2, hasLayerStack: true },
+      })) as any;
+      expect(result.overall_verdict).toBe('blocked');
+      expect(result.preflight.error_count).toBe(0);
+      expect(result.preflight.unknown_count).toBeGreaterThan(0);
+      expect(result.preflight.gate_mode).toBe('block');
+      expect(result.summary).toContain('unknown check(s)');
+      expect(result.summary).toContain('gateMode');
+      expect(bridgeCall.mock.calls.some(([method]) => method === 'api.call')).toBe(false);
+    });
+
+    it("routes with gateMode 'warn' when only unknown checks remain, and reports them", async () => {
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'api.call') {
+          return {
+            result: { success: true, totalNetsCount: 3, successNetsCount: 3, failedNets: [] },
+          };
+        }
+        if (method === 'design.drc') {
+          return {
+            violations: [],
+            totalViolations: 0,
+            errorCount: 0,
+            warningCount: 0,
+            passed: true,
+          };
+        }
+        return {};
+      });
+      const tool = registry.get('easyeda_pcb_autoroute');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-1',
+        confirmWrite: true,
+        gateMode: 'warn',
+        boardData: { hasOutline: true, layerCount: 2, hasLayerStack: true },
+      })) as any;
+      expect(result.blocked_by_preflight).toBe(false);
+      expect(result.autoroute_result.started).toBe(true);
+      expect(result.preflight.passed).toBe(true);
+      expect(result.preflight.gate_mode).toBe('warn');
+      expect(result.preflight.unknown_count).toBeGreaterThan(0);
+      expect(result.preflight.unknown_checks.length).toBe(result.preflight.unknown_count);
+    });
+
+    it("still blocks on pre-flight errors with gateMode 'warn'", async () => {
+      bridgeCall.mockImplementation(async () => ({}));
+      const tool = registry.get('easyeda_pcb_autoroute');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-1',
+        confirmWrite: true,
+        gateMode: 'warn',
+        boardData: { hasOutline: false },
+      })) as any;
+      expect(result.overall_verdict).toBe('blocked');
+      expect(result.preflight.error_count).toBeGreaterThan(0);
+      expect(result.summary).toContain('Fix the errors');
+      expect(bridgeCall.mock.calls.some(([method]) => method === 'api.call')).toBe(false);
+    });
+
+    it('merges caller boardData over the bridge evidence instead of replacing it', async () => {
+      // The bridge measures the outline and holes; the caller supplies everything else.
+      const measured = {
+        widthMm: 60,
+        heightMm: 40,
+        hasOutline: true,
+        mountingHoleCount: 4,
+        minDrillMm: 0.3,
+      };
+      const callerPart = passingBoardData() as Record<string, unknown>;
+      for (const key of Object.keys(measured)) delete callerPart[key];
+      const routeOk = async (method: string) => {
+        if (method === 'api.call') {
+          return {
+            result: { success: true, totalNetsCount: 1, successNetsCount: 1, failedNets: [] },
+          };
+        }
+        if (method === 'design.drc') {
+          return {
+            violations: [],
+            totalViolations: 0,
+            errorCount: 0,
+            warningCount: 0,
+            passed: true,
+          };
+        }
+        return {};
+      };
+      const tool = registry.get('easyeda_pcb_autoroute');
+
+      bridgeCall.mockImplementation(async (method: string) =>
+        method === 'board.getDimensions' ? measured : routeOk(method),
+      );
+      const merged = (await tool?.handler(context, {
+        projectId: 'proj-1',
+        confirmWrite: true,
+        boardData: callerPart,
+      })) as any;
+      expect(merged.blocked_by_preflight).toBe(false);
+      expect(merged.preflight.unknown_count).toBe(0);
+
+      // Without the bridge measurements the same caller data leaves the outline and holes unknown.
+      bridgeCall.mockImplementation(routeOk);
+      const callerOnly = (await tool?.handler(context, {
+        projectId: 'proj-1',
+        confirmWrite: true,
+        boardData: callerPart,
+      })) as any;
+      expect(callerOnly.blocked_by_preflight).toBe(true);
+      expect(callerOnly.preflight.unknown_count).toBeGreaterThan(0);
+    });
+
+    it('waits longer than the default bridge timeout for the native autorouter', async () => {
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'api.call') {
+          return {
+            result: { success: true, totalNetsCount: 1, successNetsCount: 1, failedNets: [] },
+          };
+        }
+        if (method === 'design.drc') {
+          return {
+            violations: [],
+            totalViolations: 0,
+            errorCount: 0,
+            warningCount: 0,
+            passed: true,
+          };
+        }
+        return {};
+      });
+      const tool = registry.get('easyeda_pcb_autoroute');
+      await tool?.handler(context, {
+        projectId: 'proj-1',
+        confirmWrite: true,
+        gateMode: 'warn',
+        boardData: { hasOutline: true, layerCount: 2, hasLayerStack: true },
+      });
+      const autorouteCall = bridgeCall.mock.calls.find(([method]) => method === 'api.call');
+      expect(autorouteCall?.[2]?.timeoutMs).toBeGreaterThanOrEqual(5 * 60 * 1000);
+    });
+
+    it('keeps known errors blocking: gateMode only accepts warn and block', () => {
+      const tool = registry.get('easyeda_pcb_autoroute');
+      expect(() =>
+        tool?.inputSchema.parse({ projectId: 'p', confirmWrite: true, gateMode: 'off' }),
+      ).toThrow();
+    });
+
+    it('blocks on unknown evidence when the bridge reads fail, without calling the autorouter', async () => {
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method.startsWith('board.')) throw new Error('bridge down');
+        return {};
+      });
+      const tool = registry.get('easyeda_pcb_autoroute');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-1',
+        confirmWrite: true,
+      })) as any;
+      expect(result.overall_verdict).toBe('blocked');
+      expect(result.preflight.unknown_count).toBeGreaterThan(0);
+      expect(bridgeCall.mock.calls.some(([method]) => method === 'api.call')).toBe(false);
+    });
+
+    it('reports failed when board evidence cannot be gathered at all and no boardData was given', async () => {
+      const throwingBridge = {
+        get connected(): boolean {
+          throw new Error('bridge state unavailable');
+        },
+        call: bridgeCall,
+      };
+      const tool = registry.get('easyeda_pcb_autoroute');
+      const noData = (await tool?.handler(
+        { ...context, bridge: throwingBridge } as unknown as ToolContext,
+        { projectId: 'proj-1', confirmWrite: true },
+      )) as any;
+      expect(noData.overall_verdict).toBe('failed');
+      expect(noData.error).toContain('bridge state unavailable');
+
+      // With caller boardData the pre-flight still runs on that data alone.
+      const withData = (await tool?.handler(
+        { ...context, bridge: throwingBridge } as unknown as ToolContext,
+        { projectId: 'proj-1', confirmWrite: true, boardData: { hasOutline: false } },
+      )) as any;
+      expect(withData.overall_verdict).toBe('blocked');
+      expect(withData.preflight.error_count).toBeGreaterThan(0);
       expect(bridgeCall).not.toHaveBeenCalled();
+    });
+
+    it('lets caller boardData override a bridge value', async () => {
+      bridgeCall.mockImplementation(async (method: string) =>
+        method === 'board.getDimensions' ? { hasOutline: true } : {},
+      );
+      const tool = registry.get('easyeda_pcb_autoroute');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-1',
+        confirmWrite: true,
+        gateMode: 'warn',
+        boardData: { hasOutline: false },
+      })) as any;
+      expect(result.overall_verdict).toBe('blocked');
+      expect(result.preflight.error_count).toBeGreaterThan(0);
     });
 
     it('reports failed (not silent success) when the autoroute bridge call throws', async () => {
