@@ -231,9 +231,32 @@ export const CLOUD_JS = String.raw`
     const selectedClientHasReadAccess = () => readClientCount > 0 &&
       (selectedClient === 'other' || readClientNames.some((name) =>
         name.toLowerCase().includes(selectedClient)));
+    // The connection guide is also shown to returning owners with a selected
+    // design. Keep its next action aligned with the actual connection state.
+    const guidedPresentation = (readyForQuestion) => {
+      if (readyForQuestion) return {
+        kicker: 'DESIGN SELECTED', title: 'Your EasyEDA workspace', phase: 'NEXT: ASK A QUESTION',
+      };
+      if (hasSelectedDesign) return {
+        kicker: 'AUTHORIZE ACCESS', title: 'Connect your AI assistant', phase: 'APP ACCESS REQUIRED',
+      };
+      if (hasOnlineDevice) return {
+        kicker: 'SELECT A DESIGN', title: 'Choose your open design', phase: 'DESIGN NOT SELECTED',
+      };
+      if (hasPreviousPairings) return {
+        kicker: 'RECONNECT', title: 'Reconnect EasyEDA', phase: 'CONNECT YOUR DEVICE',
+      };
+      return {
+        kicker: 'FIRST CONNECTION', title: 'Start using EasyEDA MCP Pro', phase: 'GUIDED SETUP',
+      };
+    };
     const updateGuided = () => {
       const chosenClientName = clientOptions[selectedClient].name;
       const chosenClientHasReadAccess = selectedClientHasReadAccess();
+      const presentation = guidedPresentation(hasSelectedDesign && chosenClientHasReadAccess);
+      setText('guided-kicker', presentation.kicker);
+      setText('guided-title', presentation.title);
+      setText('guided-phase', presentation.phase);
       const deviceStage = get('progress-device');
       const accessStage = get('progress-access');
       const questionStage = get('progress-ask');
@@ -251,7 +274,8 @@ export const CLOUD_JS = String.raw`
       if (prompt) prompt.disabled = !hasSelectedDesign || !chosenClientHasReadAccess;
       const connect = get('guided-connect-link');
       if (connect) {
-        connect.textContent = hasOnlineDevice ? 'Choose the open design ↓' :
+        connect.textContent = hasSelectedDesign ? 'View selected design ↓' :
+          hasOnlineDevice ? 'Choose the open design ↓' :
           hasPreviousPairings ? 'Reconnect EasyEDA ↓' : 'Connect EasyEDA ↓';
         connect.href = hasOnlineDevice || hasPreviousPairings ? '#extensions-title' : '#pair-title';
       }

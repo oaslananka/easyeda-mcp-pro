@@ -289,6 +289,9 @@ describe('Hosted Cloud browser recovery', () => {
       throw Error('Unexpected request ' + url);
     });
     expect(result.elements.get('guided-device-status').textContent).toBe('Not connected');
+    expect(result.elements.get('guided-title').textContent).toBe('Start using EasyEDA MCP Pro');
+    expect(result.elements.get('guided-kicker').textContent).toBe('FIRST CONNECTION');
+    expect(result.elements.get('guided-connect-link').textContent).toBe('Connect EasyEDA ↓');
     expect(result.elements.get('guided-access-status').textContent).toBe(
       'No MCP client authorized yet',
     );
@@ -317,8 +320,19 @@ describe('Hosted Cloud browser recovery', () => {
         activeProject: { projectId: 'qa', documentId: 'P1', documentType: 'schematic' },
       },
     ];
+    // A connected device with no explicit native selection must still ask
+    // for a design; do not imply that the MCP connection is ready.
+    await result.elements.get('refresh-extensions').dispatch('click');
+    expect(result.elements.get('guided-title').textContent).toBe('Choose your open design');
+    expect(result.elements.get('guided-kicker').textContent).toBe('SELECT A DESIGN');
+    expect(result.elements.get('guided-connect-link').textContent).toBe('Choose the open design ↓');
+    expect(result.elements.get('copy-first-question').disabled).toBe(true);
+
     selection = { sessionId: 'qa-session', projectId: 'qa', documentId: 'P1' };
     await result.elements.get('refresh-extensions').dispatch('click');
+    expect(result.elements.get('guided-title').textContent).toBe('Connect your AI assistant');
+    expect(result.elements.get('guided-kicker').textContent).toBe('AUTHORIZE ACCESS');
+    expect(result.elements.get('guided-connect-link').textContent).toBe('View selected design ↓');
     expect(result.elements.get('guided-device-status').textContent).toBe(
       'Connected · design selected',
     );
@@ -333,11 +347,26 @@ describe('Hosted Cloud browser recovery', () => {
     expect(result.elements.get('guided-access-status').textContent).toContain('MCP Inspector');
     expect(result.elements.get('copy-first-question').disabled).toBe(true);
     await result.elements.get('client-other').dispatch('click');
+    expect(result.elements.get('guided-title').textContent).toBe('Your EasyEDA workspace');
+    expect(result.elements.get('guided-kicker').textContent).toBe('DESIGN SELECTED');
+    expect(result.elements.get('guided-connect-link').textContent).toBe('View selected design ↓');
     expect(result.elements.get('progress-access').dataset.state).toBe('done');
     expect(result.elements.get('progress-ask').dataset.state).toBe('current');
     expect(result.elements.get('copy-first-question').disabled).toBe(false);
     clients = [];
     await result.elements.get('refresh-clients').dispatch('click');
+    expect(result.elements.get('guided-title').textContent).toBe('Connect your AI assistant');
+    expect(result.elements.get('guided-kicker').textContent).toBe('AUTHORIZE ACCESS');
+    expect(result.elements.get('copy-first-question').disabled).toBe(true);
+
+    // Returning owners who are temporarily offline need reconnect guidance,
+    // not an incorrect "first connection" or "selected" confirmation.
+    sessions = [{ ...sessions[0], connected: false }];
+    selection = null;
+    await result.elements.get('refresh-extensions').dispatch('click');
+    expect(result.elements.get('guided-title').textContent).toBe('Reconnect EasyEDA');
+    expect(result.elements.get('guided-kicker').textContent).toBe('RECONNECT');
+    expect(result.elements.get('guided-connect-link').textContent).toBe('Reconnect EasyEDA ↓');
     expect(result.elements.get('copy-first-question').disabled).toBe(true);
   });
 
