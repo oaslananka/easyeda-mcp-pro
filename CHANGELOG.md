@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.17.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.16.1...easyeda-mcp-pro-v1.17.0) (2026-11-20)
+
+
+### Features
+
+* **cloud:** guide first-time MCP connection ([#1092](https://github.com/oaslananka/easyeda-mcp-pro/issues/1092)) ([fdd8007](https://github.com/oaslananka/easyeda-mcp-pro/commit/fdd8007caacd0daaa36870ec20d0ba2ab9a5cbd4))
+
+
+### Bug Fixes
+
+* **cloud:** clarify client authorization and offline reconnect ([#1093](https://github.com/oaslananka/easyeda-mcp-pro/issues/1093)) ([c0ee639](https://github.com/oaslananka/easyeda-mcp-pro/commit/c0ee63918921f1682a7e52e10856012f29704511))
+* **cloud:** guide owners when a selected editor session is replaced ([#1100](https://github.com/oaslananka/easyeda-mcp-pro/issues/1100)) ([547db00](https://github.com/oaslananka/easyeda-mcp-pro/commit/547db00a89349f8577b1ccf4eaac709ca2fafd42))
+* **cloud:** guide returning owners to the current connection step ([#1101](https://github.com/oaslananka/easyeda-mcp-pro/issues/1101)) ([d31a76c](https://github.com/oaslananka/easyeda-mcp-pro/commit/d31a76c2051c83171cd064eeb8af68070c7ac7d4))
+* **cloud:** improve pairing setup and README badge layout ([#1088](https://github.com/oaslananka/easyeda-mcp-pro/issues/1088)) ([5dfee84](https://github.com/oaslananka/easyeda-mcp-pro/commit/5dfee84483e2176de033b50f74e98e3853127f04))
+* **cloud:** refresh OAuth permissions when returning to workspace ([#1091](https://github.com/oaslananka/easyeda-mcp-pro/issues/1091)) ([38459ed](https://github.com/oaslananka/easyeda-mcp-pro/commit/38459ed5e7356784270305cd52f76491e67d9d63))
+* **cloud:** restore browser MCP OAuth access for trusted origins ([#1094](https://github.com/oaslananka/easyeda-mcp-pro/issues/1094)) ([f928c3e](https://github.com/oaslananka/easyeda-mcp-pro/commit/f928c3e05c0cdb5d4538d163c2aca413cd027a2d))
+* **extension:** compact packaged manifest without changing metadata ([#1095](https://github.com/oaslananka/easyeda-mcp-pro/issues/1095)) ([46ffdaa](https://github.com/oaslananka/easyeda-mcp-pro/commit/46ffdaaa9dde04fa70874d28f01547771851c525))
+* **mcp:** support export approval errors in strict clients ([#1090](https://github.com/oaslananka/easyeda-mcp-pro/issues/1090)) ([beacdbc](https://github.com/oaslananka/easyeda-mcp-pro/commit/beacdbc1693da0e38b66d3ef575edae8e5523ec1))
+* **schematic:** recognize verified multi-unit BOM identity ([#1096](https://github.com/oaslananka/easyeda-mcp-pro/issues/1096)) ([f407309](https://github.com/oaslananka/easyeda-mcp-pro/commit/f407309f94a62c535fa3df00d53ad7384837e8d9))
+* **security:** require write authorization for transaction locks ([#1098](https://github.com/oaslananka/easyeda-mcp-pro/issues/1098)) ([ffeb7c5](https://github.com/oaslananka/easyeda-mcp-pro/commit/ffeb7c5e8c79e37b3febccacb3dcf97441a2defc))
+
 ## [1.16.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.16.0...easyeda-mcp-pro-v1.16.1) (2026-11-19)
 
 

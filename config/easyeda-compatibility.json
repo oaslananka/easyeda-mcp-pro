@@ -1,8 +1,130 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-11-19",
+  "lastReviewed": "2026-11-20",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-20-f8f5a9f-v117-native-local",
+      "status": "live-validated",
+      "validatedAt": "2026-11-20T13:58:23Z",
+      "reviewBy": "2027-02-18",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-43-generic",
+        "nodeVersion": "24.22.3"
+      },
+      "easyedaPro": {
+        "version": "4.1.105.0339a6cd",
+        "electronVersion": "36.3.1",
+        "chromiumVersion": "136.0.7103.113",
+        "electronVersionProvenance": "Observed from V4 Electron/CDP runtime metadata in the isolated native session."
+      },
+      "server": {
+        "validationPackageVersion": "1.17.0",
+        "releaseContainingFixes": "1.17.0",
+        "commit": "f8f5a9f432fad3ea8b69484cab26689a47ad192b",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "ba837d717a2ce827fa622378825f83b9222e02fb",
+            "src/bridge": "f591958922137f786668303d5a8f10398eebb798",
+            "src/remote": "21828dd5be0fcec40afec4c93cc2098bcd688e53",
+            "src/server/transports": "9bc07b162597a9ee3417878745772433e632e1bf",
+            "src/tools": "e86d46ef560e6ab49757c47d2676096dbd3fb9e4",
+            "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.17.0",
+        "loaderReportedVersion": "1.17.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "f71f5e22b7fec5db",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "dcb0ex9ed6x082f",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "e4b22e900b077607b1c4a1ecd3b4ac1c2bce36fc3d9c7eb607a92ebfe8f401a0",
+        "packageSizeBytes": 237612
+      },
+      "fixture": {
+        "project": "Isolated offline disposable .eprj2 schematic copy plus a separate populated BOM sample copy; no personal project paths or IDs published",
+        "schematic": "Focused P1 single test-marker creation/delete with two independent cold process reopen checks; BOM read and inline CSV on second sample",
+        "disposable": true,
+        "readOnly": false
+      },
+      "capabilities": [
+        {
+          "id": "v117-real-native-extension-and-http-mcp",
+          "name": "Exact 1.17.0 V4 native extension, bridge, and local MCP handshake",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Official V4 Extensions Manager installed the 237612-byte candidate .eext; native functions inventory reported enabled 1.17.0; matching built 1.17.0 server and extension communicated over OS-loopback WebSocket and MCP HTTP (2025-11-25) with health ok, 82 registered core tools.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-20-ubuntu-24-04-easyeda-4.1.105-v1.17.0-f8f5a9f-native-local-mcp.json"
+          ]
+        },
+        {
+          "id": "v117-native-focused-project-and-write-scope",
+          "name": "Focused native schematic read and explicit write confirmation",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Current project and P1 document identities matched independently. Real MCP component/net reads succeeded. confirmWrite:false rejected both text add and exact primitive delete; confirmWrite:true created one test marker on the selected disposable sheet.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-20-ubuntu-24-04-easyeda-4.1.105-v1.17.0-f8f5a9f-native-local-mcp.json"
+          ]
+        },
+        {
+          "id": "v117-native-add-save-cold-persistence",
+          "name": "Confirmed native text creation persisted through full editor restart",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "MCP save acknowledged native handling but truthfully reported persistence_verified=false; asynchronous file hash changed. Graceful full V4 shutdown and independent new native process opening the exact offline file returned exactly one matching test marker, one frame, zero wires.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-20-ubuntu-24-04-easyeda-4.1.105-v1.17.0-f8f5a9f-native-local-mcp.json"
+          ]
+        },
+        {
+          "id": "v117-native-exact-delete-cold-persistence",
+          "name": "V4-gated single text deletion persisted through second full restart",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "After independently re-finding the exact test-marker primitive ID, confirmed native delete returned success and persistence_verified=false, and read-back found no matching text. Following explicit MCP save, a second complete editor shutdown and independent cold reopen found zero markers, one frame, zero wires; no non-idempotent write was blindly retried.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-20-ubuntu-24-04-easyeda-4.1.105-v1.17.0-f8f5a9f-native-local-mcp.json"
+          ]
+        },
+        {
+          "id": "v117-native-populated-bom-and-inline-csv",
+          "name": "Native populated schematic read, BOM generation, and client-saved CSV",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Separate disposable offline demo copy opened with 58 component primitives and 34 wires; real focused MCP components reported 34 items, BOM generated 20 grouped entries. Inline MCP CSV export reported exported=true, 1998 bytes. Client wrote file and independent CSV parser read 20 data rows.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-20-ubuntu-24-04-easyeda-4.1.105-v1.17.0-f8f5a9f-native-local-mcp.json"
+          ]
+        },
+        {
+          "id": "v117-native-server-side-csv-file-export",
+          "name": "Local MCP server-side BOM CSV file delivery",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "The same populated project returned exported=false, not_available=true, entry_count=20 for local delivery=file; no file existed at the allowed artifact destination. This path did NOT pass and requires a separate fix/live recheck.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-20-ubuntu-24-04-easyeda-4.1.105-v1.17.0-f8f5a9f-native-local-mcp.json"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Exact-source native acceptance covers EasyEDA Pro 4.1.105 Ubuntu only, local/private-loopback MCP, two disposable offline .eprj2 fixtures and the documented operations. It does NOT establish full tool, board/PCB, Windows/macOS, .eprj3, or manufacturing readiness.",
+        "Cloud OAuth, native remote write approval, independent-owner isolation, permission revocation, interruption recovery, provider callback rotation, production Cloud deployment and complete user onboarding remain unverified in this run (#850).",
+        "Native MCP save and delete correctly expose persistence_verified=false; the observed add/delete durability was established only by two independent complete editor shutdowns and cold readbacks; do not silently promote native ACK into durable-save proof.",
+        "Local delivery=file BOM export returned exported=false/not_available=true with no file. Only inline delivery with explicit client-side saved CSV and independent parse passed; a reported isError=false was not mistaken for a successful file export.",
+        "An abandoned editor IPC Unix socket needed an independently verified unowned/connection-refused recovery to restart a terminated test editor; this was a test-environment recovery, not a production code fix or general vendor remedy.",
+        "No private desktop paths, device identity, sensitive project UUIDs, user credentials, vendor support messages, or production design mutations were persisted in this evidence."
+      ]
+    },
     {
       "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-19-6067401-v161-cloud-release",
       "status": "live-validated",

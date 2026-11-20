@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-v117-native-local-MCP-compatibility",
+  "recordedAtUtc": "2026-11-20T13:58:23Z",
+  "candidate": {
+    "releasePullRequest": 1089,
+    "exactCommit": "f8f5a9f432fad3ea8b69484cab26689a47ad192b",
+    "packageVersion": "1.17.0",
+    "extensionSha256": "e4b22e900b077607b1c4a1ecd3b4ac1c2bce36fc3d9c7eb607a92ebfe8f401a0",
+    "extensionBytes": 237612,
+    "compatibilitySensitiveTreeSha1": {
+      "easyeda-bridge-extension/src": "ba837d717a2ce827fa622378825f83b9222e02fb",
+      "src/bridge": "f591958922137f786668303d5a8f10398eebb798",
+      "src/remote": "21828dd5be0fcec40afec4c93cc2098bcd688e53",
+      "src/server/transports": "9bc07b162597a9ee3417878745772433e632e1bf",
+      "src/tools": "e86d46ef560e6ab49757c47d2676096dbd3fb9e4",
+      "src/transactions": "3dfca44db3857972be3a24fade2b77315420c03a"
+    },
+    "methodRegistryHash": "f71f5e22b7fec5db",
+    "dispatcherBuildId": "dcb0ex9ed6x082f"
+  },
+  "editor": {
+    "version": "EasyEDA Pro 4.1.105.0339a6cd",
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-43-generic",
+    "nodeVersion": "24.22.3",
+    "electronVersion": "36.3.1",
+    "chromiumVersion": "136.0.7103.113"
+  },
+  "fixture": {
+    "schematic": "isolated one-page offline .eprj2 disposable copy",
+    "bom": "independent populated offline .eprj2 disposable copy",
+    "productionOrUserProjectChanged": false,
+    "allPathsAndIdentifiersOmitted": true
+  },
+  "liveAcceptance": {
+    "installedExtension": {
+      "nativeVersion": "1.17.0",
+      "enabled": true,
+      "expectedPackageShaMatched": true,
+      "officialExtensionsManagerImport": true
+    },
+    "connection": {
+      "httpTransport": "2025-11-25",
+      "serverVersion": "1.17.0",
+      "extensionVersion": "1.17.0",
+      "bridgeConnected": true,
+      "registeredCoreTools": 82,
+      "loopbackOnly": true
+    },
+    "focusedRead": {
+      "schematicComponents": 0,
+      "schematicNets": 0,
+      "pageIdentityVerified": true,
+      "projectIdentityVerified": true
+    },
+    "add": {
+      "unconfirmedWriteDenied": true,
+      "confirmedNativeCreate": true,
+      "nativeImmediateMarkerCount": 1,
+      "mcpSaveNativeAcknowledged": true,
+      "mcpSavePersistenceVerified": false,
+      "fullStopAndIndependentColdReopen": true,
+      "coldMarkerCount": 1,
+      "frameCount": 1,
+      "wireCount": 0,
+      "firstSettledFileSha256": "996a7e9542c3ac5a13a1a531e44b21dd89d9694b6c5a45c95be0ebfc1940048e"
+    },
+    "delete": {
+      "unconfirmedDeleteDenied": true,
+      "exactSinglePrimitiveId": true,
+      "confirmedNativeDelete": true,
+      "nativeImmediateMarkerCount": 0,
+      "mcpDeletePersistenceVerified": false,
+      "mcpSaveNativeAcknowledged": true,
+      "mcpSavePersistenceVerified": false,
+      "secondIndependentColdReopen": true,
+      "coldMarkerCount": 0,
+      "frameCount": 1,
+      "wireCount": 0,
+      "secondSettledFileSha256": "45b5f012692b02185e1bb138aea181a6a44b6a1434bae8ef60ee4a36cc6e85bd"
+    },
+    "bom": {
+      "nativeComponentPrimitives": 58,
+      "nativeWirePrimitives": 34,
+      "focusedMcpComponents": 34,
+      "groupedEntries": 20,
+      "inlineCsvExported": true,
+      "clientCsvBytes": 1998,
+      "clientCsvSha256": "fd98d7fd68cad046dfaecd718de7517f7cc042b00bc078a66a5715149e1132c1",
+      "independentCsvDataRows": 20,
+      "localFileExported": false,
+      "localFileNotAvailable": true,
+      "localFileCreated": false
+    }
+  },
+  "notVerified": [
+    "Cloud owner isolation and OAuth/approval end-to-end",
+    "hosted Cloud deployment or post-deploy read/write",
+    "native local server-side BOM file delivery",
+    "Windows/Mac V4 live extension compatibility",
+    "full project/PCB/editor APIs and manufacturing/electrical sign-off"
+  ],
+  "notes": [
+    "Native errors and MCP isError do not imply business success; local export returned isError=false with exported=false and was treated as failure.",
+    "Only test-owned editor processes/files were changed. Test fixtures used no external account or production design.",
+    "Observed delayed .eprj2 file writes were verified by settled byte hash and independent full cold reopen rather than assertion on native save acknowledgment."
+  ]
+}
