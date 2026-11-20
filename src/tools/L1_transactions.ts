@@ -151,12 +151,13 @@ export function registerTransactionTools(
     name: 'easyeda_project_begin_transaction',
     title: 'Begin project transaction',
     description:
-      'Open an in-memory, document-scoped transaction for snapshot-backed schematic writes. Only tools ' +
-      'passed transactionId participate; standalone schematic writes are not auto-captured. Only one ' +
-      'active transaction is allowed per document. Beginning a transaction does not modify EasyEDA.',
+      'Reserve one document write lock for snapshot-backed schematic writes. Only tools with ' +
+      'transactionId participate; standalone schematic writes are not auto-captured. ' +
+      'Requires project-write authorization but does not change EasyEDA.',
     profile: 'core',
     evidence: ['inferred'],
-    risk: 'low',
+    risk: 'medium',
+    sideEffect: 'local-state-write',
     confirmWrite: false,
     group: 'project',
     version: '1.0.0',
