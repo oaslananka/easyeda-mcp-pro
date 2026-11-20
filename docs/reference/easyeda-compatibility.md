@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-11-19
+- **Last reviewed:** 2026-11-20
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.17.0               | 1.17.0                | 1.17.0            | Live validated  | 2026-11-20 | 2027-02-18 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.16.1               | 1.16.1                | 1.16.1            | Live validated  | 2026-11-19 | 2027-02-17 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.16.0               | 1.16.0                | 1.16.0            | Live validated  | 2026-11-19 | 2027-02-17 |
 | 3.2.209.8a704eab     | Ubuntu 24.04.5 LTS / x86_64                 | 1.15.6               | 1.15.6                | 1.15.6            | Live validated  | 2026-11-15 | 2027-02-13 |
@@ -77,6 +78,56 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-20-f8f5a9f-v117-native-local
+
+Record ID: `easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-20-f8f5a9f-v117-native-local`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| EasyEDA Pro                              | `4.1.105.0339a6cd`                                                 |
+| Electron                                 | `36.3.1`                                                           |
+| Chromium                                 | `136.0.7103.113`                                                   |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                 |
+| Kernel                                   | `7.0.0-43-generic`                                                 |
+| Architecture                             | `x86_64`                                                           |
+| Node.js used by validation server        | `24.22.3`                                                          |
+| Validation package version               | `1.17.0`                                                           |
+| Fix version represented by evidence      | `1.17.0`                                                           |
+| Compatibility-sensitive base commit      | `f8f5a9f432fad3ea8b69484cab26689a47ad192b`                         |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                           |
+| Installed extension package metadata     | `1.17.0`                                                           |
+| Live-validated extension package SHA-256 | `e4b22e900b077607b1c4a1ecd3b4ac1c2bce36fc3d9c7eb607a92ebfe8f401a0` |
+| Live-validated extension package size    | `237612 bytes`                                                     |
+| Loader-reported version                  | `1.17.0`                                                           |
+| Bridge contract                          | `1.0.0`                                                            |
+| Dispatcher                               | `baked`                                                            |
+| Method registry hash                     | `f71f5e22b7fec5db`                                                 |
+| Hot-swap compiled / enabled              | `false` / `false`                                                  |
+
+The installed extension package and loader both reported version `1.17.0` during this validation.
+
+### Capability evidence
+
+| Capability                                                            | Level  | Status    | Result                                                                                                                                                                                                                                                                                                                                                               | Evidence                                                                                                                                                                     |
+| --------------------------------------------------------------------- | ------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact 1.17.0 V4 native extension, bridge, and local MCP handshake     | `live` | `passed`  | Official V4 Extensions Manager installed the 237612-byte candidate .eext; native functions inventory reported enabled 1.17.0; matching built 1.17.0 server and extension communicated over OS-loopback WebSocket and MCP HTTP (2025-11-25) with health ok, 82 registered core tools.                                                                                 | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-20-ubuntu-24-04-easyeda-4.1.105-v1.17.0-f8f5a9f-native-local-mcp.json) |
+| Focused native schematic read and explicit write confirmation         | `live` | `passed`  | Current project and P1 document identities matched independently. Real MCP component/net reads succeeded. confirmWrite:false rejected both text add and exact primitive delete; confirmWrite:true created one test marker on the selected disposable sheet.                                                                                                          | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-20-ubuntu-24-04-easyeda-4.1.105-v1.17.0-f8f5a9f-native-local-mcp.json) |
+| Confirmed native text creation persisted through full editor restart  | `live` | `passed`  | MCP save acknowledged native handling but truthfully reported persistence_verified=false; asynchronous file hash changed. Graceful full V4 shutdown and independent new native process opening the exact offline file returned exactly one matching test marker, one frame, zero wires.                                                                              | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-20-ubuntu-24-04-easyeda-4.1.105-v1.17.0-f8f5a9f-native-local-mcp.json) |
+| V4-gated single text deletion persisted through second full restart   | `live` | `passed`  | After independently re-finding the exact test-marker primitive ID, confirmed native delete returned success and persistence_verified=false, and read-back found no matching text. Following explicit MCP save, a second complete editor shutdown and independent cold reopen found zero markers, one frame, zero wires; no non-idempotent write was blindly retried. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-20-ubuntu-24-04-easyeda-4.1.105-v1.17.0-f8f5a9f-native-local-mcp.json) |
+| Native populated schematic read, BOM generation, and client-saved CSV | `live` | `passed`  | Separate disposable offline demo copy opened with 58 component primitives and 34 wires; real focused MCP components reported 34 items, BOM generated 20 grouped entries. Inline MCP CSV export reported exported=true, 1998 bytes. Client wrote file and independent CSV parser read 20 data rows.                                                                   | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-20-ubuntu-24-04-easyeda-4.1.105-v1.17.0-f8f5a9f-native-local-mcp.json) |
+| Local MCP server-side BOM CSV file delivery                           | `live` | `blocked` | The same populated project returned exported=false, not_available=true, entry_count=20 for local delivery=file; no file existed at the allowed artifact destination. This path did NOT pass and requires a separate fix/live recheck.                                                                                                                                | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-20-ubuntu-24-04-easyeda-4.1.105-v1.17.0-f8f5a9f-native-local-mcp.json) |
+
+### Known limitations
+
+- Exact-source native acceptance covers EasyEDA Pro 4.1.105 Ubuntu only, local/private-loopback MCP, two disposable offline .eprj2 fixtures and the documented operations. It does NOT establish full tool, board/PCB, Windows/macOS, .eprj3, or manufacturing readiness.
+- Cloud OAuth, native remote write approval, independent-owner isolation, permission revocation, interruption recovery, provider callback rotation, production Cloud deployment and complete user onboarding remain unverified in this run (#850).
+- Native MCP save and delete correctly expose persistence_verified=false; the observed add/delete durability was established only by two independent complete editor shutdowns and cold readbacks; do not silently promote native ACK into durable-save proof.
+- Local delivery=file BOM export returned exported=false/not_available=true with no file. Only inline delivery with explicit client-side saved CSV and independent parse passed; a reported isError=false was not mistaken for a successful file export.
+- An abandoned editor IPC Unix socket needed an independently verified unowned/connection-refused recovery to restart a terminated test editor; this was a test-environment recovery, not a production code fix or general vendor remedy.
+- No private desktop paths, device identity, sensitive project UUIDs, user credentials, vendor support messages, or production design mutations were persisted in this evidence.
 
 ## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-19-6067401-v161-cloud-release
 
