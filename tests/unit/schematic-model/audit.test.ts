@@ -127,6 +127,73 @@ describe('auditImportedDesign', () => {
     ).toBe(false);
   });
 
+  it('accepts two verified physical units sharing one BOM reference', () => {
+    const model = buildCanonicalSchematicModel({
+      components: [
+        {
+          primitiveId: 'e14117',
+          componentType: 'part',
+          reference: 'U3',
+          value: 'TL072CP',
+          footprint: 'DIP-8',
+          uniqueId: 'gge33',
+          deviceUuid: '0c67c27f869a513f',
+          subPartName: 'TL072CP.1',
+          addIntoBom: true,
+        },
+        {
+          primitiveId: 'e21050',
+          componentType: 'part',
+          reference: 'U3',
+          value: 'TL072CP',
+          footprint: 'DIP-8',
+          uniqueId: 'gge33',
+          deviceUuid: '0c67c27f869a513f',
+          subPartName: 'TL072CP.2',
+          addIntoBom: true,
+        },
+      ],
+    });
+
+    expect(model.summary.componentCount).toBe(2);
+    expect(model.summary.bomComponentCount).toBe(1);
+    const audit = auditImportedDesign(model, { includeInfo: false });
+    expect(audit.status).toBe('clean');
+    expect(audit.safeToNormalize).toBe(true);
+    expect(audit.summary.duplicateReferenceCount).toBe(0);
+    expect(audit.modelSummary.bomComponentCount).toBe(1);
+  });
+
+  it.each([
+    ['different physical IDs', { uniqueId: 'gge-other' }],
+    ['different device UUIDs', { deviceUuid: 'other-device' }],
+    ['repeated unit', { subPartName: 'TL072CP.1' }],
+    ['missing physical ID', { uniqueId: undefined }],
+    ['missing unit', { subPartName: undefined }],
+    ['missing device UUID', { deviceUuid: undefined }],
+  ])('keeps duplicate BOM reference blocked for %s', (_name, override) => {
+    const first = {
+      primitiveId: 'part-1',
+      componentType: 'part',
+      reference: 'U3',
+      value: 'TL072CP',
+      footprint: 'DIP-8',
+      uniqueId: 'physical-3',
+      deviceUuid: 'tl072-device',
+      subPartName: 'TL072CP.1',
+    };
+    const model = buildCanonicalSchematicModel({
+      components: [
+        first,
+        { ...first, ...override, primitiveId: 'part-2', subPartName: 'TL072CP.2', ...override },
+      ],
+    });
+    const audit = auditImportedDesign(model, { includeInfo: false });
+    expect(audit.status).toBe('blocked');
+    expect(audit.summary.duplicateReferenceCount).toBe(1);
+    expect(model.summary.bomComponentCount).toBe(2);
+  });
+
   it('returns review instead of blocked for fixable metadata warnings only', () => {
     const model = buildCanonicalSchematicModel({
       components: [

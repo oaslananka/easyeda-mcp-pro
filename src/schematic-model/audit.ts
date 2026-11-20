@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { type CanonicalComponent, type SchematicModel } from './model.js';
+import { isVerifiedMultiUnitGroup, type CanonicalComponent, type SchematicModel } from './model.js';
 
 export const ImportedAuditSeveritySchema = z.enum(['info', 'warning', 'error']);
 export type ImportedAuditSeverity = z.infer<typeof ImportedAuditSeveritySchema>;
@@ -212,7 +212,7 @@ function duplicateReferenceFindings(components: CanonicalComponent[]): ImportedA
 
   const findings: ImportedAuditFinding[] = [];
   for (const group of groups.values()) {
-    if (group.length < 2) continue;
+    if (group.length < 2 || isVerifiedMultiUnitGroup(group)) continue;
     const reference = group[0]?.reference ?? '';
     findings.push({
       code: 'DUPLICATE_COMPONENT_REFERENCE',

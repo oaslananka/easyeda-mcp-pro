@@ -46,6 +46,8 @@ export const CanonicalComponentSchema = z.object({
   rawReference: z.string(),
   annotated: z.boolean(),
   unit: z.string().optional(),
+  physicalUniqueId: z.string().optional(),
+  deviceUuid: z.string().optional(),
   symbolSource: SymbolSourceSchema,
   componentKind: ComponentKindSchema,
   bomEligible: z.boolean(),
@@ -65,6 +67,38 @@ export const CanonicalComponentSchema = z.object({
   rotation: z.number().optional(),
 });
 export type CanonicalComponent = z.infer<typeof CanonicalComponentSchema>;
+
+/**
+ * Only merge repeated references when the native editor proves they are
+ * distinct units of the same physical device. Reference and device type
+ * alone cannot distinguish an amplifier's units from a duplicate designator.
+ */
+function samePhysicalDevice(a: CanonicalComponent, b: CanonicalComponent): boolean {
+  return (
+    a.componentKind === 'part' &&
+    a.annotated &&
+    a.reference.toUpperCase() === b.reference.toUpperCase() &&
+    a.physicalUniqueId === b.physicalUniqueId &&
+    a.deviceUuid === b.deviceUuid
+  );
+}
+
+export function isVerifiedMultiUnitGroup(components: readonly CanonicalComponent[]): boolean {
+  if (components.length < 2) return false;
+  const first = components[0];
+  if (!first?.physicalUniqueId || !first.deviceUuid || !first.unit || !first.annotated) {
+    return false;
+  }
+  const units = new Set<string>();
+  for (const component of components) {
+    const unit = component.unit?.trim().toUpperCase();
+    if (!samePhysicalDevice(component, first) || !unit || units.has(unit)) {
+      return false;
+    }
+    units.add(unit);
+  }
+  return true;
+}
 
 export const ModelDiagnosticSchema = z.object({
   code: z.string().min(1),

@@ -119,6 +119,30 @@ describe('previewImportedNormalization', () => {
     );
   });
 
+  it('does not block a normalization preview for verified units of one physical device', () => {
+    const physical = {
+      componentType: 'part',
+      reference: 'U3',
+      value: 'TL072CP',
+      footprint: 'DIP-8',
+      uniqueId: 'gge33',
+      deviceUuid: '0c67c27f869a513f',
+    };
+    const model = buildCanonicalSchematicModel({
+      components: [
+        { ...physical, primitiveId: 'e14117', subPartName: 'TL072CP.1' },
+        { ...physical, primitiveId: 'e21050', subPartName: 'TL072CP.2' },
+      ],
+    });
+
+    const plan = previewImportedNormalization(model);
+    expect(plan.status).toBe('noop');
+    expect(plan.applicationReady).toBe(true);
+    expect(plan.safeToAutoApply).toBe(true);
+    expect(plan.summary.blockerCount).toBe(0);
+    expect(plan.operations).toEqual([]);
+  });
+
   it('turns explicit metadata and BOM overrides into confirmation-required operations', () => {
     const model = buildCanonicalSchematicModel({
       components: [
