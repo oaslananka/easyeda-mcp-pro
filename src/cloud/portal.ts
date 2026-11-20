@@ -90,7 +90,7 @@ const account = (): string =>
 <p class="workspace-desc">Connect EasyEDA to the AI assistant you already use. Your designs stay on your device.</p>
 </div><div class="account-identity"><span class="identity-avatar" aria-hidden="true">●</span><span><small>Signed in as</small><strong id="account-name">Your account</strong></span></div></div>
 <section class="panel guided-panel" aria-labelledby="guided-title" id="start">
-<div class="section-heading"><div><p class="section-kicker">FIRST CONNECTION</p><h2 id="guided-title">Start using EasyEDA MCP Pro</h2></div><span class="step-indicator">GUIDED SETUP</span></div>
+<div class="section-heading"><div><p class="section-kicker" id="guided-kicker">FIRST CONNECTION</p><h2 id="guided-title">Start using EasyEDA MCP Pro</h2></div><span class="step-indicator" id="guided-phase">GUIDED SETUP</span></div>
 <p class="section-description">Follow one setup path. You do not need a WSS address, API token, or MCP configuration file unless your AI app requires one.</p>
 <ol class="guided-progress" aria-label="Connection progress">
 <li id="progress-client" data-state="done"><span class="guided-number">1</span><span>Choose AI app</span></li>
