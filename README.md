@@ -4,7 +4,7 @@
 
 **Inspect EasyEDA Pro circuits from an MCP assistant. Review native design evidence before making a change.**
 
-[Documentation](https://oaslananka.github.io/easyeda-mcp-pro/) · [Connect EasyEDA](https://oaslananka.github.io/easyeda-mcp-pro/guide/getting-started.html) · [Example Workflows](https://oaslananka.github.io/easyeda-mcp-pro/examples/cookbook.html) · [Tool Reference](https://oaslananka.github.io/easyeda-mcp-pro/reference/tools.html)
+[Documentation](https://oaslananka.github.io/easyeda-mcp-pro/) · [Connect in Cloud](https://easyeda-mcp-pro.oaslananka.dev/cloud) · [Local setup](https://oaslananka.github.io/easyeda-mcp-pro/guide/getting-started.html) · [Example Workflows](https://oaslananka.github.io/easyeda-mcp-pro/examples/cookbook.html) · [Tool Reference](https://oaslananka.github.io/easyeda-mcp-pro/reference/tools.html)
 
 <p>
   <a href="https://www.npmjs.com/package/easyeda-mcp-pro"><img src="https://img.shields.io/npm/v/easyeda-mcp-pro.svg?logo=npm" alt="npm version" /></a>
@@ -23,6 +23,14 @@
 </p>
 
 </div>
+
+## Use with ChatGPT, Claude, Cursor or Codex
+
+[Open the guided Cloud connection](https://easyeda-mcp-pro.oaslananka.dev/cloud), sign in, and choose your AI app. The Cloud workspace shows the connection details, bridge installation, device status, selected design and authorized clients in one place. Cursor has a one-click server install link; other clients can copy the URL or command.
+
+The EasyEDA Pro bridge extension must be installed once. You still explicitly pair your device, select the open schematic or PCB, and authorize the AI client. **Read** is the initial OAuth selection; request **Write** or **Export** only if needed. Native changes and exports still require EasyEDA approval. No command-line setup or separate Cloud API key is required.
+
+For an offline or account-free setup, use [Local MCP](https://oaslananka.github.io/easyeda-mcp-pro/guide/getting-started.html).
 
 ## Start with a circuit question
 

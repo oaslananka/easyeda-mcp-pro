@@ -87,8 +87,45 @@ const account = (): string =>
     `<div class="workspace-head"><div>
 <p class="eyebrow">CLOUD WORKSPACE</p>
 <h1 class="workspace-title">Your devices</h1>
-<p class="workspace-desc">Connect an EasyEDA extension, then choose a schematic or PCB for your MCP client.</p>
+<p class="workspace-desc">Connect EasyEDA to the AI assistant you already use. Your designs stay on your device.</p>
 </div><div class="account-identity"><span class="identity-avatar" aria-hidden="true">●</span><span><small>Signed in as</small><strong id="account-name">Your account</strong></span></div></div>
+<section class="panel guided-panel" aria-labelledby="guided-title" id="start">
+<div class="section-heading"><div><p class="section-kicker">FIRST CONNECTION</p><h2 id="guided-title">Start using EasyEDA MCP Pro</h2></div><span class="step-indicator">GUIDED SETUP</span></div>
+<p class="section-description">Follow one setup path. You do not need a WSS address, API token, or MCP configuration file unless your AI app requires one.</p>
+<ol class="guided-progress" aria-label="Connection progress">
+<li id="progress-client" data-state="done"><span class="guided-number">1</span><span>Choose AI app</span></li>
+<li id="progress-device" data-state="current"><span class="guided-number">2</span><span>Connect EasyEDA</span></li>
+<li id="progress-access" data-state="waiting"><span class="guided-number">3</span><span>Approve access</span></li>
+<li id="progress-ask" data-state="waiting"><span class="guided-number">4</span><span>Ask a question</span></li>
+</ol>
+<div class="guided-grid">
+<div class="guided-choice">
+<h3>Which AI assistant do you use?</h3>
+<div class="client-chooser" role="group" aria-label="Choose your AI assistant">
+<button type="button" id="client-chatgpt" class="client-choice" aria-pressed="true">ChatGPT</button>
+<button type="button" id="client-claude" class="client-choice" aria-pressed="false">Claude</button>
+<button type="button" id="client-cursor" class="client-choice" aria-pressed="false">Cursor</button>
+<button type="button" id="client-codex" class="client-choice" aria-pressed="false">Codex</button>
+<button type="button" id="client-other" class="client-choice" aria-pressed="false">Other MCP app</button>
+</div>
+<div class="guided-instructions">
+<strong id="client-instructions-title">Connect ChatGPT</strong>
+<p id="client-instructions" class="muted">In ChatGPT Plugins, add a custom MCP server using this address, then approve Read access.</p>
+<code class="guided-config" id="client-config">https://easyeda-mcp-pro.oaslananka.dev/mcp</code>
+<div class="guided-actions">
+<button type="button" id="copy-client-config" class="btn small">Copy server URL</button>
+<a id="open-client" class="btn secondary small" href="https://chatgpt.com/plugins" target="_blank" rel="noopener noreferrer">Open ChatGPT Plugins ↗</a>
+</div>
+</div>
+</div>
+<div class="guided-status">
+<div class="guided-status-line"><span>EasyEDA & selected design</span><strong id="guided-device-status">Checking connection…</strong><a href="#pair-title" id="guided-connect-link">Set up EasyEDA ↓</a></div>
+<div class="guided-status-line"><span>MCP client permission</span><strong id="guided-access-status">Checking authorization…</strong><a href="#clients-title">Manage permissions ↓</a></div>
+<div class="guided-status-line guided-last"><span>First question</span><p class="muted">“Inspect the focused schematic and explain its power connections. Do not change anything.”</p><button class="btn subtle small" id="copy-first-question" type="button" disabled>Copy first question</button></div>
+</div>
+</div>
+<p id="guided-hint" class="guided-hint" role="status" aria-live="polite">Choose your AI app, then connect EasyEDA below.</p>
+</section>
 <div class="workspace-grid" id="workspace-grid">
 <section class="panel device-panel" aria-labelledby="extensions-title">
 <div class="section-heading"><div><p class="section-kicker">CONNECTED WORKSPACE</p><h2 id="extensions-title">EasyEDA devices <span class="count" id="device-count" aria-live="polite">—</span></h2></div>
@@ -120,7 +157,6 @@ const account = (): string =>
 <div class="section-heading"><div><p class="section-kicker">PERMISSIONS</p><h2 id="clients-title">Authorized MCP clients</h2></div>
 <button class="btn subtle small" id="refresh-clients" type="button">↻ Refresh</button></div>
 <p class="section-description">Review each client's permissions. Each MCP client has its own Read, Write, Export and Admin permissions. Manage access here. For verified clients and selected projects, EasyEDA asks once to allow routine edits or local exports for up to 30 minutes; high-risk actions still need individual approval. Revoke client access here to stop its future calls.</p>
-<p class="section-description">MCP client URL: <code class="endpoint">https://easyeda-mcp-pro.oaslananka.dev/mcp</code>. This is for ChatGPT and other MCP clients, not the extension WSS address.</p>
 <div id="clients" aria-live="polite"><div class="empty">Checking authorizations…</div></div></section>
 <div class="account-actions"><button id="sign-out" class="btn subtle small" type="button">Sign out</button></div>`,
     'account',
@@ -157,15 +193,22 @@ const PERMISSION_DETAILS = new Map<string, readonly [title: string, detail: stri
 
 function consent(clientName: string, redirectHost: string, scopeList: string[]): string {
   const defaultScopes = new Set(['openid', 'profile', 'email', 'easyeda.read']);
+  const scopeOption = (scope: string): string => {
+    const [title, detail] = PERMISSION_DETAILS.get(scope) ?? [
+      'Other requested permission',
+      'Review this permission code before approving.',
+    ];
+    const selected = defaultScopes.has(scope) ? ' checked' : '';
+    return `<li><label class="scope-option"><input type="checkbox" name="cloud-scope" value="${escaped(scope)}"${selected}><span><strong>${escaped(title)}</strong><small>${escaped(detail)}</small><code>${escaped(scope)}</code></span></label></li>`;
+  };
+  const basicPermissions = new Set(['openid', 'profile', 'email', 'easyeda.read']);
   const permissions = scopeList
-    .map((scope) => {
-      const [title, detail] = PERMISSION_DETAILS.get(scope) ?? [
-        'Other requested permission',
-        'Review this permission code before approving.',
-      ];
-      const selected = defaultScopes.has(scope) ? ' checked' : '';
-      return `<li><label class="scope-option"><input type="checkbox" name="cloud-scope" value="${escaped(scope)}"${selected}><span><strong>${escaped(title)}</strong><small>${escaped(detail)}</small><code>${escaped(scope)}</code></span></label></li>`;
-    })
+    .filter((scope) => basicPermissions.has(scope))
+    .map(scopeOption)
+    .join('');
+  const additionalPermissions = scopeList
+    .filter((scope) => !basicPermissions.has(scope))
+    .map(scopeOption)
     .join('');
   return page(
     'Approve client',
@@ -173,9 +216,10 @@ function consent(clientName: string, redirectHost: string, scopeList: string[]):
 <p class="subtitle">Your Cloud sign-in does not authorize an MCP client automatically. Select only the access you want to grant.</p>
 <section class="panel" aria-labelledby="consent-title"><h2 id="consent-title">${escaped(clientName)}</h2>
 <p class="muted">After approval, the client returns to: <strong>${escaped(redirectHost)}</strong></p>
-<p class="muted">Requested permissions (only checked permissions will be granted):</p>
+<p class="muted">Start with Read access. Add more permissions only if your AI client needs them.</p>
 <ul class="scopes">${permissions}</ul>
-<p class="notice">Write, Export and Admin are off by default. Enabling them allows the MCP client to request those actions, but each native change/export still needs approval in EasyEDA. Deny clients you do not recognize.</p>
+${additionalPermissions ? '<details class="consent-advanced"><summary>More permissions (optional)</summary><ul class="scopes">' + additionalPermissions + '</ul></details>' : ''}
+<p class="notice">Write, Export and Admin stay off unless you select them. EasyEDA still requires approval before a change or export. Only authorize clients you recognize.</p>
 <div class="actions"><button class="btn" type="button" data-consent="allow">Allow selected permissions</button>
 <button class="btn danger" type="button" data-consent="deny">Deny access</button></div></section>`,
     'consent',
