@@ -29,9 +29,11 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_catalog_verify_device`                    | `pro`          | `medium` | Resolve an LCSC part number into a catalog device entry (keyless LCSC metadata plus an EasyEDA symbol/footprint reference, if already known locally), validate it, and write it to the local device cache (confirmWrite required). Does NOT verify pin/pad geometry — see docs/catalog-ingestion.md.                          |
 | `easyeda_component_probe`                          | `dev`          | `low`    | Inspect live schematic component objects, including available methods and state getter values, to validate EasyEDA runtime mappings.                                                                                                                                                                                          |
 | `easyeda_design_rules_lookup`                      | `core`         | `low`    | Look up bounded trace/current, clearance, routing, decoupling, bulk capacitance and DFM guidance. Source-declared isolation, creepage and ESD/EMC review reports warnings or UNKNOWN, never safety certification.                                                                                                             |
+| `easyeda_document_activate`                        | `core`         | `low`    | Open if needed and focus one schematic page or PCB of the active project by document UUID, then verify the focus by read-back. Changes only UI focus, never design data.                                                                                                                                                      |
 | `easyeda_drc_run`                                  | `core`         | `medium` | Run EasyEDA Pro's native PCB DRC and refresh its visible DRC panel. Requires a PCB document to be focused; otherwise returns an indeterminate not_available result with an actionable focus error. Returns coarse severity counts; per-violation detail stays in EasyEDA Pro.                                                 |
 | `easyeda_engineering_review`                       | `core`         | `low`    | Read PCB inspection evidence and summarize existing constraint rules with stable findings, source provenance and explicit unknowns. Does not execute ERC, DRC, design writes or exports, and cannot approve fabrication.                                                                                                      |
 | `easyeda_erc_run`                                  | `core`         | `medium` | Run native schematic ERC and supplement aggregate counts with inferred_floating_pins. Requires a focused schematic. Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149. Native counts remain authoritative; unavailable focus returns not_available.                                            |
+| `easyeda_export_3d`                                | `pro`          | `low`    | Export the focused PCB as STEP or OBJ (PCB_ManufactureData.get3DFile, beta) for mechanical integration. Only component models imported as STEP appear; others can be boxed by height.                                                                                                                                         |
 | `easyeda_export_gerbers`                           | `core`         | `medium` | Export PCB design to Gerber files for PCB fabrication.                                                                                                                                                                                                                                                                        |
 | `easyeda_export_netlist`                           | `pro`          | `low`    | Export the schematic netlist in a specified EDA tool format (PADS, Allegro, or Altium).                                                                                                                                                                                                                                       |
 | `easyeda_export_odb`                               | `experimental` | `low`    | Experimental ODB++ archive export using EasyEDA Pro BETA API. Returns an archive for inspection, not verified fabrication data. Do not use in production.                                                                                                                                                                     |
@@ -61,6 +63,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_export_route_context`                 | `pro`          | `low`    | Export the board as a Specctra DSN file (PCB_ManufactureData.getDsnFile) — an open, vendor-neutral format supported by external autorouters such as FreeRouting. Re-import the routed result through EasyEDA Pro's own SES/DSN import, not through this server.                                                               |
 | `easyeda_pcb_fills`                                | `core`         | `low`    | List native PCB Fill primitives separately from copper pours/zones, including net/layer, fill mode, line width, lock state, and a bounded normalized polygon representation. Netless fills are returned explicitly with netless=true. Read-only; no Fill mutation is exposed.                                                 |
 | `easyeda_pcb_floorplan`                            | `full`         | `high`   | Translate CircuitIR physical constraints (keepouts, top/bottom side, connector-edge, thermal spacing) into a component group placement plan, then optionally apply it. CircuitIR devices carry no physical dimensions, so widths/heights must be supplied per device (confirmWrite required).                                 |
+| `easyeda_pcb_import_from_schematic`                | `pro`          | `high`   | Import schematic changes into the focused PCB of the active project without the confirmation dialog (PCB_Document.importChanges with force). Run DRC afterwards: new nets arrive unrouted.                                                                                                                                    |
 | `easyeda_pcb_modify_component`                     | `full`         | `medium` | Preview or apply a PCB component transform for top/bottom side, native X/Y coordinates in mils, and rotation in degrees. Apply requires confirmation, captures a transaction snapshot, verifies fresh native read-back, and restores on mismatch. EasyEDA Pro has no independent component mirror field.                      |
 | `easyeda_pcb_place_batch`                          | `full`         | `high`   | Compact placement results for up to 64 existing PCB components. Each apply executes the existing transactional component transform and checks native read-back. Stops at the first failure; previous successful placements are NOT rolled back as a group. Use smaller batches as needed.                                     |
 | `easyeda_pcb_place_component`                      | `full`         | `high`   | Direct PCB component creation is unavailable because the verified EasyEDA runtime does not complete PCB_PrimitiveComponent.create(). This tool fails closed. Place the part in the schematic, sync to PCB, confirm the native dialog, then reposition it with easyeda_pcb_modify_component.                                   |
@@ -80,6 +83,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_project_begin_transaction`                | `core`         | `medium` | Reserve one document write lock for snapshot-backed schematic writes. Only tools with transactionId participate; standalone schematic writes are not auto-captured. Requires project-write authorization but does not change EasyEDA.                                                                                         |
 | `easyeda_project_close`                            | `core`         | `high`   | Default refuses when dirty status is unknown. Explicit confirmed save-and-close requires a trusted native save; schematic pages with unverified durable persistence fail closed instead of risking data loss. Explicit discard is destructive.                                                                                |
 | `easyeda_project_commit_transaction`               | `core`         | `medium` | Finalize a transaction after its writes and validation gates succeed. Commit removes rollback eligibility and releases the document transaction lock.                                                                                                                                                                         |
+| `easyeda_project_create`                           | `core`         | `medium` | Create a project and, by default, open it once EasyEDA has built its default board (schematic + PCB). Opening is refused while other documents may hold unsaved edits.                                                                                                                                                        |
 | `easyeda_project_get_transaction_status`           | `core`         | `low`    | Read transaction state, validation results, operation hashes, and rollback status without exposing captured primitive snapshots.                                                                                                                                                                                              |
 | `easyeda_project_list`                             | `core`         | `low`    | Read team-scoped EasyEDA projects and active identity. Only the active project can be verified open; unknown projects report open=null. No native project or document changes.                                                                                                                                                |
 | `easyeda_project_open`                             | `core`         | `medium` | Open an EasyEDA project by UUID only when no other document is open. Requires explicit write confirmation and read-back of active project. Never silently switches away from an open document.                                                                                                                                |
@@ -879,6 +883,36 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_document_activate`
+
+**Profile:** `core` | **Risk Level:** `low`
+
+> Open if needed and focus one schematic page or PCB of the active project by document UUID, then verify the focus by read-back. Changes only UI focus, never design data.
+
+### Input Parameters
+
+| Parameter    | Type     | Required | Description |
+| ------------ | -------- | -------- | ----------- |
+| `projectId`  | `string` | Yes      |             |
+| `documentId` | `string` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  status: string;
+  projectId: string(optional);
+  documentId: string(optional);
+  type: 'pcb' | 'schematic'(optional);
+  tabId: string(optional);
+}
+```
+
+---
+
 ## `easyeda_drc_run`
 
 **Profile:** `core` | **Risk Level:** `medium`
@@ -980,6 +1014,42 @@ Returns a JSON object matching the schema:
   error_code: string (optional);
   error_data: object (optional);
   error: string (optional);
+}
+```
+
+---
+
+## `easyeda_export_3d`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Export the focused PCB as STEP or OBJ (PCB_ManufactureData.get3DFile, beta) for mechanical integration. Only component models imported as STEP appear; others can be boxed by height.
+
+### Input Parameters
+
+| Parameter            | Type                                                                           | Required | Description |
+| -------------------- | ------------------------------------------------------------------------------ | -------- | ----------- |
+| `projectId`          | `string`                                                                       | Yes      |             |
+| `filePath`           | `string (optional)`                                                            | No       |             |
+| `fileType`           | `'step'` \| `'obj'`                                                            | Yes      |             |
+| `elements`           | `'Component Model'` \| `'Via'` \| `'Silkscreen'` \| `'Wire In Signal Layer'[]` | Yes      |             |
+| `modelMode`          | `'Outfit'` \| `'Parts'`                                                        | Yes      |             |
+| `autoGenerateModels` | `boolean`                                                                      | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  file_type: 'step' | 'obj'(optional);
+  file_path: string(optional);
+  byte_length: number(optional);
+  sha256: string(optional);
+  exported: boolean;
+  not_available: boolean(optional);
+  error: string(optional);
 }
 ```
 
@@ -1996,6 +2066,38 @@ Returns a JSON object matching the schema:
 
 ---
 
+## `easyeda_pcb_import_from_schematic`
+
+**Profile:** `pro` | **Risk Level:** `high`
+
+> Import schematic changes into the focused PCB of the active project without the confirmation dialog (PCB_Document.importChanges with force). Run DRC afterwards: new nets arrive unrouted.
+
+### Input Parameters
+
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `projectId`                 | `string`            | Yes      |                                                                                       |
+| `confirmWrite`              | `'true'`            | Yes      |                                                                                       |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  status: string;
+  projectId: string(optional);
+  pcbId: string(optional);
+  schematicId: string(optional);
+  targetDocument: object(optional);
+}
+```
+
+---
+
 ## `easyeda_pcb_modify_component`
 
 **Profile:** `full` | **Risk Level:** `medium`
@@ -2709,6 +2811,37 @@ Returns a JSON object matching the schema:
   error_code: string (optional);
   error: string (optional);
   details: Record<string, any> (optional);
+}
+```
+
+---
+
+## `easyeda_project_create`
+
+**Profile:** `core` | **Risk Level:** `medium`
+
+> Create a project and, by default, open it once EasyEDA has built its default board (schematic + PCB). Opening is refused while other documents may hold unsaved edits.
+
+### Input Parameters
+
+| Parameter      | Type                | Required | Description |
+| -------------- | ------------------- | -------- | ----------- |
+| `friendlyName` | `string`            | Yes      |             |
+| `projectName`  | `string (optional)` | No       |             |
+| `description`  | `string (optional)` | No       |             |
+| `open`         | `boolean`           | Yes      |             |
+| `confirmWrite` | `'true'`            | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  status: string;
+  projectId: string (optional);
+  documents: object[] (optional);
 }
 ```
 

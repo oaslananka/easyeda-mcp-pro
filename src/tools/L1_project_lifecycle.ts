@@ -54,15 +54,60 @@ function resultOrSafeFailure<T extends z.ZodType>(
   return parsed.success ? parsed.data : fallback;
 }
 
+const activateInput = z.object({ projectId, documentId: z.string().trim().min(1).max(128) });
+const activateOutput = z.object({
+  success: z.boolean(),
+  status: z.string(),
+  projectId: z.string().optional(),
+  documentId: z.string().optional(),
+  type: z.enum(['pcb', 'schematic']).optional(),
+  tabId: z.string().optional(),
+});
+const createInput = z.object({
+  friendlyName: z.string().trim().min(1).max(120),
+  projectName: z
+    .string()
+    .regex(/^[A-Za-z0-9-]+$/)
+    .max(120)
+    .optional(),
+  description: z.string().max(500).optional(),
+  open: z.boolean().default(true),
+  confirmWrite: z.literal(true),
+});
+const createOutput = z.object({
+  success: z.boolean(),
+  status: z.string(),
+  projectId: z.string().optional(),
+  documents: z.array(documentEvidence).optional(),
+});
+const importInput = z.object({ projectId, confirmWrite: z.literal(true) });
+const importOutput = z.object({
+  success: z.boolean(),
+  status: z.string(),
+  projectId: z.string().optional(),
+  pcbId: z.string().optional(),
+  schematicId: z.string().optional(),
+});
+
+/** A forced schematic-to-PCB import waits for EasyEDA to finish; allow more than a plain call. */
+const IMPORT_TIMEOUT_MS = 5 * 60 * 1000;
+/** Creating and opening a project waits for EasyEDA to build the default board. */
+const CREATE_TIMEOUT_MS = 2 * 60 * 1000;
+
 function callWithBoundary(
   ctx: ToolContext,
   method: string,
   params: Record<string, unknown>,
+  timeoutMs?: number,
 ): Promise<unknown> {
   // Handle both a synchronous bridge exception and an asynchronous lost reply.
   // Either outcome remains UNKNOWN: never retry or claim a native rollback.
   return Promise.resolve()
-    .then(() => ctx.bridge.call(method, params))
+    .then(() =>
+      timeoutMs === undefined
+        ? ctx.bridge.call(method, params)
+        : ctx.bridge.call(method, params, { timeoutMs }),
+    )
     .catch(() => ({
       success: false,
       status: 'native_outcome_unknown',
@@ -119,6 +164,89 @@ export function registerProjectLifecycleTools(registry: Pick<ToolRegistry, 'regi
       const input = openInput.parse(raw);
       const result = await callWithBoundary(ctx, 'project.open', input);
       return resultOrSafeFailure(openOutput, result, {
+        success: false,
+        status: 'native_outcome_unverified',
+        projectId: input.projectId,
+      });
+    },
+  } satisfies ToolDefinition);
+
+  registry.register({
+    name: 'easyeda_document_activate',
+    title: 'Activate a document of the active project',
+    description:
+      'Open if needed and focus one schematic page or PCB of the active project by document UUID, then verify the focus by read-back. Changes only UI focus, never design data.',
+    profile: 'core',
+    evidence: ['official-docs', 'runtime-probe'],
+    risk: 'low',
+    sideEffect: 'local-state-write',
+    confirmWrite: false,
+    group: 'project',
+    version: '1.0.0',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    inputSchema: activateInput,
+    outputSchema: activateOutput,
+    handler: async (ctx: ToolContext, raw: unknown) => {
+      const input = activateInput.parse(raw);
+      const result = await callWithBoundary(ctx, 'document.activate', input);
+      return resultOrSafeFailure(activateOutput, result, {
+        success: false,
+        status: 'native_outcome_unverified',
+        projectId: input.projectId,
+        documentId: input.documentId,
+      });
+    },
+  } satisfies ToolDefinition);
+
+  registry.register({
+    name: 'easyeda_project_create',
+    title: 'Create and open a new EasyEDA project',
+    description:
+      'Create a project and, by default, open it once EasyEDA has built its default board (schematic + PCB). Opening is refused while other documents may hold unsaved edits.',
+    profile: 'core',
+    evidence: ['official-docs', 'runtime-probe'],
+    risk: 'medium',
+    sideEffect: 'local-state-write',
+    confirmWrite: true,
+    group: 'project',
+    version: '1.0.0',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    inputSchema: createInput,
+    outputSchema: createOutput,
+    handler: async (ctx: ToolContext, raw: unknown) => {
+      const input = createInput.parse(raw);
+      const result = await callWithBoundary(ctx, 'project.create', input, CREATE_TIMEOUT_MS);
+      return resultOrSafeFailure(createOutput, result, {
+        success: false,
+        status: 'native_outcome_unverified',
+      });
+    },
+  } satisfies ToolDefinition);
+
+  registry.register({
+    name: 'easyeda_pcb_import_from_schematic',
+    title: 'Update the focused PCB from its schematic',
+    description:
+      'Import schematic changes into the focused PCB of the active project without the confirmation dialog (PCB_Document.importChanges with force). Run DRC afterwards: new nets arrive unrouted.',
+    profile: 'pro',
+    evidence: ['official-docs', 'runtime-probe'],
+    risk: 'high',
+    sideEffect: 'design-mutation',
+    confirmWrite: true,
+    group: 'project',
+    version: '1.0.0',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    inputSchema: importInput,
+    outputSchema: importOutput,
+    handler: async (ctx: ToolContext, raw: unknown) => {
+      const input = importInput.parse(raw);
+      const result = await callWithBoundary(
+        ctx,
+        'pcb.importFromSchematic',
+        input,
+        IMPORT_TIMEOUT_MS,
+      );
+      return resultOrSafeFailure(importOutput, result, {
         success: false,
         status: 'native_outcome_unverified',
         projectId: input.projectId,

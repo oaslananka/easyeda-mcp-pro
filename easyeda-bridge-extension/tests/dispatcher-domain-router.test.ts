@@ -31,6 +31,18 @@ function createDependencies() {
         method: 'project.export',
         params,
       })),
+      activateDocument: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'document.activate',
+        params,
+      })),
+      create: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'project.create',
+        params,
+      })),
+      importSchematicToPcb: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'pcb.importFromSchematic',
+        params,
+      })),
     },
     boardInspection: {
       requireActivePcbContext: vi.fn(async () => undefined),
@@ -41,6 +53,7 @@ function createDependencies() {
       getFeatures: vi.fn(async () => 'features'),
     },
     exportOperations: {
+      export3d: vi.fn(async (params: Record<string, unknown>) => ({ method: '3d', params })),
       exportGerbers: vi.fn(async (params: Record<string, unknown>) => ({
         method: 'gerbers',
         params,
@@ -242,6 +255,7 @@ const expectedMethods = [
   'api.call',
   'api.execute',
   'api.read',
+  'board.export3d',
   'board.exportGerbers',
   'board.getDesignRules',
   'board.getDimensions',
@@ -256,6 +270,7 @@ const expectedMethods = [
   'design.drc',
   'design.erc',
   'design.ruleCheck',
+  'document.activate',
   'export.netlist',
   'export.odb',
   'export.pdf',
@@ -272,6 +287,7 @@ const expectedMethods = [
   'pcb.addZone',
   'pcb.deleteComponent',
   'pcb.exportRouteContext',
+  'pcb.importFromSchematic',
   'pcb.listComponentPadConnections',
   'pcb.listComponents',
   'pcb.listFills',
@@ -283,6 +299,7 @@ const expectedMethods = [
   'pcb.rebuildCopper',
   'pcb.zonePreflight',
   'project.close',
+  'project.create',
   'project.export',
   'project.list',
   'project.open',
@@ -415,6 +432,15 @@ describe('createDispatcherDomainRouter', () => {
       handled: true,
       value: { method: 'project.open', params },
     });
+    for (const [method, routed] of [
+      ['document.activate', dependencies.projectOperations.activateDocument],
+      ['project.create', dependencies.projectOperations.create],
+      ['pcb.importFromSchematic', dependencies.projectOperations.importSchematicToPcb],
+      ['board.export3d', dependencies.exportOperations.export3d],
+    ] as const) {
+      await expect(router.tryDispatch(method, params)).resolves.toMatchObject({ handled: true });
+      expect(routed).toHaveBeenCalledWith(params);
+    }
     await expect(router.tryDispatch('project.save', params)).resolves.toEqual({
       handled: true,
       value: undefined,

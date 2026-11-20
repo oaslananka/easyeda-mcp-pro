@@ -14,6 +14,7 @@ export interface ExportOperations {
   exportPdf(params: Record<string, unknown>): Promise<unknown>;
   exportNetlist(params: Record<string, unknown>): Promise<unknown>;
   exportOdb(params: Record<string, unknown>): Promise<unknown>;
+  export3d(params: Record<string, unknown>): Promise<unknown>;
 }
 
 export function createExportOperations({
@@ -137,7 +138,45 @@ export function createExportOperations({
     );
   }
 
+  const ELEMENTS_3D = ['Component Model', 'Via', 'Silkscreen', 'Wire In Signal Layer'];
+
+  // 3D model of the focused PCB (PCB_ManufactureData.get3DFile, beta). Only component models
+  // imported as STEP appear in a STEP export; autoGenerateModels boxes the others by height.
+  async function export3d(params: Record<string, unknown>): Promise<unknown> {
+    requireProjectId(params, '3D export');
+    const info = (await callFirst(['DMT_SelectControl.getCurrentDocumentInfo'])) as
+      { documentType?: number } | undefined;
+    if (info?.documentType !== 3) {
+      throw createBridgeError(
+        'DOCUMENT_NOT_FOCUSED',
+        '3D export requires the PCB document to be focused.',
+        'Activate the PCB document, then retry.',
+      );
+    }
+    const fileType = params.fileType === 'obj' ? 'obj' : 'step';
+    const elements = Array.isArray(params.elements)
+      ? params.elements.filter((e): e is string => ELEMENTS_3D.includes(e as string))
+      : ['Component Model'];
+    const result = await callFirst(
+      [p + 'get3DFile'],
+      (typeof params.fileName === 'string' && params.fileName.trim()) || 'board-3d',
+      fileType,
+      elements,
+      params.modelMode === 'Parts' ? 'Parts' : 'Outfit',
+      params.autoGenerateModels !== false,
+    );
+    if (result == null) {
+      throw createBridgeError(
+        'EXPORT_NOT_AVAILABLE',
+        'EasyEDA did not return a 3D file for the focused PCB.',
+        'Check that the PCB has an outline, then retry.',
+      );
+    }
+    return normalizeBinaryResult(result, fileType === 'obj' ? 'board.obj' : 'board.step');
+  }
+
   return {
+    export3d,
     exportGerbers,
     exportRouteContext,
     exportPickPlace,
