@@ -379,6 +379,16 @@ export function parseOriginAllowlist(raw: string): Set<string> {
   return new Set(origins);
 }
 
+function setAllowedCorsOrigin(res: Response, origin: string): void {
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  // Browser MCP clients must see the protected-resource challenge to start OAuth.
+  // Legacy clients also need to read session metadata; this grants no authorization.
+  res.setHeader(
+    'Access-Control-Expose-Headers',
+    'WWW-Authenticate, MCP-Session-Id, MCP-Protocol-Version',
+  );
+}
+
 /**
  * Create middleware for origin validation and CORS handling.
  *
@@ -420,7 +430,7 @@ export function createOriginValidator(config: EnvConfig, canonicalOrigin?: strin
 
     // Wildcard allows everything.
     if (allowAll) {
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      setAllowedCorsOrigin(res, '*');
       next();
       return;
     }
@@ -428,14 +438,14 @@ export function createOriginValidator(config: EnvConfig, canonicalOrigin?: strin
     // On loopback, accept a configured legacy origin or a validated localhost origin.
     if (loopbackMode) {
       if (config.CORS_ORIGIN && origin === config.CORS_ORIGIN) {
-        res.setHeader('Access-Control-Allow-Origin', config.CORS_ORIGIN);
+        setAllowedCorsOrigin(res, config.CORS_ORIGIN);
         next();
         return;
       }
       if (isAllowedLoopbackOrigin(origin)) {
         // The request origin has already been constrained to loopback/null above.
         // Use a literal response value so untrusted header input is never reflected.
-        res.setHeader('Access-Control-Allow-Origin', '*');
+        setAllowedCorsOrigin(res, '*');
         next();
         return;
       }
@@ -446,7 +456,7 @@ export function createOriginValidator(config: EnvConfig, canonicalOrigin?: strin
       ? configuredOriginMatch(allowedOrigins, origin)
       : undefined;
     if (allowedOrigin) {
-      res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+      setAllowedCorsOrigin(res, allowedOrigin);
       next();
       return;
     }

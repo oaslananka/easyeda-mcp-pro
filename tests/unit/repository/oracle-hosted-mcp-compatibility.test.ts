@@ -9,7 +9,7 @@ const compose = readFileSync(
 describe('Oracle Hosted Cloud cross-client MCP deployment contract', () => {
   it('permits the official EasyEDA Pro browser relay without allowing arbitrary origins', () => {
     expect(compose).toContain(
-      'ALLOWED_ORIGINS: ${EASYEDA_PUBLIC_ORIGIN:?Set canonical HTTPS domain},https://pro.easyeda.com',
+      'ALLOWED_ORIGINS: ${EASYEDA_PUBLIC_ORIGIN:?Set canonical HTTPS domain},https://pro.easyeda.com,http://127.0.0.1:6274,http://localhost:6274,https://app.mcpjam.com',
     );
     expect(compose).not.toMatch(/ALLOWED_ORIGINS:\s*\*/);
   });
