@@ -222,7 +222,7 @@ function summaryForVerdict(verdict: 'success' | 'partial' | 'failed'): string {
  */
 const AUTOROUTE_TIMEOUT_MS = 10 * 60 * 1000;
 
-type GateMode = 'warn' | 'block' | 'off';
+type GateMode = 'warn' | 'block';
 
 interface AutoroutePreflightSummary {
   error_count: number;
@@ -235,7 +235,7 @@ interface AutoroutePreflightSummary {
 /**
  * Pre-flight for easyeda_pcb_autoroute. Bridge-derived evidence is the base and caller-supplied
  * boardData overrides it field by field, so a caller that knows a few facts does not lose what
- * the bridge already measured. Errors block in every mode except 'off'. Unknown checks (missing
+ * the bridge already measured. Errors always block. Unknown checks (missing
  * evidence) block only in 'block' mode, the default: autorouting is a layout step, not a
  * production sign-off, so a caller may choose 'warn' to route while the unknowns stay reported.
  */
@@ -272,7 +272,8 @@ async function runAutoroutePreflight(
     unknown_checks: result.unknownChecks,
     gate_mode: gateMode,
   };
-  const blockedByErrors = gateMode !== 'off' && summary.error_count > 0;
+  // Known errors block in every mode: gateMode only decides what missing evidence does.
+  const blockedByErrors = summary.error_count > 0;
   const blockedByUnknowns = gateMode === 'block' && summary.unknown_count > 0;
   if (!blockedByErrors && !blockedByUnknowns) return { summary };
   return {
@@ -355,7 +356,7 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
       layers: z.array(z.number().int()).optional(),
       ignoreNets: z.array(z.string()).optional(),
       boardData: pcbBoardDataSchema.optional(),
-      gateMode: z.enum(['warn', 'block', 'off']).optional(),
+      gateMode: z.enum(['warn', 'block']).optional(),
       confirmWrite: z.boolean().optional(),
     }),
     outputSchema: z.object({
@@ -372,7 +373,7 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
           unknown_checks: z
             .array(z.object({ area: z.string(), missingFields: z.array(z.string()) }))
             .optional(),
-          gate_mode: z.enum(['warn', 'block', 'off']).optional(),
+          gate_mode: z.enum(['warn', 'block']).optional(),
         })
         .optional(),
       autoroute_result: z
@@ -412,7 +413,7 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
         layers?: number[];
         ignoreNets?: string[];
         boardData?: Partial<PcbConstraintInput>;
-        gateMode?: 'warn' | 'block' | 'off';
+        gateMode?: 'warn' | 'block';
         confirmWrite?: boolean;
       };
       const gateMode = p.gateMode ?? 'block';

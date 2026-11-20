@@ -352,8 +352,10 @@ operation list before applying.
 - `easyeda_pcb_autoroute` (profile `pro`) calls EasyEDA Pro's native autorouter through the existing
   documented `api.call` path (`PCB_Document.autoRouting`) — a `@beta` API per `@jlceda/pro-api-types`,
   so unavailability on a given EasyEDA Pro version is reported as `not_available: true`, never a
-  silent success. It always runs a pre-flight constraint check (blocking before any bridge call on
-  error) and a mandatory post-route DRC + constraint report, folded into `overall_verdict`.
+  silent success. It always runs a pre-flight constraint check (caller `boardData` merged over the
+  board evidence read from the bridge; any error blocks before the autorouter is called; unknown
+  checks block in the default `gateMode: 'block'` and are reported without blocking in `'warn'`)
+  and a mandatory post-route DRC + constraint report, folded into `overall_verdict`.
 - `easyeda_pcb_export_route_context` (profile `pro`, read-only, no `confirmWrite`) exports a Specctra
   DSN file for external, vendor-neutral autorouters — it does not mutate the project and does not
   re-import a routed result; that re-import happens in EasyEDA Pro itself.

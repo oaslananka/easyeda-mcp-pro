@@ -318,6 +318,53 @@ describe('Autorouting Tools', () => {
       expect(autorouteCall?.[2]?.timeoutMs).toBeGreaterThanOrEqual(5 * 60 * 1000);
     });
 
+    it('keeps known errors blocking: gateMode only accepts warn and block', () => {
+      const tool = registry.get('easyeda_pcb_autoroute');
+      expect(() =>
+        tool?.inputSchema.parse({ projectId: 'p', confirmWrite: true, gateMode: 'off' }),
+      ).toThrow();
+    });
+
+    it('blocks on unknown evidence when the bridge reads fail, without calling the autorouter', async () => {
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method.startsWith('board.')) throw new Error('bridge down');
+        return {};
+      });
+      const tool = registry.get('easyeda_pcb_autoroute');
+      const result = (await tool?.handler(context, {
+        projectId: 'proj-1',
+        confirmWrite: true,
+      })) as any;
+      expect(result.overall_verdict).toBe('blocked');
+      expect(result.preflight.unknown_count).toBeGreaterThan(0);
+      expect(bridgeCall.mock.calls.some(([method]) => method === 'api.call')).toBe(false);
+    });
+
+    it('reports failed when board evidence cannot be gathered at all and no boardData was given', async () => {
+      const throwingBridge = {
+        get connected(): boolean {
+          throw new Error('bridge state unavailable');
+        },
+        call: bridgeCall,
+      };
+      const tool = registry.get('easyeda_pcb_autoroute');
+      const noData = (await tool?.handler(
+        { ...context, bridge: throwingBridge } as unknown as ToolContext,
+        { projectId: 'proj-1', confirmWrite: true },
+      )) as any;
+      expect(noData.overall_verdict).toBe('failed');
+      expect(noData.error).toContain('bridge state unavailable');
+
+      // With caller boardData the pre-flight still runs on that data alone.
+      const withData = (await tool?.handler(
+        { ...context, bridge: throwingBridge } as unknown as ToolContext,
+        { projectId: 'proj-1', confirmWrite: true, boardData: { hasOutline: false } },
+      )) as any;
+      expect(withData.overall_verdict).toBe('blocked');
+      expect(withData.preflight.error_count).toBeGreaterThan(0);
+      expect(bridgeCall).not.toHaveBeenCalled();
+    });
+
     it('lets caller boardData override a bridge value', async () => {
       bridgeCall.mockImplementation(async (method: string) =>
         method === 'board.getDimensions' ? { hasOutline: true } : {},

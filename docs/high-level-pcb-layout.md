@@ -162,7 +162,7 @@ Because top and bottom devices genuinely share the same board area on a real two
 
 The tool never returns success without evidence:
 
-1. **Pre-flight** — `validatePcbConstraints` runs first; any error blocks the call before the bridge is touched (`blocked_by_preflight: true`).
+1. **Pre-flight** — `validatePcbConstraints` runs first on the caller `boardData` merged over the board evidence read from the bridge; any error blocks before the autorouter is called (`blocked_by_preflight: true`). Unknown checks (missing evidence) also block in the default `gateMode: 'block'`; with `gateMode: 'warn'` they are reported in `preflight.unknown_checks` and routing proceeds. There is no mode that lets errors through.
 2. **Autoroute** — calls `PCB_Document.autoRouting` with the requested nets/corner-style/optimization/existing-primitive-mode, translated to the exact numeric enum values EasyEDA Pro's runtime expects.
 3. **Post-route (mandatory)** — runs `design.drc` and a fresh `validatePcbConstraints` + `buildConstraintReport` pass, and folds both into `overall_verdict`: `success` only when autorouting completed _and_ DRC passed _and_ the constraint report verdict is `approved`; otherwise `partial` (needs review) or `failed`.
 
