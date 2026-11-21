@@ -106,6 +106,19 @@ new ratchets are **234,935 / 391,213 / 313,115 bytes**. Each changed
 artifact retains a five-byte margin; the dispatcher limit is unchanged.
 These limits remain enforced by CI and do not authorize unrelated growth.
 
+On 2026-11-21, PR #1110 closed a native standalone schematic-delete
+fail-open path: before any mutation, the extension now requires exact native
+component ID and type readback and refuses flags, ports, sheet frames,
+ambiguous inventory, and stale ID results. The deterministic Node.js 24.22.3
+build changed from **247,010 to 247,802 bytes** for the packaged extension
+(+792 bytes), **422,452 to 424,261 bytes** for index.js (+1,809),
+and **336,523 to 338,332 bytes** for dispatcher.js (+1,809).
+The reviewed byte ratchets are **247,807 / 424,266 / 338,337 bytes**
+(respectively, exactly measured output + five bytes each). The separate
+extension-integrity job, its byte limits, and source/package integrity checks
+remain mandatory and fail closed. This is a narrow safety overhead review,
+not broad permission for extension growth or native marker deletion.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:
