@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.18.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.17.0...easyeda-mcp-pro-v1.18.0) (2026-11-21)
+
+
+### Features
+
+* tools for an unattended design cycle (activate, create, import from schematic, 3D export) ([#1106](https://github.com/oaslananka/easyeda-mcp-pro/issues/1106)) ([6ccc2d7](https://github.com/oaslananka/easyeda-mcp-pro/commit/6ccc2d7c6bbb51fd157458f28e01e5e010c18147))
+
+
+### Bug Fixes
+
+* **extension:** recognize EasyEDA Pro 4.x PCB tabs in project open/close ([#1105](https://github.com/oaslananka/easyeda-mcp-pro/issues/1105)) ([a687f08](https://github.com/oaslananka/easyeda-mcp-pro/commit/a687f086f1c32976c0cc50ccd88bb55b6fe11159))
+* **pcb:** let autoroute pre-flight route with unknown checks and wait for the router ([#1104](https://github.com/oaslananka/easyeda-mcp-pro/issues/1104)) ([d5e7ccc](https://github.com/oaslananka/easyeda-mcp-pro/commit/d5e7ccc0ab26480590cc5d2da6858b669ad2fc25))
+* **security:** bound relay deadlines and avoid sensitive operational logs ([#1108](https://github.com/oaslananka/easyeda-mcp-pro/issues/1108)) ([494fb89](https://github.com/oaslananka/easyeda-mcp-pro/commit/494fb8963c1b902f11f5b0b97d9dcf8703ef1462))
+* **security:** close relay timer alert and stabilize bridge CI ([#1109](https://github.com/oaslananka/easyeda-mcp-pro/issues/1109)) ([0aebbc2](https://github.com/oaslananka/easyeda-mcp-pro/commit/0aebbc2c246d32be74abc4fb33accde7ab271665))
+
 ## [1.17.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.16.1...easyeda-mcp-pro-v1.17.0) (2026-11-20)
 
 
