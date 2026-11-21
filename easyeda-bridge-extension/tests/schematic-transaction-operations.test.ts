@@ -106,6 +106,77 @@ describe('schematic transaction operations', () => {
     });
   });
 
+  it.each([
+    { kind: 'netflag', identity: 'Identification', value: 'Ground' },
+    { kind: 'netport', identity: 'Direction', value: 'IN' },
+  ] as const)(
+    'captures the native $kind creation identity for typed rollback preflight',
+    async ({ kind, identity, value }) => {
+      const component = {
+        getState_PrimitiveId: () => 'marker-1',
+        getState_ComponentType: () => kind,
+        getState_X: () => 11,
+        getState_Y: () => 22,
+        getState_Rotation: () => 90,
+        getState_Mirror: () => false,
+        getState_Net: () => 'GND',
+        ['getState_' + identity]: () => value,
+      };
+      const { operations } = createSubject({
+        SCH_PrimitiveComponent: { get: vi.fn().mockResolvedValue(component) },
+      });
+      await expect(operations.getPrimitiveSnapshot('marker-1')).resolves.toMatchObject({
+        primitiveKind: kind,
+        componentType: kind,
+        property: {
+          x: 11,
+          y: 22,
+          rotation: 90,
+          mirror: false,
+          net: 'GND',
+          [identity.charAt(0).toLowerCase() + identity.slice(1)]: value,
+        },
+      });
+    },
+  );
+
+  it('binds a marker snapshot only to a verified native schematic project and document', async () => {
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_PrimitiveId: () => 'flag-1',
+            getState_ComponentType: () => 'netflag',
+            getState_Identification: () => 'Power',
+            getState_Net: () => 'VCC',
+            getState_X: () => 40,
+            getState_Y: () => 50,
+            getState_Rotation: () => 0,
+            getState_Mirror: () => false,
+          }),
+        },
+      },
+      {
+        getEasyedaVersion: () => '4.1.105',
+        callFirst: vi.fn(async (paths: string[]) => {
+          if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-1' };
+          if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo'))
+            return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+          return undefined;
+        }) as any,
+      },
+    );
+    await expect(operations.getPrimitiveSnapshot('flag-1')).resolves.toMatchObject({
+      primitiveKind: 'netflag',
+      property: { identification: 'Power', net: 'VCC' },
+      nativeContext: {
+        projectId: 'project-1',
+        documentId: 'page-1',
+        editorVersion: '4.1.105',
+      },
+    });
+  });
+
   it('rejects malformed restore input before mutation', async () => {
     const { operations, callFirst } = createSubject();
 

@@ -1,6 +1,7 @@
 import { verifyWireInventoryReadback } from './schematic-wire-inventory.js';
 import type { ApiRuntime } from './api-runtime.js';
 import { createSchematicSnapshotRecreator } from './schematic-snapshot-recreation.js';
+import { readNativeMarkerContext, parseNativeMarkerContext } from './schematic-marker-scope.js';
 import { isRecord } from './utils.js';
 
 export type PublicTextAlignMode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
@@ -14,6 +15,8 @@ export interface SchematicPrimitiveSnapshot {
   primitiveKind: SchematicPrimitiveSnapshotKind;
   componentType?: string;
   property: Record<string, unknown>;
+  /** Native-scoped origin required for experimental marker reconstruction. */
+  nativeContext?: { projectId: string; documentId: string; editorVersion: string };
 }
 
 export interface SchematicTransactionDependencies {
@@ -228,6 +231,7 @@ export function createSchematicTransactionOperations(
     callFirst,
     createBridgeError: newBridgeError,
     requirePublicTextAlignMode,
+    getEasyedaVersion: dependencies.getEasyedaVersion,
   });
 
   // Native Pro 3.2.209 can return matching *stale* getAll/getAllPrimitiveId
@@ -406,6 +410,11 @@ export function createSchematicTransactionOperations(
         rotation: safeGetState(current, 'Rotation'),
         mirror: safeGetState(current, 'Mirror'),
         net: safeGetState(current, 'Net'),
+        // These discriminators must come from the native primitive, never
+        // from a caller-supplied snapshot or the requested MCP operation.
+        identification:
+          componentType === 'netflag' ? safeGetState(current, 'Identification') : undefined,
+        direction: componentType === 'netport' ? safeGetState(current, 'Direction') : undefined,
       });
     }
     return compactDefinedRecord({
@@ -647,6 +656,13 @@ export function createSchematicTransactionOperations(
         'Use a component, net flag/port, wire, text, rectangle, circle, or polygon primitive ID.',
       );
     }
+    if (snapshot.primitiveKind === 'netflag' || snapshot.primitiveKind === 'netport') {
+      const nativeContext = await readNativeMarkerContext(
+        callFirst,
+        dependencies.getEasyedaVersion,
+      );
+      if (nativeContext) snapshot.nativeContext = nativeContext;
+    }
     return snapshot;
   }
 
@@ -684,12 +700,28 @@ export function createSchematicTransactionOperations(
         'Pass an unmodified snapshot returned by schematic.getPrimitiveSnapshot.',
       );
     }
+    const nativeContext = parseNativeMarkerContext(input.nativeContext, (message) =>
+      newBridgeError(
+        'INVALID_PARAMS',
+        message,
+        'Use an unmodified native-scoped snapshot from the focused schematic.',
+      ),
+    );
     return {
       schemaVersion,
       primitiveId,
       primitiveKind: primitiveKind as SchematicPrimitiveSnapshotKind,
       componentType: typeof input.componentType === 'string' ? input.componentType : undefined,
       property: { ...property },
+      ...(nativeContext !== undefined && isRecord(nativeContext)
+        ? {
+            nativeContext: {
+              projectId: nativeContext.projectId as string,
+              documentId: nativeContext.documentId as string,
+              editorVersion: '4.1.105' as const,
+            },
+          }
+        : {}),
     };
   }
 

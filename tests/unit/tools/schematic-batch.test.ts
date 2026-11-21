@@ -624,6 +624,52 @@ describe('easyeda_schematic_batch_write', () => {
     });
   });
 
+  it('rejects duplicate delete targets before any native mutation', async () => {
+    await expect(
+      registry.get('easyeda_schematic_batch_write')?.handler(context, {
+        projectId: 'project-1',
+        operations: [
+          { operationId: 'first-delete', action: 'delete', primitiveId: 'wire-1' },
+          { operationId: 'duplicate-delete', action: 'delete', primitiveId: 'wire-1' },
+        ],
+        atomic: true,
+        dryRun: false,
+        confirmWrite: true,
+      }),
+    ).rejects.toThrow(/only once per atomic batch/);
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['netflag', { identification: 'Ground', net: 'GND', x: 1, y: 2, rotation: 0, mirror: false }],
+    ['netport', { direction: 'IN', net: 'N1', x: 1, y: 2, rotation: 0, mirror: false }],
+  ] as const)(
+    'keeps unaccepted beta $kind deletion disabled even with a complete descriptor',
+    async (kind, property) => {
+      bridgeCall.mockResolvedValue({
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'marker-1',
+        primitiveKind: kind,
+        componentType: kind,
+        property,
+      });
+      const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+        projectId: 'project-1',
+        operations: [{ operationId: 'delete-marker', action: 'delete', primitiveId: 'marker-1' }],
+        atomic: true,
+        dryRun: false,
+        confirmWrite: true,
+      });
+      expect(result).toMatchObject({
+        success: false,
+        error_code: 'TRANSACTION_INVALID_STATE',
+        committed: false,
+        rolled_back: false,
+      });
+      expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+    },
+  );
+
   it('rejects unsupported component delete before issuing a write', async () => {
     bridgeCall.mockResolvedValue({
       schemaVersion: 'schematic-primitive-snapshot/v1',

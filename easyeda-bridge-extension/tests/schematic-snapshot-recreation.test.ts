@@ -115,6 +115,175 @@ describe('createSchematicSnapshotRecreator', () => {
     );
   });
 
+  it('does not expose beta net flag reconstruction without explicit fixture capability', async () => {
+    const callFirst = vi.fn();
+    const recreator = createSchematicSnapshotRecreator({
+      callFirst,
+      createBridgeError: vi.fn((code, message) => Object.assign(new Error(message), { code })),
+      requirePublicTextAlignMode: vi.fn((value) => value as 1),
+      getEasyedaVersion: () => '4.1.105',
+    });
+    await expect(
+      recreator.create({
+        ...snapshot('netflag', {
+          identification: 'Ground',
+          net: 'GND',
+          x: 1,
+          y: 2,
+          rotation: 0,
+          mirror: false,
+        }),
+        componentType: 'netflag',
+        nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+      }),
+    ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
+  it('recreates an exact native power net flag with all typed arguments', async () => {
+    const callFirst = vi.fn(async (paths: string[]) => {
+      if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-1' };
+      if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo'))
+        return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+      return { primitiveId: 'flag-new' };
+    });
+    const recreator = createSchematicSnapshotRecreator({
+      callFirst,
+      createBridgeError: vi.fn((code, message) => Object.assign(new Error(message), { code })),
+      requirePublicTextAlignMode: vi.fn((value) => value as 1),
+      getEasyedaVersion: () => '4.1.105',
+      allowExperimentalPowerNetFlagRecreation: () => true,
+    });
+    await recreator.create({
+      ...snapshot('netflag', {
+        identification: 'Ground',
+        net: 'GND',
+        x: 10,
+        y: 20,
+        rotation: 90,
+        mirror: false,
+      }),
+      componentType: 'netflag',
+      nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+    });
+    expect(callFirst).toHaveBeenCalledWith(
+      ['SCH_PrimitiveComponent.createNetFlag', 'sch_PrimitiveComponent.createNetFlag'],
+      'Ground',
+      'GND',
+      10,
+      20,
+      90,
+      false,
+    );
+  });
+
+  it.each([
+    {
+      label: 'missing native scope',
+      nativeContext: undefined,
+      activeProject: 'project-1',
+      activePage: 'page-1',
+    },
+    {
+      label: 'wrong focused project',
+      nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+      activeProject: 'other',
+      activePage: 'page-1',
+    },
+    {
+      label: 'wrong focused page',
+      nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+      activeProject: 'project-1',
+      activePage: 'other',
+    },
+    {
+      label: 'wrong editor version',
+      nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '3.2.209' },
+      activeProject: 'project-1',
+      activePage: 'page-1',
+    },
+  ])(
+    'refuses net flag recreation for $label before native create',
+    async ({ nativeContext, activeProject, activePage }) => {
+      const callFirst = vi.fn(async (paths: string[]) => {
+        if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: activeProject };
+        if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo'))
+          return { uuid: activePage, parentProjectUuid: activeProject, documentType: 1 };
+        return { primitiveId: 'created' };
+      });
+      const recreator = createSchematicSnapshotRecreator({
+        callFirst,
+        createBridgeError: vi.fn((code, message) => Object.assign(new Error(message), { code })),
+        requirePublicTextAlignMode: vi.fn((value) => value as 1),
+        getEasyedaVersion: () => '4.1.105',
+        allowExperimentalPowerNetFlagRecreation: () => true,
+      });
+      await expect(
+        recreator.create({
+          ...snapshot('netflag', {
+            identification: 'Ground',
+            net: 'GND',
+            x: 10,
+            y: 20,
+            rotation: 0,
+            mirror: false,
+          }),
+          componentType: 'netflag',
+          nativeContext,
+        }),
+      ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
+      expect(callFirst).not.toHaveBeenCalledWith(
+        ['SCH_PrimitiveComponent.createNetFlag', 'sch_PrimitiveComponent.createNetFlag'],
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+      );
+    },
+  );
+
+  it.each([
+    { kind: 'netflag', property: { net: 'GND', x: 1, y: 2, rotation: 0, mirror: false } },
+    {
+      kind: 'netflag',
+      property: { identification: 'Ground', net: '', x: 1, y: 2, rotation: 0, mirror: false },
+    },
+    {
+      kind: 'netflag',
+      property: { identification: 'NotPower', net: 'GND', x: 1, y: 2, rotation: 0, mirror: false },
+    },
+    {
+      kind: 'netflag',
+      property: { identification: 'Ground', net: 'GND', x: 1, y: 2, rotation: 0 },
+    },
+    {
+      kind: 'netport',
+      property: { direction: 'SIDEWAYS', net: 'N1', x: 1, y: 2, rotation: 0, mirror: false },
+    },
+    {
+      kind: 'component',
+      property: { identification: 'Ground', net: 'GND', x: 1, y: 2, rotation: 0, mirror: false },
+    },
+  ] as const)(
+    'rejects invalid or untyped $kind marker restoration before native mutation',
+    async ({ kind, property }) => {
+      const callFirst = vi.fn();
+      const recreator = createSchematicSnapshotRecreator({
+        callFirst,
+        createBridgeError: vi.fn((code, message) => Object.assign(new Error(message), { code })),
+        requirePublicTextAlignMode: vi.fn((value) => value as 1),
+      });
+      await expect(
+        recreator.create({ ...snapshot(kind, property), componentType: kind }),
+      ).rejects.toMatchObject({
+        code: 'UNSUPPORTED_RUNTIME',
+      });
+      expect(callFirst).not.toHaveBeenCalled();
+    },
+  );
+
   it('fails closed for incomplete snapshot fields and unsupported creation kinds', async () => {
     const createBridgeError = vi.fn((code, message) => Object.assign(new Error(message), { code }));
     const recreator = createSchematicSnapshotRecreator({
