@@ -202,6 +202,45 @@ The command publishes only after a fresh isolated native cold reopen and
 matching snapshot, with a no-clobber output operation. This is a narrow
 acceptance/diagnostic workflow, not a claim of general component rollback.
 
+The bounded interactive candidate uses the same isolated file workflow
+over a standalone stdio MCP connection:
+
+    easyeda-mcp-pro private-ground-session --project input.eprj2 --output verified.eprj2 \
+      --editor /path/to/easyeda-pro --activation /path/to/existing-activation.txt \
+      --confirm-write --allow-library-network
+
+Configure this command as a separate local MCP server, not a replacement
+for the ordinary GUI/Cloud server. Project and output paths are fixed at
+launch. The only six exposed tools have the prefix
+`easyeda_private_ground_`:
+
+- `inspect`: read the bound marker or verify its absence.
+- `preview`: preview the single supported deletion without mutation.
+- `begin`: start a one-operation transaction after preview.
+- `delete`: delete on the private working copy.
+- `rollback`: restore and verify the native snapshot and fingerprint.
+- `publish`: save the restored copy, shut down its editor, independently
+  cold reopen, and publish a new verified file without clobbering output.
+
+Delete, rollback and publish each require `confirmWrite: true`. The client
+cannot supply another project, primitive, native RPC or transaction ID.
+Calls are serialized and there is no retry after uncertain mutation.
+Disconnect, cancellation or timeout discards unverified work; the original
+is never overwritten. The interactive worker has a bounded 260-second
+operation window, followed by bounded verification for publication. An
+already published, independently verified file may remain if cancellation
+races with its successful publication; inspect the designated output path
+before retrying. Publishing a permanent deletion, general components,
+connected markers, net ports, multi-page projects and ordinary GUI/Cloud
+marker mutation are not supported by this candidate.
+
+The interactive tool protocol and lifecycle have automated coverage,
+including a real SDK stdio client with a synthetic child protocol. Native
+delete/rollback/save/reopen is established for the standalone check
+command, but end-to-end native acceptance through this new external stdio
+session remains outstanding. The candidate must not be represented as a
+verified installed interactive native feature until that acceptance passes.
+
 The Bridge's typed Ground recreation integration is verified through an
 explicitly opted-in unit fixture. The actual production dispatcher does
 not provide that capability, and an MCP caller cannot request or grant it.
@@ -372,9 +411,9 @@ never turns a pending marker into an absent fence.
 A real, source-linked Z480 baseline has also been serialized **in memory**
 as a complete project-derived v2 pending marker, without storing it or
 obtaining a host lease. The 32,840-byte rehearsal marker decoded correctly;
-the read-only recovery classifier returned \`candidate-unchanged\`, while
+the read-only recovery classifier returned `candidate-unchanged`, while
 a changed filled-copper signature and the wrong PCB focus both returned
-\`unresolved\`. Every result kept persistenceVerified=false and
+`unresolved`. Every result kept persistenceVerified=false and
 releaseAuthorized=false. This does not validate a post-write cold reopen,
 release any crash-retained lease, or authorize a new native write.
 

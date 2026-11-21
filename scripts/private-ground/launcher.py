@@ -96,7 +96,8 @@ def run_worker(root, mode, original, editor, activation, node, expected=None):
             if expected:
                 command.extend(['--ro-bind', str(expected), '/expected.json'])
             command.extend(['--chdir', '/workspace', '/usr/bin/python3', '/launch/worker.py', mode])
-            subprocess.run(command, stdin=subprocess.DEVNULL, stdout=sys.stderr, stderr=sys.stderr,
+            subprocess.run(command, stdin=None if mode == "interactive" else subprocess.DEVNULL,
+                           stdout=None if mode == "interactive" else sys.stderr, stderr=sys.stderr,
                            check=True, timeout=360)
             return evidence
         finally:
@@ -118,6 +119,7 @@ def main():
     parser.add_argument('--confirm-write', action='store_true')
     parser.add_argument('--allow-library-network', action='store_true', help='Permit bounded HTTPS access to pro.easyeda.com and image-pro.easyeda.com')
     parser.add_argument('--node', required=True, help=argparse.SUPPRESS)
+    parser.add_argument('--interactive', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     if not args.confirm_write or not args.allow_library_network:
         parser.error('Both --confirm-write and --allow-library-network are required')
@@ -150,7 +152,7 @@ def main():
                   'proxy': {'enable': True, 'protocol': 'http', 'host': '127.0.0.1', 'port': 18765, 'username': '', 'password': ''}}
         (seed / 'config.json').write_text(json.dumps(config))
         print('Verifying private Ground transaction...', file=sys.stderr)
-        result_dir = run_worker(root, 'transaction', source, editor, activation, node)
+        result_dir = run_worker(root, 'interactive' if args.interactive else 'transaction', source, editor, activation, node)
         result = json.loads((result_dir / 'result.json').read_text())
         staged = input_file(result_dir / 'staged.eprj2', '.eprj2')
         staged_hash = digest(staged)
@@ -163,10 +165,11 @@ def main():
         if digest(original) != before_hash or digest(staged) != staged_hash:
             raise RuntimeError('Source or staged file changed; refusing output')
         publish(staged, output)
-        print(json.dumps({'success': True, 'output': str(output), 'originalUnchanged': True,
-                          'restoredId': result['restoredId'], 'rollbackComplete': True,
-                          'coldReopenVerified': True, 'attributeFingerprint': cold['snapshot']['nativeIsolation']['attributeFingerprint'],
-                          'sha256': staged_hash}))
+        response = {'success': True, 'output': str(output), 'originalUnchanged': True,
+                    'restoredId': result['restoredId'], 'rollbackComplete': True,
+                    'coldReopenVerified': True, 'attributeFingerprint': cold['snapshot']['nativeIsolation']['attributeFingerprint'],
+                    'sha256': staged_hash}
+        print(json.dumps({'action': 'publish', 'result': response} if args.interactive else response), flush=True)
 
 
 if __name__ == '__main__':

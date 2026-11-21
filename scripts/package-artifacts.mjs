@@ -27,6 +27,7 @@ export const PRIVATE_GROUND_ARTIFACTS = [
   'dist/private-ground/native-rpc.txt',
   'dist/private-ground/native-transaction.js',
   'dist/private-ground/worker.cjs',
+  'dist/private-ground/host.cjs',
 ];
 
 const REQUIRED_PACKED_FILES = [

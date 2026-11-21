@@ -21,9 +21,12 @@ import { assertSupportedNodeRuntime } from './runtime/policy.js';
 import { runPrivateGroundCheck } from './cli/private-ground.js';
 
 async function handleLocalCommand(): Promise<boolean> {
-  if (process.argv[2] === 'private-ground-check') {
+  if (['private-ground-check', 'private-ground-session'].includes(process.argv[2] ?? '')) {
     assertSupportedNodeRuntime();
-    process.exitCode = await runPrivateGroundCheck(process.argv.slice(3));
+    process.exitCode = await runPrivateGroundCheck(
+      process.argv.slice(3),
+      process.argv[2] === 'private-ground-session',
+    );
     return true;
   }
   const cli = parseCliArgs(process.argv.slice(2));

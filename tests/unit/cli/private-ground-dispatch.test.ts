@@ -10,13 +10,13 @@ function setPlatform(value: NodeJS.Platform) {
   Object.defineProperty(process, 'platform', { ...platform, value });
 }
 
-function start(args: string[] = []) {
+function start(args: string[] = [], interactive = false) {
   setPlatform('linux');
   const child = Object.assign(new EventEmitter(), { kill: vi.fn(() => true) });
   spawn.mockReturnValueOnce(child);
   const beforeInt = process.listeners('SIGINT');
   const beforeTerm = process.listeners('SIGTERM');
-  const result = runPrivateGroundCheck(args);
+  const result = runPrivateGroundCheck(args, interactive);
   const onSignal = (signal: 'SIGINT' | 'SIGTERM') => {
     const previous = signal === 'SIGINT' ? beforeInt : beforeTerm;
     const listener = process.listeners(signal).find((fn) => !previous.includes(fn));
@@ -67,6 +67,22 @@ describe('private Ground CLI process boundary', () => {
     await expect(result).resolves.toBe(0);
     expect(process.listeners('SIGINT')).toEqual(beforeInt);
     expect(process.listeners('SIGTERM')).toEqual(beforeTerm);
+  });
+
+  it('launches the packaged MCP host with inherited stdio and no shell', async () => {
+    const args = ['--project', 'fixture.eprj2', '--output', 'verified.eprj2'];
+    const { child, result } = start(args, true);
+    expect(spawn).toHaveBeenCalledWith(
+      process.execPath,
+      [expect.stringMatching(/private-ground[/\\]host\.cjs$/), ...args],
+      {
+        stdio: ['inherit', 'inherit', 'inherit'],
+        shell: false,
+        env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' },
+      },
+    );
+    child.emit('close', 0);
+    await expect(result).resolves.toBe(0);
   });
 
   it.each([1, 130, null])('propagates a failed or interrupted child exit (%s)', async (code) => {

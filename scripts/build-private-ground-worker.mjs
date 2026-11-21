@@ -23,6 +23,15 @@ await build({
   outfile: resolve(out, 'worker.cjs'),
   logLevel: 'error',
 });
+await build({
+  entryPoints: [resolve(root, 'scripts/private-ground/host.mjs')],
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+  target: 'node24',
+  outfile: resolve(out, 'host.cjs'),
+  logLevel: 'error',
+});
 for (const name of [
   'native-rpc.txt',
   'archive-evidence.py',

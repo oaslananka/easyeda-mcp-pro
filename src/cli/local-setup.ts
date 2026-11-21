@@ -903,6 +903,7 @@ export function formatHelp(): string {
     '  easyeda-mcp-pro --setup-local                Print MCP client config (legacy)',
     '  easyeda-mcp-pro --doctor [--fix]              Check runtime, package, and bridge status',
     '    --fix     Print suggested fixes for each detected failure (no files are changed)',
+    '  easyeda-mcp-pro private-ground-session --help  Start isolated Ground stdio MCP (Linux, opt-in)',
     '  easyeda-mcp-pro private-ground-check --help  Verify isolated Ground rollback (Linux, opt-in)',
     '  easyeda-mcp-pro --version                    Print package version',
     '',

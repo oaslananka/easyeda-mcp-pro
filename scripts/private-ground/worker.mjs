@@ -1,3 +1,4 @@
+import { runInteractiveGround } from './interactive.mjs';
 import { PrivateNativeGroundSession } from '../../src/bridge/private-native-ground-session.ts';
 import { ToolRegistry } from '../../src/tools/registry.ts';
 import { registerSchematicBatchTools } from '../../src/tools/L1_schematic_batch.ts';
@@ -152,7 +153,7 @@ function createAdapter(sessionId) {
   };
 }
 
-async function transact(adapter, baseline, sessionId) {
+async function transact(adapter, baseline, sessionId, interactive = false) {
   const bridge = new PrivateNativeGroundSession({
     ...adapter,
     ...baseline,
@@ -186,7 +187,8 @@ async function transact(adapter, baseline, sessionId) {
     return response.structuredContent;
   };
   try {
-    return await runTransaction({ adapter, baseline, bridge, tool });
+    const context = { adapter, baseline, bridge, tool };
+    return await (interactive ? runInteractiveGround(context) : runTransaction(context));
   } finally {
     await Promise.allSettled([client.close(), server.close()]);
   }
@@ -245,7 +247,7 @@ async function verifyRollback({ adapter, baseline, bridge, tool, before, transac
 
 async function main() {
   const [mode, sessionId] = process.argv.slice(2);
-  if (!['transaction', 'cold'].includes(mode) || !sessionId)
+  if (!['transaction', 'interactive', 'cold'].includes(mode) || !sessionId)
     throw new Error('Invalid internal worker request');
   const adapter = createAdapter(sessionId);
   const baseline = await adapter.bootstrap();
@@ -256,7 +258,10 @@ async function main() {
     put('/evidence/cold.json', { snapshot: baseline.snapshot, verified: true });
     return;
   }
-  put('/evidence/result.json', await transact(adapter, baseline, sessionId));
+  put(
+    '/evidence/result.json',
+    await transact(adapter, baseline, sessionId, mode === 'interactive'),
+  );
 }
 
 main().catch((error) => {

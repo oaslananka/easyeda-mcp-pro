@@ -15,7 +15,7 @@ PROJECT = '/workspace/WORKING.eprj2'
 
 def native(*args, timeout=60):
     result = subprocess.run(
-        [VENDOR, *args, '--no-sandbox'], capture_output=True, timeout=timeout, check=True,
+        [VENDOR, *args, '--no-sandbox'], stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout, check=True,
     )
     if len(result.stdout) > 2 * 1024 * 1024:
         raise RuntimeError('Native response exceeded size limit')
@@ -27,7 +27,7 @@ def native(*args, timeout=60):
 
 def main():
     mode = sys.argv[1]
-    if mode not in ('transaction', 'cold'):
+    if mode not in ('transaction', 'interactive', 'cold'):
         raise RuntimeError('Invalid worker mode')
     for name in ('HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'XDG_RUNTIME_DIR'):
         Path(os.environ[name]).mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -57,7 +57,7 @@ def main():
             else:
                 raise RuntimeError('Isolated EasyEDA Pro 4.1.105 did not become ready')
             session_id = native('open', '--path', PROJECT, '--headless', timeout=50)['sessionId']
-            subprocess.run(['/node', '/launch/worker.cjs', mode, session_id], check=True, timeout=260, stdin=subprocess.DEVNULL)
+            subprocess.run(['/node', '/launch/worker.cjs', mode, session_id], check=True, timeout=260, stdin=None if mode == 'interactive' else subprocess.DEVNULL)
             if native('session', 'close', '--session', session_id, '--destroy', timeout=20).get('status') != 'closed':
                 raise RuntimeError('Native session close unconfirmed')
             session_id = None
@@ -67,7 +67,7 @@ def main():
             with sqlite3.connect('file:' + PROJECT + '?mode=ro', uri=True) as db:
                 if db.execute('pragma integrity_check').fetchall() != [('ok',)]:
                     raise RuntimeError('Saved project integrity check failed')
-            if mode == 'transaction':
+            if mode in ('transaction', 'interactive'):
                 result = Path('/evidence/result.json')
                 if not result.is_file() or not json.loads(result.read_text()).get('save'):
                     raise RuntimeError('Rollback proof missing')
