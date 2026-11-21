@@ -119,6 +119,18 @@ extension-integrity job, its byte limits, and source/package integrity checks
 remain mandatory and fail closed. This is a narrow safety overhead review,
 not broad permission for extension growth or native marker deletion.
 
+The 2026-11-21 follow-up to PR #1110 further restricts fixture-only native V4
+Ground reconstruction: even with a scoped native document and opt-in capability,
+a snapshot missing an exact marker-matched isolation descriptor or reporting
+wires, free pins, additional components, missing embedded pins or invalid
+attribute counts cannot call the native create API. This does not authenticate
+caller-supplied evidence or authorize production marker deletion. The
+reproducible extension package measured **248,069 bytes** (previous
+**247,802**, +267), index.js **424,827** (previous **424,261**, +566) and
+dispatcher.js **338,898** (previous **338,332**, +566). The reviewed budget
+ratchets remain output plus five bytes: **248,074 / 424,832 / 338,903**.
+All size and integrity checks remain mandatory.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:

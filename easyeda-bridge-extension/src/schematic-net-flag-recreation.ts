@@ -17,6 +17,26 @@ function hasExactPowerFlagProperties(property: Record<string, unknown>): boolean
   );
 }
 
+/** This is a bounded fixture descriptor check, not an authorization token.
+ * Production still denies marker deletion and does not enable this capability.
+ */
+function hasMatchingGroundIsolation(snapshot: SchematicPrimitiveSnapshot): boolean {
+  const evidence = snapshot.nativeIsolation;
+  return (
+    evidence?.kind === 'verified-disconnected-ground/v1' &&
+    typeof snapshot.primitiveId === 'string' &&
+    snapshot.primitiveId.length > 0 &&
+    evidence.markerId === snapshot.primitiveId &&
+    evidence.componentCount === 2 &&
+    evidence.wireCount === 0 &&
+    evidence.pagePinCount === 0 &&
+    evidence.embeddedPinCount === 1 &&
+    Number.isInteger(evidence.attributeCount) &&
+    evidence.attributeCount > 0 &&
+    evidence.attributeCount <= 256
+  );
+}
+
 function requirePowerDescriptor(
   deps: SchematicSnapshotRecreationDependencies,
   snapshot: SchematicPrimitiveSnapshot,
@@ -26,7 +46,8 @@ function requirePowerDescriptor(
     deps.allowExperimentalPowerNetFlagRecreation?.() !== true ||
     deps.getEasyedaVersion?.() !== '4.1.105' ||
     snapshot.componentType !== 'netflag' ||
-    !hasExactPowerFlagProperties(property)
+    !hasExactPowerFlagProperties(property) ||
+    !hasMatchingGroundIsolation(snapshot)
   ) {
     throw deps.createBridgeError(
       'UNSUPPORTED_RUNTIME',

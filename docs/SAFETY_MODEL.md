@@ -59,6 +59,15 @@ use the standalone component path. Explicit netflag, netport, sheet,
 unknown types, missing identities, failed native reads, and ID-only component
 inventories are refused without deleting earlier primitives in a mixed batch.
 
+Experimental V4 Ground reconstruction now also refuses a missing or
+inconsistent read-only native isolation descriptor (exact marker ID,
+two-component/zero-wire/zero-page-pin topology, one embedded pin and bounded
+attribute count) **before** the native create API is called. A descriptor
+carried in a caller-supplied snapshot is not independently trusted proof of
+disconnection, so the fixture-only flag and the production delete prohibition
+remain necessary. Runtime scope checks and cold-reopen verification are
+additional gates, not substitutes for native writer coordination.
+
 This closes a standalone-delete path that otherwise bypassed transactional
 marker rollback restrictions. It does not grant transactional deletion of
 components, flags or ports; the existing production transaction allowlist
