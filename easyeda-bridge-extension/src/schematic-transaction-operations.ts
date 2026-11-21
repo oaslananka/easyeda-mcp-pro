@@ -1,4 +1,5 @@
 import { verifyWireInventoryReadback } from './schematic-wire-inventory.js';
+import { verifiedNativeGroundDescriptor } from './schematic-native-ground-identity.js';
 import type { ApiRuntime } from './api-runtime.js';
 import { createSchematicSnapshotRecreator } from './schematic-snapshot-recreation.js';
 import {
@@ -408,17 +409,29 @@ export function createSchematicTransactionOperations(
     componentType: string,
   ): Record<string, unknown> {
     if (componentType === 'netflag' || componentType === 'netport') {
+      const nativeNet = safeGetState(current, 'Net');
+      const ground =
+        componentType === 'netflag'
+          ? verifiedNativeGroundDescriptor(
+              safeGetState(current, 'Component'),
+              dependencies.getEasyedaVersion?.(),
+              nativeNet,
+            )
+          : undefined;
       return compactDefinedRecord({
         x: safeGetState(current, 'X'),
         y: safeGetState(current, 'Y'),
         rotation: safeGetState(current, 'Rotation'),
         mirror: safeGetState(current, 'Mirror'),
-        net: safeGetState(current, 'Net'),
+        net: nativeNet,
+        nativeSymbol: ground?.nativeSymbol,
         // These native getters are not in the public component API contract.
         // If the live runtime does not expose them, omit the discriminators:
         // do not guess from a net name, marker appearance or MCP input.
         identification:
-          componentType === 'netflag' ? safeGetState(current, 'Identification') : undefined,
+          componentType === 'netflag'
+            ? (ground?.identification ?? safeGetState(current, 'Identification'))
+            : undefined,
         direction: componentType === 'netport' ? safeGetState(current, 'Direction') : undefined,
       });
     }

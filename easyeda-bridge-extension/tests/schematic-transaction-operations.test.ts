@@ -166,6 +166,86 @@ describe('schematic transaction operations', () => {
     },
   );
 
+  it('derives the Ground discriminator only from the exact native V4 Ground-GND symbol', async () => {
+    const component = {
+      getState_PrimitiveId: () => 'flag-1',
+      getState_ComponentType: () => 'netflag',
+      getState_Component: () => ({
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+        uuid: 'af20086a8911a85a',
+        name: 'Ground-GND',
+      }),
+      getState_Name: () => 'GND',
+      getState_Net: () => 'GND',
+      getState_X: () => 240,
+      getState_Y: () => 250,
+      getState_Rotation: () => 0,
+      getState_Mirror: () => false,
+    };
+    const { operations } = createSubject(
+      { SCH_PrimitiveComponent: { get: vi.fn().mockResolvedValue(component) } },
+      { getEasyedaVersion: () => '4.1.105' },
+    );
+    await expect(operations.getPrimitiveSnapshot('flag-1', 'netflag')).resolves.toMatchObject({
+      primitiveKind: 'netflag',
+      componentType: 'netflag',
+      property: {
+        identification: 'Ground',
+        net: 'GND',
+        x: 240,
+        y: 250,
+        rotation: 0,
+        mirror: false,
+        nativeSymbol: {
+          libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+          uuid: 'af20086a8911a85a',
+          name: 'Ground-GND',
+        },
+      },
+    });
+  });
+
+  it.each([
+    {
+      name: 'lookalike label',
+      symbol: { name: 'Ground-GND', libraryUuid: 'other', uuid: 'af20086a8911a85a' },
+    },
+    {
+      name: 'different symbol UUID',
+      symbol: {
+        name: 'Ground-GND',
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+        uuid: 'other',
+      },
+    },
+    {
+      name: 'different display name',
+      symbol: {
+        name: 'Other-GND',
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+        uuid: 'af20086a8911a85a',
+      },
+    },
+    { name: 'incomplete symbol identity', symbol: { name: 'Ground-GND' } },
+  ])('does not authorize unidentified native $name as a Ground flag', async ({ symbol }) => {
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_ComponentType: () => 'netflag',
+            getState_Component: () => symbol,
+            getState_Net: () => 'GND',
+            getState_Name: () => 'GND',
+          }),
+        },
+      },
+      { getEasyedaVersion: () => '4.1.105' },
+    );
+    const read = await operations.getPrimitiveSnapshot('flag-1', 'netflag');
+    expect(read.property).not.toHaveProperty('identification');
+    expect(read.property).not.toHaveProperty('nativeSymbol');
+  });
+
   it('binds a marker snapshot only to a verified native schematic project and document', async () => {
     const { operations } = createSubject(
       {

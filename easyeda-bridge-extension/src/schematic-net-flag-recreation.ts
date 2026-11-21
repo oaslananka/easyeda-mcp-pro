@@ -1,18 +1,16 @@
 import type { SchematicPrimitiveSnapshot } from './schematic-transaction-operations.js';
+import { isVerifiedV4GroundSymbol } from './schematic-native-ground-identity.js';
 import type { SchematicSnapshotRecreationDependencies } from './schematic-snapshot-recreation.js';
 
 type NativeContext = NonNullable<SchematicPrimitiveSnapshot['nativeContext']>;
 type NativeProject = { uuid?: unknown };
 type NativeDocument = { uuid?: unknown; parentProjectUuid?: unknown; documentType?: unknown };
 
-const POWER_IDENTIFICATIONS = new Set(['Power', 'Ground', 'AnalogGround', 'ProtectGround']);
-
 function hasExactPowerFlagProperties(property: Record<string, unknown>): boolean {
   return (
-    typeof property.identification === 'string' &&
-    POWER_IDENTIFICATIONS.has(property.identification) &&
-    typeof property.net === 'string' &&
-    property.net.trim().length > 0 &&
+    property.identification === 'Ground' &&
+    property.net === 'GND' &&
+    isVerifiedV4GroundSymbol(property.nativeSymbol) &&
     typeof property.mirror === 'boolean' &&
     typeof property.rotation === 'number' &&
     Number.isFinite(property.rotation)
@@ -76,9 +74,11 @@ async function requireCurrentNativeScope(
 }
 
 /**
- * The native API is BETA. This helper does not authorize a transactional
- * delete: server preflight still denies netflag, netport and component kinds.
- * Actual enabled rollback requires a disposable-editor persistence test.
+ * The native API is BETA. The exact disconnected Ground-GND native
+ * create/delete/recreate round-trip survived three independent cold reopens.
+ * This helper remains fixture-only until the transaction engine has a proven
+ * pre-delete connection guard and complete rollback reconciliation.
+ * Production preflight still denies all marker and component deletions.
  */
 export async function recreateVerifiedPowerNetFlag(
   deps: SchematicSnapshotRecreationDependencies,

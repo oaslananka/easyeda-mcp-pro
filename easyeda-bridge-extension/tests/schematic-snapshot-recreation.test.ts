@@ -5,6 +5,12 @@ import type {
   SchematicPrimitiveSnapshotKind,
 } from '../src/schematic-transaction-operations.js';
 
+const nativeGround = {
+  name: 'Ground-GND',
+  libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+  uuid: 'af20086a8911a85a',
+};
+
 function snapshot(
   primitiveKind: SchematicPrimitiveSnapshotKind,
   property: Record<string, unknown>,
@@ -140,6 +146,40 @@ describe('createSchematicSnapshotRecreator', () => {
     expect(callFirst).not.toHaveBeenCalled();
   });
 
+  it('rejects an unverified or missing native symbol descriptor even when Ground is claimed', async () => {
+    const callFirst = vi.fn();
+    const recreator = createSchematicSnapshotRecreator({
+      callFirst,
+      createBridgeError: vi.fn((code, message) => Object.assign(new Error(message), { code })),
+      requirePublicTextAlignMode: vi.fn((value) => value as 1),
+      getEasyedaVersion: () => '4.1.105',
+      allowExperimentalPowerNetFlagRecreation: () => true,
+    });
+    await expect(
+      recreator.create({
+        ...snapshot('netflag', {
+          identification: 'Ground',
+          net: 'GND',
+          x: 240,
+          y: 250,
+          rotation: 0,
+          mirror: false,
+        }),
+        componentType: 'netflag',
+        nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+      }),
+    ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
+    expect(callFirst).not.toHaveBeenCalledWith(
+      ['SCH_PrimitiveComponent.createNetFlag', 'sch_PrimitiveComponent.createNetFlag'],
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
   it('recreates an exact native power net flag with all typed arguments', async () => {
     const callFirst = vi.fn(async (paths: string[]) => {
       if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-1' };
@@ -158,6 +198,7 @@ describe('createSchematicSnapshotRecreator', () => {
       ...snapshot('netflag', {
         identification: 'Ground',
         net: 'GND',
+        nativeSymbol: nativeGround,
         x: 10,
         y: 20,
         rotation: 90,
@@ -223,6 +264,7 @@ describe('createSchematicSnapshotRecreator', () => {
           ...snapshot('netflag', {
             identification: 'Ground',
             net: 'GND',
+            nativeSymbol: nativeGround,
             x: 10,
             y: 20,
             rotation: 0,
