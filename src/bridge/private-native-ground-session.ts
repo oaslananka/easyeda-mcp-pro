@@ -26,6 +26,34 @@ function hasGroundDevice(value: unknown): boolean {
   );
 }
 
+// IDs in the native schematic snapshot are project-local library copies.
+const GROUND_LIBRARY = '0819f05c4eef4c71ace90d822a990e87';
+const GROUND_SOURCE_DEVICE = '2e4e71fea06848c9a86eef0ed6338204';
+const GROUND_SOURCE_SYMBOL = '1c18ed5a06f64a07bdb5b0cf525b3d9e';
+
+/**
+ * The trusted private worker must obtain the project-local device/symbol
+ * provenance from the native project device export and independently resolve
+ * the exact source device. The project-local UUID alone is not a system UUID.
+ */
+function hasGroundCreationDevice(value: unknown): boolean {
+  const evidence = record(value);
+  const device = record(evidence.systemDevice);
+  const symbol = record(device.association);
+  return (
+    evidence.projectDeviceUuid === 'af20086a8911a85a' &&
+    evidence.projectSymbolUuid === '17c558f9e954b079' &&
+    evidence.deviceSource === GROUND_SOURCE_DEVICE + '|' + GROUND_LIBRARY &&
+    evidence.symbolSource === GROUND_SOURCE_SYMBOL + '|' + GROUND_LIBRARY &&
+    device.name === 'Ground-GND' &&
+    device.uuid === GROUND_SOURCE_DEVICE &&
+    device.libraryUuid === GROUND_LIBRARY &&
+    symbol.type === 18 &&
+    symbol.uuid === GROUND_SOURCE_SYMBOL &&
+    symbol.libraryUuid === GROUND_LIBRARY
+  );
+}
+
 function hasGroundIdentity(snapshot: PrimitiveSnapshotResult, id: string): boolean {
   const property = record(snapshot.property);
   return (
@@ -169,7 +197,7 @@ export class PrivateNativeGroundSession implements TransactionBridgeCaller {
    */
   private async assertCreationDevice(): Promise<void> {
     const device = await this.invokeOwned('privateGround.getRecreationDevice', {});
-    if (!hasGroundDevice(device)) {
+    if (!hasGroundCreationDevice(device)) {
       throw new Error(
         'Verified native Ground creation device is unavailable in the private worker',
       );

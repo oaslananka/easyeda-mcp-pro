@@ -150,19 +150,28 @@ preflight and missing confirmWrite were refused; a dry run made no
 mutation. An actual MCP Ground delete succeeded, but rollback failed:
 a newly created marker lacked its native library identity in the fresh
 offline profile. No file was exported and the original was unchanged.
-Both offline library queries and an unstable native document-source
-snapshot showed that a readable in-project marker is insufficient
-evidence of independent reconstructability. The private adapter now
-requires a fresh native creation-device lookup during preflight and
-immediately before deletion. Missing or differing library UUID, device
-UUID or name prevents mutation. This is a necessary prerequisite, not
-a guarantee that the vendor runtime can reconstruct the marker.
+The project export identified the cause: the native snapshot contains
+project-local device and symbol copies, not the system-library record IDs.
+The private adapter now requires both project-local source associations
+from the native device archive and an independent lookup of the actual
+system Ground device and its associated symbol, during preflight and
+immediately before mutation. A readable project copy, matching name, or
+unrelated system record cannot authorize deletion. The offline system
+library does not contain the matching source IDs. The project library
+export preserved the associations, but the tested project and private
+personal import APIs did not restore source availability.
 
-The private adapter is an internal candidate, not a supported public
-worker launcher, installed extension capability, or general native
-writer lock. Production GUI/Cloud marker deletion remains disabled
-until the actual isolated reconstruction and durable recovery path is
-accepted.
+A subsequent isolated half-offline fixture retained independent network,
+process, display and filesystem namespaces and used a bounded HTTPS relay
+to the verified vendor library endpoints. The actual SDK MCP client and
+registry performed Ground delete, verified native absence, and explicit
+rollback with a newly allocated ID and matching v2 attribute fingerprint
+(38 attributes, one embedded pin, no wires or free pins). Native Save
+acknowledged the restored state. This is real MCP/native source-adapter
+acceptance, not a shipped launcher, installed extension capability, or
+general native writer lock. The production GUI/Cloud allowlist remains
+unchanged. The native document-source beta API is not used for production
+rollback.
 
 The Bridge's typed Ground recreation integration is verified through an
 explicitly opted-in unit fixture. The actual production dispatcher does

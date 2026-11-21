@@ -31,6 +31,23 @@ const original = {
     attributeFingerprint: 'a'.repeat(64),
   },
 };
+// The project-local device and symbol IDs differ from their system-library sources.
+const creationEvidence = {
+  projectDeviceUuid: 'af20086a8911a85a',
+  projectSymbolUuid: '17c558f9e954b079',
+  deviceSource: '2e4e71fea06848c9a86eef0ed6338204|0819f05c4eef4c71ace90d822a990e87',
+  symbolSource: '1c18ed5a06f64a07bdb5b0cf525b3d9e|0819f05c4eef4c71ace90d822a990e87',
+  systemDevice: {
+    name: 'Ground-GND',
+    uuid: '2e4e71fea06848c9a86eef0ed6338204',
+    libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+    association: {
+      type: 18,
+      uuid: '1c18ed5a06f64a07bdb5b0cf525b3d9e',
+      libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+    },
+  },
+};
 const session = {
   sessionId: 'private-session',
   path: '/workspace/WORKING.eprj2',
@@ -42,7 +59,7 @@ function fixture() {
   const listSessions = vi.fn(async (): Promise<unknown> => [session]);
   const invoke = vi.fn(async (method: string, _params: unknown): Promise<unknown> => {
     if (method === 'schematic.getPrimitiveSnapshot') return structuredClone(original);
-    if (method === 'privateGround.getRecreationDevice') return original.property.nativeSymbol;
+    if (method === 'privateGround.getRecreationDevice') return creationEvidence;
     if (method === 'privateGround.delete') return { deleted: ['ground-old'], notFound: [] };
     throw new Error('Unexpected native method');
   });
@@ -80,9 +97,30 @@ describe('host-managed private Ground session', () => {
   it.each([
     undefined,
     null,
-    { ...original.property.nativeSymbol, uuid: 'other-device' },
-    { ...original.property.nativeSymbol, libraryUuid: 'other-library' },
-    { ...original.property.nativeSymbol, name: 'Ground-other' },
+    original.property.nativeSymbol,
+    { ...creationEvidence, projectDeviceUuid: 'other-device' },
+    { ...creationEvidence, deviceSource: 'wrong-source' },
+    { ...creationEvidence, projectSymbolUuid: 'other-symbol' },
+    { ...creationEvidence, symbolSource: 'wrong-symbol' },
+    {
+      ...creationEvidence,
+      systemDevice: { ...creationEvidence.systemDevice, uuid: 'other-device' },
+    },
+    {
+      ...creationEvidence,
+      systemDevice: { ...creationEvidence.systemDevice, libraryUuid: 'other-library' },
+    },
+    {
+      ...creationEvidence,
+      systemDevice: { ...creationEvidence.systemDevice, name: 'Ground-other' },
+    },
+    {
+      ...creationEvidence,
+      systemDevice: {
+        ...creationEvidence.systemDevice,
+        association: { ...creationEvidence.systemDevice.association, uuid: 'wrong-symbol' },
+      },
+    },
   ])(
     'refuses an unavailable or different native creation device before deletion',
     async (device) => {
@@ -134,7 +172,7 @@ describe('host-managed private Ground session', () => {
     await bridge.preflight('project-1', 'ground-old');
     invoke.mockImplementation(async (method) => {
       if (method === 'schematic.getPrimitiveSnapshot') return original;
-      if (method === 'privateGround.getRecreationDevice') return original.property.nativeSymbol;
+      if (method === 'privateGround.getRecreationDevice') return creationEvidence;
       throw new Error('native timeout');
     });
     await expect(
@@ -208,7 +246,7 @@ describe('host-managed private Ground session', () => {
       method === 'schematic.getPrimitiveSnapshot'
         ? original
         : method === 'privateGround.getRecreationDevice'
-          ? original.property.nativeSymbol
+          ? creationEvidence
           : { deleted: [], notFound: [] },
     );
     await expect(
