@@ -402,6 +402,147 @@ describe('schematic transaction operations', () => {
     expect(read.property).not.toHaveProperty('nativeSymbol');
   });
 
+  describe('verified native V4 IN netport identity', () => {
+    function portFixture(
+      options: {
+        symbol?: Record<string, unknown>;
+        version?: string;
+        directPinType?: string;
+        pinId?: string;
+        runtimeDirection?: string;
+        net?: string;
+        name?: string;
+        rotation?: number;
+        mirror?: boolean;
+        focusSwitch?: boolean;
+        staleComponent?: boolean;
+        omitPinReader?: boolean;
+      } = {},
+    ) {
+      const fields = (values: Record<string, unknown>) =>
+        Object.fromEntries(
+          Object.entries(values).map(([key, value]) => ['getState_' + key, () => value]),
+        );
+      const symbol = options.symbol ?? {
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+        uuid: '21c0c70348655df0',
+        name: 'Netport-IN',
+      };
+      const pin = fields({
+        PrimitiveId: 'port-1-e11',
+        PinName: 'IN',
+        PinNumber: '1',
+        pinType: 'IN',
+        X: 650,
+        Y: 350,
+        Rotation: 0,
+        NoConnected: false,
+      });
+      const direct = {
+        ...pin,
+        ...fields({
+          PrimitiveId: options.pinId ?? 'port-1-e11',
+          pinType: options.directPinType ?? 'IN',
+        }),
+      };
+      const port = {
+        ...fields({
+          PrimitiveId: 'port-1',
+          ComponentType: 'netport',
+          Component: symbol,
+          Net: options.net ?? 'QA_PORT_A',
+          Name: options.name ?? 'QA_PORT_A',
+          X: 650,
+          Y: 350,
+          Rotation: options.rotation ?? 0,
+          Mirror: options.mirror ?? false,
+          Direction: options.runtimeDirection,
+        }),
+        getAllPins: vi.fn(async () => [pin]),
+      };
+      const get = vi.fn(async () => port);
+      if (options.staleComponent) {
+        get
+          .mockImplementationOnce(async () => port)
+          .mockImplementation(async () => ({
+            ...port,
+            ...fields({ PrimitiveId: 'wrong-id' }),
+          }));
+      }
+      let focusedReads = 0;
+      const pinGet = vi.fn(async () => direct);
+      const subject = createSubject(
+        {
+          SCH_PrimitiveComponent: { get },
+          ...(options.omitPinReader ? {} : { SCH_PrimitivePin: { get: pinGet } }),
+        },
+        {
+          getEasyedaVersion: () => options.version ?? '4.1.105',
+          callFirst: vi.fn(async (paths: string[]) => {
+            if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'p1' };
+            if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo')) {
+              focusedReads += 1;
+              return {
+                uuid: options.focusSwitch && focusedReads > 1 ? 'page2' : 'page1',
+                parentProjectUuid: 'p1',
+                documentType: 1,
+              };
+            }
+            return undefined;
+          }) as any,
+        },
+      );
+      return { ...subject, symbol, pinGet };
+    }
+
+    it('captures exact symbol and IN direction using independently read embedded native pins', async () => {
+      const { operations, symbol, pinGet } = portFixture();
+      const snapshot = await operations.getPrimitiveSnapshot('port-1', 'netport');
+      expect(snapshot).toMatchObject({
+        primitiveKind: 'netport',
+        property: { direction: 'IN', nativeSymbol: symbol, net: 'QA_PORT_A' },
+        nativeContext: { projectId: 'p1', documentId: 'page1', editorVersion: '4.1.105' },
+      });
+      expect(pinGet).toHaveBeenCalledWith('port-1-e11');
+      // Direction provenance is not a rollback authorization or an isolation witness.
+      expect(snapshot).not.toHaveProperty('nativeIsolation');
+    });
+
+    it.each([
+      ['lookalike name', { symbol: { name: 'Netport-IN' } }],
+      [
+        'wrong library',
+        { symbol: { name: 'Netport-IN', libraryUuid: 'other', uuid: '21c0c70348655df0' } },
+      ],
+      ['different editor', { version: '4.1.106' }],
+      ['conflicting native direction', { runtimeDirection: 'OUT' }],
+      ['wrong direct pin type', { directPinType: 'OUT' }],
+      ['wrong direct pin identity', { pinId: 'other-e11' }],
+      ['different name', { name: 'OTHER' }],
+      ['wrong rotation', { rotation: 90 }],
+      ['mirrored', { mirror: true }],
+      ['page switched during read', { focusSwitch: true }],
+      ['stale component ID', { staleComponent: true }],
+      ['no independent pin reader', { omitPinReader: true }],
+    ] as const)('does not grant verified IN identity for %s', async (_, options) => {
+      const { operations } = portFixture(options);
+      const snapshot = await operations.getPrimitiveSnapshot('port-1', 'netport');
+      expect(snapshot.property).not.toHaveProperty('nativeSymbol');
+      expect(snapshot).not.toHaveProperty('nativeIsolation');
+      if (options !== undefined && !('runtimeDirection' in options)) {
+        expect(snapshot.property).not.toHaveProperty('direction');
+      }
+    });
+
+    it('never infers the native marker identity from an untyped read', async () => {
+      const { operations, pinGet } = portFixture();
+      const snapshot = await operations.getPrimitiveSnapshot('port-1');
+      expect(snapshot.property).not.toHaveProperty('nativeSymbol');
+      expect(snapshot.property).not.toHaveProperty('direction');
+      expect(pinGet).not.toHaveBeenCalled();
+    });
+  });
+
   it('binds a marker snapshot only to a verified native schematic project and document', async () => {
     const { operations } = createSubject(
       {

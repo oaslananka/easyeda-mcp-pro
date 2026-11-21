@@ -1,5 +1,6 @@
 import { verifyWireInventoryReadback } from './schematic-wire-inventory.js';
 import { verifiedNativeGroundDescriptor } from './schematic-native-ground-identity.js';
+import { inspectVerifiedNativeInPort } from './schematic-native-in-port-identity.js';
 import {
   inspectIsolatedNativeGround,
   parseNativeGroundIsolation,
@@ -656,6 +657,42 @@ export function createSchematicTransactionOperations(
     return null;
   }
 
+  async function attachNativeMarkerEvidence(
+    snapshot: SchematicPrimitiveSnapshot,
+    beforeContext: NonNullable<SchematicPrimitiveSnapshot['nativeContext']>,
+  ): Promise<void> {
+    const primitiveId = snapshot.primitiveId;
+    // Only an independently proven Ground-GND symbol receives the strict
+    // zero-wire/pin and exact native component/attribute inventory check.
+    // A missing reader or a changing page remains readable but earns NO
+    // isolation evidence and NEVER authorizes a production deletion.
+    const isolation =
+      snapshot.primitiveKind === 'netflag' &&
+      snapshot.property.identification === 'Ground' &&
+      snapshot.property.nativeSymbol
+        ? await inspectIsolatedNativeGround({
+            markerId: primitiveId,
+            readFirstPath,
+            readState: safeGetState,
+            extractPrimitiveId,
+          })
+        : undefined;
+    const portIdentity =
+      snapshot.primitiveKind === 'netport'
+        ? await inspectVerifiedNativeInPort(
+            { readFirstPath, readState: safeGetState, extractPrimitiveId },
+            primitiveId,
+            snapshot.property,
+          )
+        : undefined;
+    const afterContext = await readNativeMarkerContext(callFirst, dependencies.getEasyedaVersion);
+    if (sameNativeMarkerContext(beforeContext, afterContext)) {
+      snapshot.nativeContext = beforeContext;
+      if (isolation) snapshot.nativeIsolation = isolation;
+      if (portIdentity) Object.assign(snapshot.property, portIdentity);
+    }
+  }
+
   async function getSchematicPrimitiveSnapshot(
     primitiveId: string,
     expectedPrimitiveKind?: SchematicPrimitiveSnapshotKind,
@@ -695,26 +732,7 @@ export function createSchematicTransactionOperations(
       );
     }
     if (beforeContext && snapshot.primitiveKind === expectedPrimitiveKind) {
-      // Only an independently proven Ground-GND symbol receives the strict
-      // zero-wire/pin and exact native component/attribute inventory check.
-      // A missing reader or a changing page remains readable but earns NO
-      // isolation evidence and NEVER authorizes a production deletion.
-      const isolation =
-        snapshot.primitiveKind === 'netflag' &&
-        snapshot.property.identification === 'Ground' &&
-        snapshot.property.nativeSymbol
-          ? await inspectIsolatedNativeGround({
-              markerId: primitiveId,
-              readFirstPath,
-              readState: safeGetState,
-              extractPrimitiveId,
-            })
-          : undefined;
-      const afterContext = await readNativeMarkerContext(callFirst, dependencies.getEasyedaVersion);
-      if (sameNativeMarkerContext(beforeContext, afterContext)) {
-        snapshot.nativeContext = beforeContext;
-        if (isolation) snapshot.nativeIsolation = isolation;
-      }
+      await attachNativeMarkerEvidence(snapshot, beforeContext);
     }
     return snapshot;
   }

@@ -79,6 +79,16 @@ schematic safety. The netport native Direction getter was absent; its
 IN direction was independently identified through the exact native
 Netport-IN symbol and pin, not guessed from the net name.
 
+Typed read-only V4.1.105 IN netport snapshots now attach the observed
+native Netport-IN library and symbol identity only when the exact component
+ID, native net/name, finite position, unmirrored zero rotation, embedded
+pin identity and independent native pin read agree. A conflicting direction
+getter, different editor version, wrong symbol/pin, stale component or
+changed focused project/page cannot earn the derived descriptor. Other
+native variants remain unverified. The descriptor is direction/identity
+evidence only, not proof of electrical isolation, attribute equivalence,
+a native writer reservation or supported transactional deletion.
+
 The Bridge's typed Ground recreation integration is verified through an
 explicitly opted-in unit fixture. The actual production dispatcher does
 not provide that capability, and an MCP caller cannot request or grant it.

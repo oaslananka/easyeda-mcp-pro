@@ -189,6 +189,19 @@ loader **427,890 to 429,710 bytes** (+1,820); dispatcher **341,960 to
 343,780 bytes** (+1,820). Strict output-plus-five byte ratchets:
 **250,197 / 429,715 / 343,785**. Integrity and size checks remain enabled.
 
+The #1102 typed IN netport snapshot follow-up derives the direction only
+from the independently observed V4.1.105 native Netport-IN library/symbol,
+exact component identity, verified unmirrored zero-rotation pose and
+matching embedded plus independently read native pin. The marker scope is
+checked before and after these reads. The red-to-green typed snapshot test
+and thirteen negative/compatibility cases cover missing native pin evidence,
+unknown symbols, scope changes and unsupported poses. This derives a
+read-only identity descriptor, not native isolation or rollback permission.
+The reproducible archive changed from **250,192 to 251,372 bytes** (+1,180),
+loader **429,710 to 432,854 bytes** (+3,144), dispatcher **343,780 to
+346,923 bytes** (+3,143). Strict output-plus-five byte limits remain
+**251,377 / 432,859 / 346,928**. Integrity checks remain enabled.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:
