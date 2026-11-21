@@ -106,6 +106,354 @@ describe('schematic transaction operations', () => {
     });
   });
 
+  it.each([
+    { kind: 'netflag', identity: 'Identification', value: 'Ground' },
+    { kind: 'netport', identity: 'Direction', value: 'IN' },
+  ] as const)(
+    'captures the native $kind creation identity for typed rollback preflight',
+    async ({ kind, identity, value }) => {
+      const component = {
+        getState_PrimitiveId: () => 'marker-1',
+        getState_ComponentType: () => kind,
+        getState_X: () => 11,
+        getState_Y: () => 22,
+        getState_Rotation: () => 90,
+        getState_Mirror: () => false,
+        getState_Net: () => 'GND',
+        ['getState_' + identity]: () => value,
+      };
+      const { operations } = createSubject({
+        SCH_PrimitiveComponent: { get: vi.fn().mockResolvedValue(component) },
+      });
+      await expect(operations.getPrimitiveSnapshot('marker-1')).resolves.toMatchObject({
+        primitiveKind: kind,
+        componentType: kind,
+        property: {
+          x: 11,
+          y: 22,
+          rotation: 90,
+          mirror: false,
+          net: 'GND',
+          [identity.charAt(0).toLowerCase() + identity.slice(1)]: value,
+        },
+      });
+    },
+  );
+
+  it.each([
+    ['netflag', 'identification'],
+    ['netport', 'direction'],
+  ] as const)(
+    'does not invent an undocumented native %s creation discriminator when the getter is absent',
+    async (kind, missing) => {
+      const { operations } = createSubject({
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_PrimitiveId: () => 'marker-1',
+            getState_ComponentType: () => kind,
+            getState_X: () => 20,
+            getState_Y: () => 30,
+            getState_Rotation: () => 0,
+            getState_Mirror: () => false,
+            getState_Net: () => 'SIGNAL',
+          }),
+        },
+      });
+      const result = await operations.getPrimitiveSnapshot('marker-1');
+      expect(result.primitiveKind).toBe(kind);
+      expect(result.property).toMatchObject({ net: 'SIGNAL', x: 20, y: 30 });
+      expect(result.property).not.toHaveProperty(missing);
+    },
+  );
+
+  it('derives the Ground discriminator only from the exact native V4 Ground-GND symbol', async () => {
+    const component = {
+      getState_PrimitiveId: () => 'flag-1',
+      getState_ComponentType: () => 'netflag',
+      getState_Component: () => ({
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+        uuid: 'af20086a8911a85a',
+        name: 'Ground-GND',
+      }),
+      getState_Name: () => 'GND',
+      getState_Net: () => 'GND',
+      getState_X: () => 240,
+      getState_Y: () => 250,
+      getState_Rotation: () => 0,
+      getState_Mirror: () => false,
+    };
+    const { operations } = createSubject(
+      { SCH_PrimitiveComponent: { get: vi.fn().mockResolvedValue(component) } },
+      { getEasyedaVersion: () => '4.1.105' },
+    );
+    await expect(operations.getPrimitiveSnapshot('flag-1', 'netflag')).resolves.toMatchObject({
+      primitiveKind: 'netflag',
+      componentType: 'netflag',
+      property: {
+        identification: 'Ground',
+        net: 'GND',
+        x: 240,
+        y: 250,
+        rotation: 0,
+        mirror: false,
+        nativeSymbol: {
+          libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+          uuid: 'af20086a8911a85a',
+          name: 'Ground-GND',
+        },
+      },
+    });
+  });
+
+  it.each([
+    {
+      name: 'lookalike label',
+      symbol: { name: 'Ground-GND', libraryUuid: 'other', uuid: 'af20086a8911a85a' },
+    },
+    {
+      name: 'different symbol UUID',
+      symbol: {
+        name: 'Ground-GND',
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+        uuid: 'other',
+      },
+    },
+    {
+      name: 'different display name',
+      symbol: {
+        name: 'Other-GND',
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+        uuid: 'af20086a8911a85a',
+      },
+    },
+    { name: 'incomplete symbol identity', symbol: { name: 'Ground-GND' } },
+  ])('does not authorize unidentified native $name as a Ground flag', async ({ symbol }) => {
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_ComponentType: () => 'netflag',
+            getState_Component: () => symbol,
+            getState_Net: () => 'GND',
+            getState_Name: () => 'GND',
+          }),
+        },
+      },
+      { getEasyedaVersion: () => '4.1.105' },
+    );
+    const read = await operations.getPrimitiveSnapshot('flag-1', 'netflag');
+    expect(read.property).not.toHaveProperty('identification');
+    expect(read.property).not.toHaveProperty('nativeSymbol');
+  });
+
+  it('binds a marker snapshot only to a verified native schematic project and document', async () => {
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_PrimitiveId: () => 'flag-1',
+            getState_ComponentType: () => 'netflag',
+            getState_Identification: () => 'Power',
+            getState_Net: () => 'VCC',
+            getState_X: () => 40,
+            getState_Y: () => 50,
+            getState_Rotation: () => 0,
+            getState_Mirror: () => false,
+          }),
+        },
+      },
+      {
+        getEasyedaVersion: () => '4.1.105',
+        callFirst: vi.fn(async (paths: string[]) => {
+          if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-1' };
+          if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo'))
+            return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+          return undefined;
+        }) as any,
+      },
+    );
+    await expect(operations.getPrimitiveSnapshot('flag-1', 'netflag')).resolves.toMatchObject({
+      primitiveKind: 'netflag',
+      property: { identification: 'Power', net: 'VCC' },
+      nativeContext: {
+        projectId: 'project-1',
+        documentId: 'page-1',
+        editorVersion: '4.1.105',
+      },
+    });
+  });
+
+  it('attaches read-only isolation evidence only after complete native inventories and stable focus', async () => {
+    const primitive = (fields: Record<string, unknown>) =>
+      Object.fromEntries(
+        Object.entries(fields).map(([key, value]) => ['getState_' + key, () => value]),
+      );
+    const sheet = primitive({ PrimitiveId: 'sheet-1', ComponentType: 'sheet' });
+    const pin = primitive({
+      PrimitiveId: 'flag-1-e15',
+      PinName: 'Pin1',
+      PinNumber: '1',
+      pinType: 'IN',
+      X: 240,
+      Y: 250,
+      Rotation: 90,
+      NoConnected: false,
+    });
+    const flag = {
+      ...primitive({
+        PrimitiveId: 'flag-1',
+        ComponentType: 'netflag',
+        Name: 'GND',
+        Net: 'GND',
+        X: 240,
+        Y: 250,
+        Rotation: 0,
+        Mirror: false,
+        Component: {
+          name: 'Ground-GND',
+          libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+          uuid: 'af20086a8911a85a',
+        },
+      }),
+      getAllPins: vi.fn(async () => [pin]),
+    };
+    const attribute = primitive({
+      PrimitiveId: 'a-1',
+      ParentPrimitiveId: 'sheet-1',
+      Value: 'title',
+    });
+    const pinAttrs = [
+      primitive({
+        PrimitiveId: 'a-2',
+        ParentPrimitiveId: 'flag-1-e15',
+        Key: 'Pin Name',
+        Value: 'Pin1',
+      }),
+      primitive({
+        PrimitiveId: 'a-3',
+        ParentPrimitiveId: 'flag-1-e15',
+        Key: 'Pin Number',
+        Value: '1',
+      }),
+      primitive({
+        PrimitiveId: 'a-4',
+        ParentPrimitiveId: 'flag-1-e15',
+        Key: 'Pin Type',
+        Value: 'IN',
+      }),
+    ];
+    const owner = (values: unknown[]) => ({
+      getAll: vi.fn(async () => values),
+      getAllPrimitiveId: vi.fn(async () => values.map((v) => readState(v, 'PrimitiveId'))),
+      get: vi.fn(async (id: string) => values.find((v) => readState(v, 'PrimitiveId') === id)),
+    });
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveWire: owner([]),
+        SCH_PrimitivePin: {
+          ...owner([]),
+          get: vi.fn(async (id: string) => (id === 'flag-1-e15' ? pin : undefined)),
+        },
+        SCH_PrimitiveComponent: owner([sheet, flag]),
+        SCH_PrimitiveAttribute: owner([attribute, ...pinAttrs]),
+      },
+      {
+        getEasyedaVersion: () => '4.1.105',
+        callFirst: vi.fn(async (paths: string[]) =>
+          paths.includes('DMT_Project.getCurrentProjectInfo')
+            ? { uuid: 'project-1' }
+            : { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 },
+        ),
+      },
+    );
+    const result = await operations.getPrimitiveSnapshot('flag-1', 'netflag');
+    expect(result).toMatchObject({
+      nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+      nativeIsolation: {
+        kind: 'verified-disconnected-ground/v1',
+        markerId: 'flag-1',
+        componentCount: 2,
+        pagePinCount: 0,
+        embeddedPinCount: 1,
+        wireCount: 0,
+        attributeCount: 4,
+      },
+    });
+    expect(result.primitiveKind).toBe('netflag');
+  });
+
+  it('does not turn a generic marker read into a rollback-authorized native snapshot', async () => {
+    const callFirst = vi.fn(async (paths: string[]) => {
+      if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-a' };
+      if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo')) {
+        return { uuid: 'page-a', parentProjectUuid: 'project-a', documentType: 1 };
+      }
+      return undefined;
+    });
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_PrimitiveId: () => 'flag-a',
+            getState_ComponentType: () => 'netflag',
+            getState_Identification: () => 'Ground',
+            getState_Net: () => 'GND',
+          }),
+        },
+      },
+      { getEasyedaVersion: () => '4.1.105', callFirst },
+    );
+    const read = await operations.getPrimitiveSnapshot('flag-a');
+    expect(read).toMatchObject({
+      primitiveId: 'flag-a',
+      primitiveKind: 'netflag',
+      property: { identification: 'Ground', net: 'GND' },
+    });
+    expect(read).not.toHaveProperty('nativeContext');
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
+  it('does not bind a typed marker snapshot when the focused native page changes during the read', async () => {
+    let projectCall = 0;
+    let documentCall = 0;
+    const callFirst = vi.fn(async (paths: string[]) => {
+      if (paths.includes('DMT_Project.getCurrentProjectInfo')) {
+        return { uuid: ++projectCall === 1 ? 'project-a' : 'project-b' };
+      }
+      if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo')) {
+        const page = ++documentCall === 1 ? 'a' : 'b';
+        return {
+          uuid: 'page-' + page,
+          parentProjectUuid: 'project-' + page,
+          documentType: 1,
+        };
+      }
+      return undefined;
+    });
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_PrimitiveId: () => 'flag-a',
+            getState_ComponentType: () => 'netflag',
+            getState_Identification: () => 'Ground',
+            getState_Net: () => 'GND',
+          }),
+        },
+      },
+      { getEasyedaVersion: () => '4.1.105', callFirst },
+    );
+    const read = await operations.getPrimitiveSnapshot('flag-a', 'netflag');
+    expect(read).toMatchObject({
+      primitiveId: 'flag-a',
+      primitiveKind: 'netflag',
+      property: { identification: 'Ground', net: 'GND' },
+    });
+    expect(read).not.toHaveProperty('nativeContext');
+    expect(projectCall).toBe(2);
+    expect(documentCall).toBe(2);
+  });
+
   it('rejects malformed restore input before mutation', async () => {
     const { operations, callFirst } = createSubject();
 

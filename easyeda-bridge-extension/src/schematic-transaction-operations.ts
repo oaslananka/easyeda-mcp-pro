@@ -1,6 +1,16 @@
 import { verifyWireInventoryReadback } from './schematic-wire-inventory.js';
+import { verifiedNativeGroundDescriptor } from './schematic-native-ground-identity.js';
+import {
+  inspectIsolatedNativeGround,
+  type NativeGroundIsolationEvidence,
+} from './schematic-native-ground-isolation.js';
 import type { ApiRuntime } from './api-runtime.js';
 import { createSchematicSnapshotRecreator } from './schematic-snapshot-recreation.js';
+import {
+  readNativeMarkerContext,
+  parseNativeMarkerContext,
+  sameNativeMarkerContext,
+} from './schematic-marker-scope.js';
 import { isRecord } from './utils.js';
 
 export type PublicTextAlignMode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
@@ -14,6 +24,10 @@ export interface SchematicPrimitiveSnapshot {
   primitiveKind: SchematicPrimitiveSnapshotKind;
   componentType?: string;
   property: Record<string, unknown>;
+  /** Native-scoped origin required for experimental marker reconstruction. */
+  nativeContext?: { projectId: string; documentId: string; editorVersion: string };
+  /** Read-only evidence for an isolated V4 Ground fixture, NOT delete permission. */
+  nativeIsolation?: NativeGroundIsolationEvidence;
 }
 
 export interface SchematicTransactionDependencies {
@@ -228,6 +242,7 @@ export function createSchematicTransactionOperations(
     callFirst,
     createBridgeError: newBridgeError,
     requirePublicTextAlignMode,
+    getEasyedaVersion: dependencies.getEasyedaVersion,
   });
 
   // Native Pro 3.2.209 can return matching *stale* getAll/getAllPrimitiveId
@@ -400,12 +415,30 @@ export function createSchematicTransactionOperations(
     componentType: string,
   ): Record<string, unknown> {
     if (componentType === 'netflag' || componentType === 'netport') {
+      const nativeNet = safeGetState(current, 'Net');
+      const ground =
+        componentType === 'netflag'
+          ? verifiedNativeGroundDescriptor(
+              safeGetState(current, 'Component'),
+              dependencies.getEasyedaVersion?.(),
+              nativeNet,
+            )
+          : undefined;
       return compactDefinedRecord({
         x: safeGetState(current, 'X'),
         y: safeGetState(current, 'Y'),
         rotation: safeGetState(current, 'Rotation'),
         mirror: safeGetState(current, 'Mirror'),
-        net: safeGetState(current, 'Net'),
+        net: nativeNet,
+        nativeSymbol: ground?.nativeSymbol,
+        // These native getters are not in the public component API contract.
+        // If the live runtime does not expose them, omit the discriminators:
+        // do not guess from a net name, marker appearance or MCP input.
+        identification:
+          componentType === 'netflag'
+            ? (ground?.identification ?? safeGetState(current, 'Identification'))
+            : undefined,
+        direction: componentType === 'netport' ? safeGetState(current, 'Direction') : undefined,
       });
     }
     return compactDefinedRecord({
@@ -630,6 +663,15 @@ export function createSchematicTransactionOperations(
       );
     }
 
+    // Only an explicitly typed marker query can earn native rollback scope.
+    // Capture focus on BOTH sides of the primitive read to reject tab/project
+    // switches that otherwise could bind a primitive to the wrong page.
+    const markerKindRequested =
+      expectedPrimitiveKind === 'netflag' || expectedPrimitiveKind === 'netport';
+    const beforeContext = markerKindRequested
+      ? await readNativeMarkerContext(callFirst, dependencies.getEasyedaVersion)
+      : undefined;
+
     const snapshot = expectedPrimitiveKind
       ? await readSnapshotByKind(primitiveId, expectedPrimitiveKind)
       : await readUnconstrainedSnapshot(primitiveId);
@@ -646,6 +688,28 @@ export function createSchematicTransactionOperations(
         `Primitive ${primitiveId} was not found in a transaction-safe schematic class`,
         'Use a component, net flag/port, wire, text, rectangle, circle, or polygon primitive ID.',
       );
+    }
+    if (beforeContext && snapshot.primitiveKind === expectedPrimitiveKind) {
+      // Only an independently proven Ground-GND symbol receives the strict
+      // zero-wire/pin and exact native component/attribute inventory check.
+      // A missing reader or a changing page remains readable but earns NO
+      // isolation evidence and NEVER authorizes a production deletion.
+      const isolation =
+        snapshot.primitiveKind === 'netflag' &&
+        snapshot.property.identification === 'Ground' &&
+        snapshot.property.nativeSymbol
+          ? await inspectIsolatedNativeGround({
+              markerId: primitiveId,
+              readFirstPath,
+              readState: safeGetState,
+              extractPrimitiveId,
+            })
+          : undefined;
+      const afterContext = await readNativeMarkerContext(callFirst, dependencies.getEasyedaVersion);
+      if (sameNativeMarkerContext(beforeContext, afterContext)) {
+        snapshot.nativeContext = beforeContext;
+        if (isolation) snapshot.nativeIsolation = isolation;
+      }
     }
     return snapshot;
   }
@@ -684,12 +748,28 @@ export function createSchematicTransactionOperations(
         'Pass an unmodified snapshot returned by schematic.getPrimitiveSnapshot.',
       );
     }
+    const nativeContext = parseNativeMarkerContext(input.nativeContext, (message) =>
+      newBridgeError(
+        'INVALID_PARAMS',
+        message,
+        'Use an unmodified native-scoped snapshot from the focused schematic.',
+      ),
+    );
     return {
       schemaVersion,
       primitiveId,
       primitiveKind: primitiveKind as SchematicPrimitiveSnapshotKind,
       componentType: typeof input.componentType === 'string' ? input.componentType : undefined,
       property: { ...property },
+      ...(nativeContext !== undefined && isRecord(nativeContext)
+        ? {
+            nativeContext: {
+              projectId: nativeContext.projectId as string,
+              documentId: nativeContext.documentId as string,
+              editorVersion: '4.1.105' as const,
+            },
+          }
+        : {}),
     };
   }
 

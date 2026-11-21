@@ -90,6 +90,7 @@ function holdsDocumentLock(transaction: TransactionRecord): boolean {
 export class TransactionManager {
   private readonly transactions = new Map<string, TransactionRecord>();
   private readonly activeByDocument = new Map<string, string>();
+  private readonly inFlightOperations = new Set<string>();
 
   begin(input: BeginTransactionInput): TransactionRecord {
     const documentId = input.documentId.trim();
@@ -167,6 +168,26 @@ export class TransactionManager {
     }
   }
 
+  private async runExclusiveOperation<TResult>(
+    transactionId: string,
+    execute: () => Promise<TResult>,
+  ): Promise<TResult> {
+    // Native writes in one transaction must not overlap, including the initial
+    // asynchronous snapshot read before an operation is recorded as pending.
+    if (this.inFlightOperations.has(transactionId)) {
+      throw new TransactionError(
+        'TRANSACTION_INVALID_STATE',
+        `Transaction ${transactionId} already has an in-flight operation`,
+      );
+    }
+    this.inFlightOperations.add(transactionId);
+    try {
+      return await execute();
+    } finally {
+      this.inFlightOperations.delete(transactionId);
+    }
+  }
+
   private assertSnapshotSize(snapshot: unknown): void {
     const bytes = serializedSize(snapshot);
     if (bytes > MAX_SNAPSHOT_BYTES) {
@@ -186,6 +207,9 @@ export class TransactionManager {
     beforeSnapshot?: unknown,
     targetType: TransactionTarget['type'] = 'schematic-primitive',
   ): TransactionOperation {
+    // The initial native snapshot can outlive the TTL. Re-evaluate expiry
+    // before recording a pending write, rather than using stale active state.
+    this.expireStaleTransactions();
     this.assertActive(transaction);
     if (transaction.operations.length >= transaction.maxOperations) {
       throw new TransactionError(
@@ -252,6 +276,17 @@ export class TransactionManager {
   }
 
   async runModify<TResult>(
+    transactionId: string,
+    targetId: string,
+    hooks: TransactionalModifyHooks<TResult>,
+    targetType: TransactionTarget['type'] = 'schematic-primitive',
+  ): Promise<TransactionalModifyResult<TResult>> {
+    return this.runExclusiveOperation(transactionId, () =>
+      this.runModifyInternal(transactionId, targetId, hooks, targetType),
+    );
+  }
+
+  private async runModifyInternal<TResult>(
     transactionId: string,
     targetId: string,
     hooks: TransactionalModifyHooks<TResult>,
@@ -359,6 +394,16 @@ export class TransactionManager {
     targetHint: string,
     hooks: TransactionalCreateHooks<TResult>,
   ): Promise<TransactionalCreateResult<TResult>> {
+    return this.runExclusiveOperation(transactionId, () =>
+      this.runCreateInternal(transactionId, targetHint, hooks),
+    );
+  }
+
+  private async runCreateInternal<TResult>(
+    transactionId: string,
+    targetHint: string,
+    hooks: TransactionalCreateHooks<TResult>,
+  ): Promise<TransactionalCreateResult<TResult>> {
     const transaction = this.mutable(transactionId);
     const operation = this.reserveOperation(transaction, 'create', targetHint, 'absence', {
       exists: false,
@@ -441,6 +486,16 @@ export class TransactionManager {
     targetId: string,
     hooks: TransactionalDeleteHooks<TResult>,
   ): Promise<TransactionalDeleteResult<TResult>> {
+    return this.runExclusiveOperation(transactionId, () =>
+      this.runDeleteInternal(transactionId, targetId, hooks),
+    );
+  }
+
+  private async runDeleteInternal<TResult>(
+    transactionId: string,
+    targetId: string,
+    hooks: TransactionalDeleteHooks<TResult>,
+  ): Promise<TransactionalDeleteResult<TResult>> {
     const transaction = this.mutable(transactionId);
     this.assertActive(transaction);
     const beforeSnapshot = await hooks.getSnapshot();
@@ -497,7 +552,10 @@ export class TransactionManager {
   ): Promise<TransactionRecord> {
     const transaction = this.mutable(transactionId);
     this.assertActive(transaction);
-    if (transaction.operations.some((operation) => operation.state === 'pending')) {
+    if (
+      this.inFlightOperations.has(transactionId) ||
+      transaction.operations.some((operation) => operation.state === 'pending')
+    ) {
       throw new TransactionError(
         'TRANSACTION_INVALID_STATE',
         `Transaction ${transactionId} contains pending operations`,
@@ -646,6 +704,17 @@ export class TransactionManager {
         `Transaction ${transactionId} cannot be rolled back from state ${transaction.state}`,
       );
     }
+    // A pending bridge call may still change the native document after this
+    // rollback returns. Never skip it and report a completed rollback.
+    if (
+      this.inFlightOperations.has(transactionId) ||
+      transaction.operations.some((operation) => operation.state === 'pending')
+    ) {
+      throw new TransactionError(
+        'TRANSACTION_INVALID_STATE',
+        `Transaction ${transactionId} has in-flight operations; reconcile their native outcome before rollback`,
+      );
+    }
     transaction.state = 'rolling-back';
     transaction.updatedAt = nowIso();
 
@@ -663,11 +732,17 @@ export class TransactionManager {
     for (const transaction of this.transactions.values()) {
       if (!['active', 'validated'].includes(transaction.state)) continue;
       if (Date.parse(transaction.expiresAt) > now) continue;
-      const unresolvedWrites = transaction.operations.some(
-        (operation) =>
-          operation.state === 'applied' ||
-          (operation.state === 'failed' && operation.compensation === 'failed'),
-      );
+      // The first snapshot read may be in flight before an operation record
+      // exists. Keep the document locked until it settles, just as for a
+      // pending native write, so a new transaction cannot race the read.
+      const unresolvedWrites =
+        this.inFlightOperations.has(transaction.id) ||
+        transaction.operations.some(
+          (operation) =>
+            operation.state === 'pending' ||
+            operation.state === 'applied' ||
+            (operation.state === 'failed' && operation.compensation === 'failed'),
+        );
       transaction.updatedAt = nowIso();
       if (unresolvedWrites) {
         transaction.state = 'failed';

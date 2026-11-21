@@ -633,6 +633,15 @@ async function successfulBatchResponse(
   }
 
   const transaction = getGlobalTransactionManager().get(transactionId);
+  // The native operation may have completed after the transaction TTL.
+  // Never report success for a failed/expired caller-owned transaction: let
+  // the batch failure path attempt a verified rollback instead.
+  if (!['active', 'validated'].includes(transaction.state)) {
+    throw new TransactionError(
+      'TRANSACTION_INVALID_STATE',
+      `Batch operation completed after transaction ${transactionId} entered ${transaction.state}`,
+    );
+  }
   return {
     success: true,
     atomic: true,
@@ -769,7 +778,7 @@ async function handleSchematicBatchWrite(
         await executeBatchOperation(context, transactionId, parsed.projectId, operation),
       );
     }
-    return successfulBatchResponse(session, parsed.operations.length, results);
+    return await successfulBatchResponse(session, parsed.operations.length, results);
   } catch (error) {
     return failedBatchResponse(context, parsed, session, results, error);
   }
