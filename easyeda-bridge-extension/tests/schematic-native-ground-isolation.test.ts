@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { inspectIsolatedNativeGround } from '../src/schematic-native-ground-isolation.js';
+import {
+  inspectIsolatedNativeGround,
+  parseNativeGroundIsolation,
+} from '../src/schematic-native-ground-isolation.js';
 
 const symbol = {
   name: 'Ground-GND',
@@ -96,6 +99,50 @@ function makeFixture() {
   };
   return { opts, owners, marker, virtualPin, components, attributes, wires, pins, sheet };
 }
+
+describe('native Ground isolation descriptor parsing', () => {
+  const valid = {
+    kind: 'verified-disconnected-ground/v1',
+    markerId: 'flag-1',
+    componentCount: 2,
+    wireCount: 0,
+    pagePinCount: 0,
+    embeddedPinCount: 1,
+    attributeCount: 38,
+  };
+  const invalid = (message: string) =>
+    Object.assign(new Error(message), { code: 'INVALID_PARAMS' });
+
+  it('copies an exact bounded descriptor instead of retaining untrusted object references', () => {
+    const parsed = parseNativeGroundIsolation(valid, 'flag-1', invalid);
+    expect(parsed).toEqual(valid);
+    expect(parsed).not.toBe(valid);
+    expect(parseNativeGroundIsolation(undefined, 'flag-1', invalid)).toBeUndefined();
+  });
+
+  it.each(
+    [
+      undefined,
+      null,
+      {},
+      [],
+      { ...valid, kind: 'other-evidence' },
+      { ...valid, markerId: 'other' },
+      { ...valid, componentCount: 3 },
+      { ...valid, wireCount: 1 },
+      { ...valid, pagePinCount: 1 },
+      { ...valid, embeddedPinCount: 0 },
+      { ...valid, attributeCount: 0 },
+      { ...valid, attributeCount: 257 },
+      { ...valid, attributeCount: 1.5 },
+      { ...valid, additionalCapability: true },
+    ].slice(1),
+  )('refuses malformed or overclaimed native Ground evidence: %j', (candidate) => {
+    expect(() => parseNativeGroundIsolation(candidate, 'flag-1', invalid)).toThrow(
+      'Invalid native Ground isolation descriptor',
+    );
+  });
+});
 
 describe('native disconnected Ground topology inspection', () => {
   it('accepts two independent, exact-ID native inventories with sheet-owned attributes', async () => {

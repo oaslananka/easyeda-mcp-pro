@@ -84,6 +84,77 @@ function createSubject(
   return { operations, callFirst, logRecoverableError, textAlignCache };
 }
 
+describe('untrusted native Ground reconstruction descriptor', () => {
+  const scope = { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' };
+  const property = {
+    identification: 'Ground',
+    net: 'GND',
+    nativeSymbol: {
+      name: 'Ground-GND',
+      libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+      uuid: 'af20086a8911a85a',
+    },
+    x: 240,
+    y: 250,
+    rotation: 0,
+    mirror: false,
+  };
+  const evidence = {
+    kind: 'verified-disconnected-ground/v1',
+    markerId: 'flag-1',
+    componentCount: 2,
+    wireCount: 0,
+    pagePinCount: 0,
+    embeddedPinCount: 1,
+    attributeCount: 38,
+  };
+
+  it.each([
+    ['different native marker ID', { ...evidence, markerId: 'other' }],
+    ['wire in connected graph', { ...evidence, wireCount: 1 }],
+    ['invalid inventory size', { ...evidence, attributeCount: 300 }],
+    ['unknown evidence capability', { ...evidence, writePermission: true }],
+  ])('rejects %s before native snapshot recreation', async (_, nativeIsolation) => {
+    const { operations, callFirst } = createSubject();
+    await expect(
+      operations.recreatePrimitiveSnapshot({
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'flag-1',
+        primitiveKind: 'netflag',
+        componentType: 'netflag',
+        property,
+        nativeContext: scope,
+        nativeIsolation,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
+  it('rejects unscoped isolation and isolation attached to a netport', async () => {
+    const { operations, callFirst } = createSubject();
+    const snapshot = {
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'flag-1',
+      primitiveKind: 'netflag',
+      componentType: 'netflag',
+      property,
+      nativeIsolation: evidence,
+    };
+    await expect(operations.recreatePrimitiveSnapshot(snapshot)).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+    });
+    await expect(
+      operations.recreatePrimitiveSnapshot({
+        ...snapshot,
+        primitiveKind: 'netport',
+        componentType: 'netport',
+        nativeContext: scope,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+});
+
 describe('schematic transaction operations', () => {
   it('captures a scalar-safe component snapshot', async () => {
     const component = {

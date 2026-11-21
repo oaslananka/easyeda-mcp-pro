@@ -1,4 +1,5 @@
 import { verifiedNativeGroundDescriptor } from './schematic-native-ground-identity.js';
+import { isRecord } from './utils.js';
 
 type NativeReader = {
   getAll?: () => Promise<unknown>;
@@ -19,6 +20,61 @@ export interface NativeGroundIsolationEvidence {
   pagePinCount: 0;
   embeddedPinCount: 1;
   attributeCount: number;
+}
+
+function isBoundedAttributeCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 256;
+}
+
+function hasExactIsolationKeys(value: Record<string, unknown>): boolean {
+  const keys = [
+    'kind',
+    'markerId',
+    'componentCount',
+    'wireCount',
+    'pagePinCount',
+    'embeddedPinCount',
+    'attributeCount',
+  ];
+  return (
+    Object.keys(value).length === keys.length &&
+    keys.every((key) => Object.prototype.hasOwnProperty.call(value, key))
+  );
+}
+
+/** Parse a caller-visible snapshot descriptor by exact shape.
+ * This is a consistency check, NOT independent native evidence or a write grant.
+ */
+export function parseNativeGroundIsolation(
+  input: unknown,
+  primitiveId: string,
+  invalid: (message: string) => Error,
+): NativeGroundIsolationEvidence | undefined {
+  if (input === undefined) return undefined;
+  if (
+    !isRecord(input) ||
+    !hasExactIsolationKeys(input) ||
+    input.kind !== 'verified-disconnected-ground/v1' ||
+    typeof primitiveId !== 'string' ||
+    !primitiveId ||
+    input.markerId !== primitiveId ||
+    input.componentCount !== 2 ||
+    input.wireCount !== 0 ||
+    input.pagePinCount !== 0 ||
+    input.embeddedPinCount !== 1 ||
+    !isBoundedAttributeCount(input.attributeCount)
+  ) {
+    throw invalid('Invalid native Ground isolation descriptor');
+  }
+  return {
+    kind: 'verified-disconnected-ground/v1',
+    markerId: primitiveId,
+    componentCount: 2,
+    wireCount: 0,
+    pagePinCount: 0,
+    embeddedPinCount: 1,
+    attributeCount: input.attributeCount,
+  };
 }
 
 interface GroundIsolationDependencies {

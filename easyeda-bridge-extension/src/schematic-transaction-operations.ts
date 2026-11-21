@@ -2,6 +2,7 @@ import { verifyWireInventoryReadback } from './schematic-wire-inventory.js';
 import { verifiedNativeGroundDescriptor } from './schematic-native-ground-identity.js';
 import {
   inspectIsolatedNativeGround,
+  parseNativeGroundIsolation,
   type NativeGroundIsolationEvidence,
 } from './schematic-native-ground-isolation.js';
 import type { ApiRuntime } from './api-runtime.js';
@@ -755,6 +756,26 @@ export function createSchematicTransactionOperations(
         'Use an unmodified native-scoped snapshot from the focused schematic.',
       ),
     );
+    const nativeIsolation = parseNativeGroundIsolation(
+      input.nativeIsolation,
+      primitiveId,
+      (message) =>
+        newBridgeError(
+          'INVALID_PARAMS',
+          message,
+          'Obtain the descriptor through a fresh typed native marker snapshot; caller-provided claims are not proof of disconnection.',
+        ),
+    );
+    if (
+      nativeIsolation !== undefined &&
+      (primitiveKind !== 'netflag' || input.componentType !== 'netflag' || !nativeContext)
+    ) {
+      throw newBridgeError(
+        'INVALID_PARAMS',
+        'Native Ground isolation is only applicable to a scoped netflag snapshot',
+        'Use an unmodified native-scoped netflag snapshot from the focused project and schematic page.',
+      );
+    }
     return {
       schemaVersion,
       primitiveId,
@@ -770,6 +791,7 @@ export function createSchematicTransactionOperations(
             },
           }
         : {}),
+      ...(nativeIsolation === undefined ? {} : { nativeIsolation }),
     };
   }
 

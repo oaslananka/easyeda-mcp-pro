@@ -144,6 +144,22 @@ The reviewed byte ratchets are **248,384 / 425,647 / 339,718 bytes**
 This is a bounded in-process preflight, not a cross-process native editor
 writer fence or permission to delete markers in production.
 
+The 2026-11-21 #1102 native marker acceptance follow-up ensures a typed
+Ground rollback descriptor is not silently discarded when the bridge parses
+a snapshot for recreation. The new strict parser retains a cloned descriptor
+only when its exact marker ID, isolated native topology counts, field set
+and scoped netflag shape agree; malformed, extra or cross-kind fields are
+rejected before any native API call. This is NOT authenticated provenance
+or production permission to delete markers. The separate disposable V4.1.105
+Ground and IN netport direct-native delete/recreate/save/full-cold-reopen
+round trips preserved symbol identity, net, position, pin and nonvolatile
+attributes, with only sheet Update Time refreshed; these were not integrated
+MCP transactional rollback tests. The reproducible extension package grew
+from 248,379 to 249,222 bytes (+843), loader from 425,642 to
+427,709 bytes (+2,067), dispatcher from 339,713 to 341,779 bytes
+(+2,066). The enforced byte ratchets remain measured plus five bytes:
+249,227 / 427,714 / 341,784. No size check is disabled.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:

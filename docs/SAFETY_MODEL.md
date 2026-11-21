@@ -68,6 +68,24 @@ disconnection, so the fixture-only flag and the production delete prohibition
 remain necessary. Runtime scope checks and cold-reopen verification are
 additional gates, not substitutes for native writer coordination.
 
+The V4.1.105 disposable QA also confirmed native direct Ground-GND and
+IN netport delete/recreate workflows, followed by native sch_Document.save(),
+complete editor termination and independent cold reopen. Each recovered the
+expected symbol/library, net name, orientation, embedded pin and all
+nonvolatile attributes. The only observed attribute difference after save
+was the sheet's generated @Update Time. These tests do NOT establish
+the end-to-end MCP transactional DELETE/ROLLBACK path or general connected
+schematic safety. The netport native Direction getter was absent; its
+IN direction was independently identified through the exact native
+Netport-IN symbol and pin, not guessed from the net name.
+
+A typed Ground recreation snapshot now parses and retains only a strictly
+bounded isolation descriptor consistent with its primitive ID and native
+project/page context; malformed, unexpected and cross-kind evidence is
+refused. A caller-supplied descriptor remains untrusted data, so no
+production marker deletion is authorized by this parser or the direct
+native round-trip alone.
+
 Before the first write, the extension now resolves the entire deletion batch,
 rechecks exact native component identity and type at ownership resolution,
 and rejects duplicate IDs. If a component changes into a marker or becomes
