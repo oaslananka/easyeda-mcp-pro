@@ -646,6 +646,14 @@ export class TransactionManager {
         `Transaction ${transactionId} cannot be rolled back from state ${transaction.state}`,
       );
     }
+    // A pending bridge call may still change the native document after this
+    // rollback returns. Never skip it and report a completed rollback.
+    if (transaction.operations.some((operation) => operation.state === 'pending')) {
+      throw new TransactionError(
+        'TRANSACTION_INVALID_STATE',
+        `Transaction ${transactionId} has in-flight operations; reconcile their native outcome before rollback`,
+      );
+    }
     transaction.state = 'rolling-back';
     transaction.updatedAt = nowIso();
 
@@ -663,8 +671,11 @@ export class TransactionManager {
     for (const transaction of this.transactions.values()) {
       if (!['active', 'validated'].includes(transaction.state)) continue;
       if (Date.parse(transaction.expiresAt) > now) continue;
+      // Pending native writes remain ambiguous until their bridge calls settle.
+      // Expiration must not unlock the document or allow a second writer.
       const unresolvedWrites = transaction.operations.some(
         (operation) =>
+          operation.state === 'pending' ||
           operation.state === 'applied' ||
           (operation.state === 'failed' && operation.compensation === 'failed'),
       );

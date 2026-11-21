@@ -327,6 +327,188 @@ describe('TransactionManager', () => {
     expect(manager.begin({ documentId: 'doc-1' }).state).toBe('active');
   });
 
+  it('rejects rollback while a native create is still in flight, then restores once settled', async () => {
+    const manager = new TransactionManager();
+    const tx = manager.begin({ documentId: 'pending-create-doc' });
+    const primitives = new Set<string>();
+    let releaseApply!: () => void;
+    const suspendedApply = new Promise<void>((resolve) => {
+      releaseApply = resolve;
+    });
+
+    const inFlight = manager.runCreate(tx.id, 'wire-create', {
+      apply: async () => {
+        await suspendedApply;
+        primitives.add('wire-one');
+        return { result: true, targetId: 'wire-one' };
+      },
+      getSnapshot: async (id) => ({ primitiveId: id, primitiveKind: 'wire' }),
+      remove: async (id) => {
+        primitives.delete(id);
+      },
+      exists: async (id) => primitives.has(id),
+    });
+    expect(manager.get(tx.id).operations[0]?.state).toBe('pending');
+
+    const restore = vi.fn(async (operation: { target: { id: string } }) => {
+      primitives.delete(operation.target.id);
+    });
+    await expect(manager.rollback(tx.id, { restore })).rejects.toMatchObject({
+      code: 'TRANSACTION_INVALID_STATE',
+    });
+    expect(restore).not.toHaveBeenCalled();
+    expect(manager.get(tx.id)).toMatchObject({
+      state: 'active',
+      operations: [expect.objectContaining({ state: 'pending' })],
+    });
+    expect(() => manager.begin({ documentId: 'pending-create-doc' })).toThrowError(
+      expect.objectContaining({ code: 'TRANSACTION_ACTIVE' }),
+    );
+
+    releaseApply();
+    await inFlight;
+    const result = await manager.rollback(tx.id, {
+      restore,
+      verify: async () => !primitives.has('wire-one'),
+    });
+    expect(result.transaction).toMatchObject({ state: 'rolled-back', rollbackComplete: true });
+    expect(primitives.size).toBe(0);
+    expect(restore).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an expired document locked while a pending native create may still complete', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-21T11:40:00.000Z'));
+    try {
+      const manager = new TransactionManager();
+      const tx = manager.begin({ documentId: 'pending-expiry-doc', ttlMs: 60_000 });
+      const primitives = new Set<string>();
+      let releaseApply!: () => void;
+      const nativeResult = new Promise<void>((resolve) => {
+        releaseApply = resolve;
+      });
+      const inFlight = manager.runCreate(tx.id, 'wire-create', {
+        apply: async () => {
+          await nativeResult;
+          primitives.add('wire-two');
+          return { result: true, targetId: 'wire-two' };
+        },
+        getSnapshot: async (id) => ({ primitiveId: id, primitiveKind: 'wire' }),
+        remove: async (id) => {
+          primitives.delete(id);
+        },
+        exists: async (id) => primitives.has(id),
+      });
+
+      vi.advanceTimersByTime(60_001);
+      expect(manager.get(tx.id)).toMatchObject({
+        state: 'failed',
+        rollbackComplete: false,
+        operations: [expect.objectContaining({ state: 'pending' })],
+      });
+      expect(() => manager.begin({ documentId: 'pending-expiry-doc' })).toThrowError(
+        expect.objectContaining({ code: 'TRANSACTION_ACTIVE' }),
+      );
+      const restore = vi.fn(async () => {
+        primitives.delete('wire-two');
+      });
+      await expect(manager.rollback(tx.id, { restore })).rejects.toMatchObject({
+        code: 'TRANSACTION_INVALID_STATE',
+      });
+      expect(restore).not.toHaveBeenCalled();
+
+      releaseApply();
+      await inFlight;
+      expect(manager.get(tx.id)).toMatchObject({
+        state: 'failed',
+        rollbackComplete: false,
+        operations: [expect.objectContaining({ state: 'applied' })],
+      });
+      expect(() => manager.begin({ documentId: 'pending-expiry-doc' })).toThrowError(
+        expect.objectContaining({ code: 'TRANSACTION_ACTIVE' }),
+      );
+      const recovered = await manager.rollback(tx.id, {
+        restore,
+        verify: async () => !primitives.has('wire-two'),
+      });
+      expect(recovered.transaction).toMatchObject({ state: 'rolled-back', rollbackComplete: true });
+      expect(primitives.size).toBe(0);
+      expect(manager.begin({ documentId: 'pending-expiry-doc' }).state).toBe('active');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not race rollback against an expired native delete still in flight', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-21T11:50:00.000Z'));
+    try {
+      const manager = new TransactionManager();
+      const tx = manager.begin({ documentId: 'pending-delete-doc', ttlMs: 60_000 });
+      const original = {
+        primitiveId: 'wire-old',
+        primitiveKind: 'wire',
+        property: { line: [10, 10, 20, 10], net: '' },
+      };
+      let primitive: typeof original | undefined = structuredClone(original);
+      let releaseDelete!: () => void;
+      const deleting = new Promise<void>((resolve) => {
+        releaseDelete = resolve;
+      });
+      const pendingDelete = manager.runDelete(tx.id, 'wire-old', {
+        getSnapshot: async () => structuredClone(primitive),
+        apply: async () => {
+          await deleting;
+          primitive = undefined;
+          return { deleted: ['wire-old'] };
+        },
+        exists: async () => primitive !== undefined,
+        recreate: async () => {
+          throw new Error('No compensation expected');
+        },
+      });
+      await Promise.resolve();
+      expect(manager.get(tx.id).operations[0]?.state).toBe('pending');
+
+      vi.advanceTimersByTime(60_001);
+      expect(manager.get(tx.id)).toMatchObject({
+        state: 'failed',
+        rollbackComplete: false,
+      });
+      expect(() => manager.begin({ documentId: 'pending-delete-doc' })).toThrowError(
+        expect.objectContaining({ code: 'TRANSACTION_ACTIVE' }),
+      );
+      const restore = vi.fn(async () => {
+        primitive = { ...original, primitiveId: 'wire-new' };
+        return { restoredTargetId: 'wire-new' };
+      });
+      await expect(
+        manager.rollback(tx.id, {
+          restore,
+          getSnapshot: async () => structuredClone(primitive),
+        }),
+      ).rejects.toMatchObject({ code: 'TRANSACTION_INVALID_STATE' });
+      expect(restore).not.toHaveBeenCalled();
+
+      releaseDelete();
+      await pendingDelete;
+      expect(primitive).toBeUndefined();
+      const restored = await manager.rollback(tx.id, {
+        restore,
+        getSnapshot: async () => structuredClone(primitive),
+      });
+      expect(restored.transaction).toMatchObject({
+        state: 'rolled-back',
+        rollbackComplete: true,
+        operations: [expect.objectContaining({ restoredTargetId: 'wire-new' })],
+      });
+      expect(primitive?.primitiveId).toBe('wire-new');
+      expect(manager.begin({ documentId: 'pending-delete-doc' }).state).toBe('active');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('retains the document lock when a transaction expires with unresolved writes', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-10T12:00:00.000Z'));

@@ -744,6 +744,94 @@ describe('easyeda_schematic_batch_write', () => {
     });
   });
 
+  it('never reports a successful batch when its caller transaction expired during a native write', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-21T12:00:00.000Z'));
+    try {
+      const manager = resetGlobalTransactionManagerForTests();
+      const transaction = manager.begin({ documentId: 'project-1', ttlMs: 60_000 });
+      const wireSnapshot = {
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'wire-expired',
+        primitiveKind: 'wire',
+        property: { line: [0, 0, 10, 0], net: 'N1' },
+      };
+      const existing = new Map<string, typeof wireSnapshot>();
+      let beginNativeWrite!: () => void;
+      let finishNativeWrite!: () => void;
+      const started = new Promise<void>((resolve) => {
+        beginNativeWrite = resolve;
+      });
+      const release = new Promise<void>((resolve) => {
+        finishNativeWrite = resolve;
+      });
+
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'schematic.listPrimitiveIds') {
+          return { primitiveKind: params.primitiveKind, primitiveIds: [...existing.keys()] };
+        }
+        if (method === 'schematic.addWire') {
+          beginNativeWrite();
+          await release;
+          existing.set('wire-expired', structuredClone(wireSnapshot));
+          return { primitiveId: 'wire-expired' };
+        }
+        if (method === 'schematic.getPrimitiveSnapshot') {
+          const value = existing.get(params.primitiveId);
+          if (!value) throw primitiveNotFound(params.primitiveId);
+          return structuredClone(value);
+        }
+        if (method === 'schematic.deletePrimitive') {
+          existing.delete(params.primitiveIds[0]);
+          return { deleted: params.primitiveIds, notFound: [] };
+        }
+        throw new Error('Unexpected bridge method ' + method);
+      });
+
+      const pending = registry.get('easyeda_schematic_batch_write')?.handler(context, {
+        projectId: 'project-1',
+        transactionId: transaction.id,
+        operations: [
+          {
+            operationId: 'create-expiring-wire',
+            action: 'create',
+            primitiveKind: 'wire',
+            points: [
+              { x: 0, y: 0 },
+              { x: 10, y: 0 },
+            ],
+            netName: 'N1',
+          },
+        ],
+        atomic: true,
+        dryRun: false,
+        confirmWrite: true,
+      });
+      await started;
+      vi.advanceTimersByTime(60_001);
+      expect(manager.get(transaction.id)).toMatchObject({
+        state: 'failed',
+        rollbackComplete: false,
+      });
+      expect(() => manager.begin({ documentId: 'project-1' })).toThrowError(
+        expect.objectContaining({ code: 'TRANSACTION_ACTIVE' }),
+      );
+      finishNativeWrite();
+      const result = await pending;
+      expect(result).toMatchObject({
+        success: false,
+        transaction_state: 'rolled-back',
+        rolled_back: true,
+        committed: false,
+        error_code: 'TRANSACTION_INVALID_STATE',
+      });
+      expect(existing.size).toBe(0);
+      expect(manager.begin({ documentId: 'project-1' }).state).toBe('active');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not roll back a caller transaction that belongs to another project', async () => {
     const manager = resetGlobalTransactionManagerForTests();
     const transaction = manager.begin({ documentId: 'other-project' });
