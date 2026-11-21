@@ -111,6 +111,99 @@ describe('TransactionManager', () => {
     expect(primitive).toEqual(original);
   });
 
+  it('retains the document lock when the TTL expires during the initial native snapshot read', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-21T13:10:00.000Z'));
+    let releaseRead: (() => void) | undefined;
+    try {
+      const manager = new TransactionManager();
+      const transaction = manager.begin({ documentId: 'expiry-during-snapshot', ttlMs: 60_000 });
+      const snapshotBarrier = new Promise<void>((resolve) => {
+        releaseRead = resolve;
+      });
+      const nativeApply = vi.fn(async () => undefined);
+      const pending = manager.runDelete(transaction.id, 'wire-1', {
+        getSnapshot: async () => {
+          await snapshotBarrier;
+          return { primitiveId: 'wire-1', property: { net: 'GND' } };
+        },
+        apply: nativeApply,
+        exists: async () => true,
+        recreate: async () => {
+          throw new Error('Must never mutate after TTL');
+        },
+      });
+
+      expect(manager.get(transaction.id).operations).toHaveLength(0);
+      vi.advanceTimersByTime(60_001);
+      expect(manager.get(transaction.id)).toMatchObject({
+        state: 'failed',
+        rollbackComplete: false,
+      });
+      expect(() => manager.begin({ documentId: 'expiry-during-snapshot' })).toThrowError(
+        expect.objectContaining({ code: 'TRANSACTION_ACTIVE' }),
+      );
+      await expect(
+        manager.rollback(transaction.id, { restore: async () => undefined }),
+      ).rejects.toMatchObject({ code: 'TRANSACTION_INVALID_STATE' });
+
+      releaseRead();
+      await expect(pending).rejects.toMatchObject({ code: 'TRANSACTION_NOT_ACTIVE' });
+      expect(nativeApply).not.toHaveBeenCalled();
+      const rollback = await manager.rollback(transaction.id, {
+        restore: async () => undefined,
+      });
+      expect(rollback.transaction).toMatchObject({ state: 'rolled-back', rollbackComplete: true });
+      expect(manager.begin({ documentId: 'expiry-during-snapshot' }).state).toBe('active');
+    } finally {
+      releaseRead?.();
+      vi.useRealTimers();
+    }
+  });
+
+  it('checks the TTL before applying a delete even without an intervening status request', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-21T13:20:00.000Z'));
+    let releaseRead: (() => void) | undefined;
+    try {
+      const manager = new TransactionManager();
+      const transaction = manager.begin({ documentId: 'expiry-before-apply', ttlMs: 60_000 });
+      const snapshotBarrier = new Promise<void>((resolve) => {
+        releaseRead = resolve;
+      });
+      const nativeApply = vi.fn(async () => undefined);
+      const pending = manager.runDelete(transaction.id, 'wire-2', {
+        getSnapshot: async () => {
+          await snapshotBarrier;
+          return { primitiveId: 'wire-2', property: { net: 'VCC' } };
+        },
+        apply: nativeApply,
+        exists: async () => true,
+        recreate: async () => {
+          throw new Error('Must never mutate after TTL');
+        },
+      });
+
+      vi.advanceTimersByTime(60_001);
+      releaseRead();
+      await expect(pending).rejects.toMatchObject({ code: 'TRANSACTION_NOT_ACTIVE' });
+      expect(nativeApply).not.toHaveBeenCalled();
+      expect(manager.get(transaction.id)).toMatchObject({
+        state: 'failed',
+        rollbackComplete: false,
+        operations: [],
+      });
+      expect(() => manager.begin({ documentId: 'expiry-before-apply' })).toThrowError(
+        expect.objectContaining({ code: 'TRANSACTION_ACTIVE' }),
+      );
+      await manager.rollback(transaction.id, { restore: async () => undefined });
+      expect(manager.begin({ documentId: 'expiry-before-apply' }).state).toBe('active');
+    } finally {
+      releaseRead?.();
+      vi.useRealTimers();
+    }
+  });
+
   it('records a successful modification with before and after hashes', async () => {
     const manager = new TransactionManager();
     const transaction = manager.begin({ documentId: 'doc-1' });

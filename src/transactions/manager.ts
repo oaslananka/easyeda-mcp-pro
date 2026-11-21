@@ -207,6 +207,9 @@ export class TransactionManager {
     beforeSnapshot?: unknown,
     targetType: TransactionTarget['type'] = 'schematic-primitive',
   ): TransactionOperation {
+    // The initial native snapshot can outlive the TTL. Re-evaluate expiry
+    // before recording a pending write, rather than using stale active state.
+    this.expireStaleTransactions();
     this.assertActive(transaction);
     if (transaction.operations.length >= transaction.maxOperations) {
       throw new TransactionError(
@@ -729,14 +732,17 @@ export class TransactionManager {
     for (const transaction of this.transactions.values()) {
       if (!['active', 'validated'].includes(transaction.state)) continue;
       if (Date.parse(transaction.expiresAt) > now) continue;
-      // Pending native writes remain ambiguous until their bridge calls settle.
-      // Expiration must not unlock the document or allow a second writer.
-      const unresolvedWrites = transaction.operations.some(
-        (operation) =>
-          operation.state === 'pending' ||
-          operation.state === 'applied' ||
-          (operation.state === 'failed' && operation.compensation === 'failed'),
-      );
+      // The first snapshot read may be in flight before an operation record
+      // exists. Keep the document locked until it settles, just as for a
+      // pending native write, so a new transaction cannot race the read.
+      const unresolvedWrites =
+        this.inFlightOperations.has(transaction.id) ||
+        transaction.operations.some(
+          (operation) =>
+            operation.state === 'pending' ||
+            operation.state === 'applied' ||
+            (operation.state === 'failed' && operation.compensation === 'failed'),
+        );
       transaction.updatedAt = nowIso();
       if (unresolvedWrites) {
         transaction.state = 'failed';
