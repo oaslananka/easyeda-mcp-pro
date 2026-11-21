@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { type EnvConfig } from '../config/env.js';
+import { PrivateNativeGroundSession } from '../bridge/private-native-ground-session.js';
 import {
   deletePrimitiveExact,
   getGlobalTransactionManager,
@@ -266,7 +267,21 @@ function bridgeCreateRequest(operation: CreateOperation): { method: string; para
 async function preflightDeleteOperations(
   context: ToolContext,
   operations: BatchOperation[],
+  projectId: string,
 ): Promise<Map<string, Record<string, unknown>>> {
+  // Private file workers are host-constructed, never enabled by request data
+  // or the ordinary live/relay bridge. Keep this first increment single-target.
+  if (context.bridge instanceof PrivateNativeGroundSession) {
+    const operation = operations[0];
+    if (operations.length !== 1 || operation?.action !== 'delete') {
+      throw new TransactionError(
+        'TRANSACTION_INVALID_STATE',
+        'The isolated Ground worker accepts one verified delete per batch',
+      );
+    }
+    const snapshot = await context.bridge.preflight(projectId, operation.primitiveId);
+    return new Map([[operation.primitiveId, snapshot]]);
+  }
   const snapshots = new Map<string, Record<string, unknown>>();
   for (const operation of operations) {
     if (operation.action !== 'delete') continue;
@@ -768,7 +783,7 @@ async function handleSchematicBatchWrite(
   };
 
   try {
-    await preflightDeleteOperations(context, parsed.operations);
+    await preflightDeleteOperations(context, parsed.operations, parsed.projectId);
     if (parsed.dryRun) return dryRunBatchResponse(parsed);
     session = openBatchSession(parsed);
     const transactionId = session.transactionId;

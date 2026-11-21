@@ -133,6 +133,37 @@ cannot pass that readback; the transaction manager still checks the full
 normalized fingerprint. This does not establish an exclusive native writer
 reservation or grant production marker deletion permission.
 
+An internal private-file-worker candidate now connects the schematic
+batch transaction preflight to a host-constructed Ground session adapter.
+It accepts only one verified target in an isolated session; ordinary
+BridgeManager, CDP and remote-relay paths cannot opt in through request
+data. It checks exact session ownership before and after native calls,
+rechecks the full snapshot before deletion, and prohibits retries after
+ambiguous native mutation or incomplete reconstruction. Isolation is a
+launcher prerequisite, not something inferred from a headless flag or
+a caller-supplied descriptor.
+
+A Linux acceptance harness ran the actual MCP SDK registry and transaction
+tools with an isolated native editor, private display/network/process
+namespace and disposable in-memory project copy. Duplicate session
+preflight and missing confirmWrite were refused; a dry run made no
+mutation. An actual MCP Ground delete succeeded, but rollback failed:
+a newly created marker lacked its native library identity in the fresh
+offline profile. No file was exported and the original was unchanged.
+Both offline library queries and an unstable native document-source
+snapshot showed that a readable in-project marker is insufficient
+evidence of independent reconstructability. The private adapter now
+requires a fresh native creation-device lookup during preflight and
+immediately before deletion. Missing or differing library UUID, device
+UUID or name prevents mutation. This is a necessary prerequisite, not
+a guarantee that the vendor runtime can reconstruct the marker.
+
+The private adapter is an internal candidate, not a supported public
+worker launcher, installed extension capability, or general native
+writer lock. Production GUI/Cloud marker deletion remains disabled
+until the actual isolated reconstruction and durable recovery path is
+accepted.
+
 The Bridge's typed Ground recreation integration is verified through an
 explicitly opted-in unit fixture. The actual production dispatcher does
 not provide that capability, and an MCP caller cannot request or grant it.
