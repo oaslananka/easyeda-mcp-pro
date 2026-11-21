@@ -8,8 +8,16 @@ export async function readNativeMarkerContext(
   callFirst: ApiRuntime['callFirst'],
   getEasyedaVersion: (() => string | undefined) | undefined,
 ): Promise<MarkerContext | undefined> {
-  const active = await callFirst(['DMT_Project.getCurrentProjectInfo']);
-  const focused = await callFirst(['DMT_SelectControl.getCurrentDocumentInfo']);
+  // Native focus APIs are optional and may be unavailable in older editor
+  // runtimes. Continue the read-only snapshot without authorizing rollback.
+  let active: unknown;
+  let focused: unknown;
+  try {
+    active = await callFirst(['DMT_Project.getCurrentProjectInfo']);
+    focused = await callFirst(['DMT_SelectControl.getCurrentDocumentInfo']);
+  } catch {
+    return undefined;
+  }
   if (!isRecord(active) || !isRecord(focused)) return undefined;
   const projectId = active.uuid;
   const documentId = focused.uuid;

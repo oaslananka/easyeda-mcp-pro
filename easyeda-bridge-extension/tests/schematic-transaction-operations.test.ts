@@ -140,6 +140,32 @@ describe('schematic transaction operations', () => {
     },
   );
 
+  it.each([
+    ['netflag', 'identification'],
+    ['netport', 'direction'],
+  ] as const)(
+    'does not invent an undocumented native %s creation discriminator when the getter is absent',
+    async (kind, missing) => {
+      const { operations } = createSubject({
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_PrimitiveId: () => 'marker-1',
+            getState_ComponentType: () => kind,
+            getState_X: () => 20,
+            getState_Y: () => 30,
+            getState_Rotation: () => 0,
+            getState_Mirror: () => false,
+            getState_Net: () => 'SIGNAL',
+          }),
+        },
+      });
+      const result = await operations.getPrimitiveSnapshot('marker-1');
+      expect(result.primitiveKind).toBe(kind);
+      expect(result.property).toMatchObject({ net: 'SIGNAL', x: 20, y: 30 });
+      expect(result.property).not.toHaveProperty(missing);
+    },
+  );
+
   it('binds a marker snapshot only to a verified native schematic project and document', async () => {
     const { operations } = createSubject(
       {

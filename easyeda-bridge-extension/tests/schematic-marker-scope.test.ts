@@ -97,6 +97,20 @@ describe('native scoped marker snapshots', () => {
   const invalid = (message: string) =>
     Object.assign(new Error(message), { code: 'INVALID_PARAMS' });
 
+  it.each(['DMT_Project.getCurrentProjectInfo', 'DMT_SelectControl.getCurrentDocumentInfo'])(
+    'treats unavailable optional native focus API %s as no rollback scope',
+    async (method) => {
+      const callFirst = vi.fn(async (paths: string[]) => {
+        if (paths.includes(method)) throw new Error('METHOD_NOT_FOUND');
+        if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-1' };
+        if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo'))
+          return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+        throw new Error('Unexpected native API');
+      });
+      await expect(readNativeMarkerContext(callFirst, () => '4.1.105')).resolves.toBeUndefined();
+    },
+  );
+
   it('keeps old non-marker snapshots without native context compatible', () => {
     expect(parseNativeMarkerContext(undefined, invalid)).toBeUndefined();
   });

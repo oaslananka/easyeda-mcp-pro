@@ -410,8 +410,9 @@ export function createSchematicTransactionOperations(
         rotation: safeGetState(current, 'Rotation'),
         mirror: safeGetState(current, 'Mirror'),
         net: safeGetState(current, 'Net'),
-        // These discriminators must come from the native primitive, never
-        // from a caller-supplied snapshot or the requested MCP operation.
+        // These native getters are not in the public component API contract.
+        // If the live runtime does not expose them, omit the discriminators:
+        // do not guess from a net name, marker appearance or MCP input.
         identification:
           componentType === 'netflag' ? safeGetState(current, 'Identification') : undefined,
         direction: componentType === 'netport' ? safeGetState(current, 'Direction') : undefined,
