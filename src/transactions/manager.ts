@@ -90,6 +90,7 @@ function holdsDocumentLock(transaction: TransactionRecord): boolean {
 export class TransactionManager {
   private readonly transactions = new Map<string, TransactionRecord>();
   private readonly activeByDocument = new Map<string, string>();
+  private readonly inFlightOperations = new Set<string>();
 
   begin(input: BeginTransactionInput): TransactionRecord {
     const documentId = input.documentId.trim();
@@ -164,6 +165,26 @@ export class TransactionManager {
         `Transaction ${transaction.id} is ${transaction.state}, not active`,
         { state: transaction.state },
       );
+    }
+  }
+
+  private async runExclusiveOperation<TResult>(
+    transactionId: string,
+    execute: () => Promise<TResult>,
+  ): Promise<TResult> {
+    // Native writes in one transaction must not overlap, including the initial
+    // asynchronous snapshot read before an operation is recorded as pending.
+    if (this.inFlightOperations.has(transactionId)) {
+      throw new TransactionError(
+        'TRANSACTION_INVALID_STATE',
+        `Transaction ${transactionId} already has an in-flight operation`,
+      );
+    }
+    this.inFlightOperations.add(transactionId);
+    try {
+      return await execute();
+    } finally {
+      this.inFlightOperations.delete(transactionId);
     }
   }
 
@@ -252,6 +273,17 @@ export class TransactionManager {
   }
 
   async runModify<TResult>(
+    transactionId: string,
+    targetId: string,
+    hooks: TransactionalModifyHooks<TResult>,
+    targetType: TransactionTarget['type'] = 'schematic-primitive',
+  ): Promise<TransactionalModifyResult<TResult>> {
+    return this.runExclusiveOperation(transactionId, () =>
+      this.runModifyInternal(transactionId, targetId, hooks, targetType),
+    );
+  }
+
+  private async runModifyInternal<TResult>(
     transactionId: string,
     targetId: string,
     hooks: TransactionalModifyHooks<TResult>,
@@ -359,6 +391,16 @@ export class TransactionManager {
     targetHint: string,
     hooks: TransactionalCreateHooks<TResult>,
   ): Promise<TransactionalCreateResult<TResult>> {
+    return this.runExclusiveOperation(transactionId, () =>
+      this.runCreateInternal(transactionId, targetHint, hooks),
+    );
+  }
+
+  private async runCreateInternal<TResult>(
+    transactionId: string,
+    targetHint: string,
+    hooks: TransactionalCreateHooks<TResult>,
+  ): Promise<TransactionalCreateResult<TResult>> {
     const transaction = this.mutable(transactionId);
     const operation = this.reserveOperation(transaction, 'create', targetHint, 'absence', {
       exists: false,
@@ -441,6 +483,16 @@ export class TransactionManager {
     targetId: string,
     hooks: TransactionalDeleteHooks<TResult>,
   ): Promise<TransactionalDeleteResult<TResult>> {
+    return this.runExclusiveOperation(transactionId, () =>
+      this.runDeleteInternal(transactionId, targetId, hooks),
+    );
+  }
+
+  private async runDeleteInternal<TResult>(
+    transactionId: string,
+    targetId: string,
+    hooks: TransactionalDeleteHooks<TResult>,
+  ): Promise<TransactionalDeleteResult<TResult>> {
     const transaction = this.mutable(transactionId);
     this.assertActive(transaction);
     const beforeSnapshot = await hooks.getSnapshot();
@@ -497,7 +549,10 @@ export class TransactionManager {
   ): Promise<TransactionRecord> {
     const transaction = this.mutable(transactionId);
     this.assertActive(transaction);
-    if (transaction.operations.some((operation) => operation.state === 'pending')) {
+    if (
+      this.inFlightOperations.has(transactionId) ||
+      transaction.operations.some((operation) => operation.state === 'pending')
+    ) {
       throw new TransactionError(
         'TRANSACTION_INVALID_STATE',
         `Transaction ${transactionId} contains pending operations`,
@@ -648,7 +703,10 @@ export class TransactionManager {
     }
     // A pending bridge call may still change the native document after this
     // rollback returns. Never skip it and report a completed rollback.
-    if (transaction.operations.some((operation) => operation.state === 'pending')) {
+    if (
+      this.inFlightOperations.has(transactionId) ||
+      transaction.operations.some((operation) => operation.state === 'pending')
+    ) {
       throw new TransactionError(
         'TRANSACTION_INVALID_STATE',
         `Transaction ${transactionId} has in-flight operations; reconcile their native outcome before rollback`,

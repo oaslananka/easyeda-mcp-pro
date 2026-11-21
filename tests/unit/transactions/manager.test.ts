@@ -17,6 +17,100 @@ describe('TransactionManager', () => {
     expect(manager.begin({ documentId: 'doc-2' }).state).toBe('active');
   });
 
+  it('rejects overlapping creates in one transaction until the native call settles', async () => {
+    const manager = new TransactionManager();
+    const transaction = manager.begin({ documentId: 'same-tx-create' });
+    const created = new Set<string>();
+    let releaseNative!: () => void;
+    const nativeBarrier = new Promise<void>((resolve) => {
+      releaseNative = resolve;
+    });
+    const hooks = (id: string, wait = Promise.resolve()) => ({
+      apply: async () => {
+        await wait;
+        created.add(id);
+        return { result: id, targetId: id };
+      },
+      getSnapshot: async (targetId: string) => ({ primitiveId: targetId }),
+      remove: async (targetId: string) => {
+        created.delete(targetId);
+      },
+      exists: async (targetId: string) => created.has(targetId),
+    });
+
+    const pending = manager.runCreate(transaction.id, 'first', hooks('first', nativeBarrier));
+    expect(manager.get(transaction.id).operations[0]?.state).toBe('pending');
+    await expect(
+      manager.runCreate(transaction.id, 'second', hooks('second')),
+    ).rejects.toMatchObject({
+      code: 'TRANSACTION_INVALID_STATE',
+    });
+    expect(created.has('second')).toBe(false);
+
+    releaseNative();
+    await pending;
+    await expect(
+      manager.runCreate(transaction.id, 'second', hooks('second')),
+    ).resolves.toMatchObject({
+      targetId: 'second',
+    });
+    expect(created).toEqual(new Set(['first', 'second']));
+  });
+
+  it('guards the initial snapshot read against parallel writes and premature rollback', async () => {
+    const manager = new TransactionManager();
+    const transaction = manager.begin({ documentId: 'same-tx-snapshot' });
+    const original = { primitiveId: 'wire-1', property: { net: 'GND' } };
+    let primitive: typeof original | undefined = structuredClone(original);
+    let releaseSnapshot!: () => void;
+    const snapshotBarrier = new Promise<void>((resolve) => {
+      releaseSnapshot = resolve;
+    });
+    const pending = manager.runDelete(transaction.id, 'wire-1', {
+      getSnapshot: async () => {
+        await snapshotBarrier;
+        return structuredClone(primitive);
+      },
+      apply: async () => {
+        primitive = undefined;
+      },
+      exists: async () => primitive !== undefined,
+      recreate: async () => {
+        throw new Error('Not needed for a successful delete');
+      },
+    });
+    const secondApply = vi.fn(async () => ({ result: true, targetId: 'extra' }));
+    await expect(
+      manager.runCreate(transaction.id, 'extra', {
+        apply: secondApply,
+        getSnapshot: async (id) => ({ primitiveId: id }),
+        remove: async () => undefined,
+        exists: async () => false,
+      }),
+    ).rejects.toMatchObject({ code: 'TRANSACTION_INVALID_STATE' });
+    expect(secondApply).not.toHaveBeenCalled();
+    const restore = vi.fn(async () => {
+      primitive = structuredClone(original);
+    });
+    await expect(
+      manager.rollback(transaction.id, {
+        restore,
+        getSnapshot: async () => structuredClone(primitive),
+      }),
+    ).rejects.toMatchObject({ code: 'TRANSACTION_INVALID_STATE' });
+    expect(restore).not.toHaveBeenCalled();
+
+    releaseSnapshot();
+    await pending;
+    expect(primitive).toBeUndefined();
+    const rollback = await manager.rollback(transaction.id, {
+      restore,
+      getSnapshot: async () => structuredClone(primitive),
+    });
+    expect(rollback.transaction).toMatchObject({ state: 'rolled-back', rollbackComplete: true });
+    expect(primitive).toEqual(original);
+  });
+
   it('records a successful modification with before and after hashes', async () => {
     const manager = new TransactionManager();
     const transaction = manager.begin({ documentId: 'doc-1' });
