@@ -52,3 +52,19 @@ export function parseNativeMarkerContext(
     throw invalid('Invalid native marker snapshot context');
   return { projectId, documentId, editorVersion };
 }
+
+/**
+ * An editor-tab switch between the primitive read and its scope verification
+ * must never produce a rollback-authorized native snapshot.
+ */
+export function sameNativeMarkerContext(
+  before: MarkerContext,
+  after: MarkerContext | undefined,
+): boolean {
+  return (
+    after !== undefined &&
+    before.projectId === after.projectId &&
+    before.documentId === after.documentId &&
+    before.editorVersion === after.editorVersion
+  );
+}

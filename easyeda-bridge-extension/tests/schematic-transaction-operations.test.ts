@@ -192,7 +192,7 @@ describe('schematic transaction operations', () => {
         }) as any,
       },
     );
-    await expect(operations.getPrimitiveSnapshot('flag-1')).resolves.toMatchObject({
+    await expect(operations.getPrimitiveSnapshot('flag-1', 'netflag')).resolves.toMatchObject({
       primitiveKind: 'netflag',
       property: { identification: 'Power', net: 'VCC' },
       nativeContext: {
@@ -201,6 +201,78 @@ describe('schematic transaction operations', () => {
         editorVersion: '4.1.105',
       },
     });
+  });
+
+  it('does not turn a generic marker read into a rollback-authorized native snapshot', async () => {
+    const callFirst = vi.fn(async (paths: string[]) => {
+      if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-a' };
+      if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo')) {
+        return { uuid: 'page-a', parentProjectUuid: 'project-a', documentType: 1 };
+      }
+      return undefined;
+    });
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_PrimitiveId: () => 'flag-a',
+            getState_ComponentType: () => 'netflag',
+            getState_Identification: () => 'Ground',
+            getState_Net: () => 'GND',
+          }),
+        },
+      },
+      { getEasyedaVersion: () => '4.1.105', callFirst },
+    );
+    const read = await operations.getPrimitiveSnapshot('flag-a');
+    expect(read).toMatchObject({
+      primitiveId: 'flag-a',
+      primitiveKind: 'netflag',
+      property: { identification: 'Ground', net: 'GND' },
+    });
+    expect(read).not.toHaveProperty('nativeContext');
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
+  it('does not bind a typed marker snapshot when the focused native page changes during the read', async () => {
+    let projectCall = 0;
+    let documentCall = 0;
+    const callFirst = vi.fn(async (paths: string[]) => {
+      if (paths.includes('DMT_Project.getCurrentProjectInfo')) {
+        return { uuid: ++projectCall === 1 ? 'project-a' : 'project-b' };
+      }
+      if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo')) {
+        const page = ++documentCall === 1 ? 'a' : 'b';
+        return {
+          uuid: 'page-' + page,
+          parentProjectUuid: 'project-' + page,
+          documentType: 1,
+        };
+      }
+      return undefined;
+    });
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_PrimitiveId: () => 'flag-a',
+            getState_ComponentType: () => 'netflag',
+            getState_Identification: () => 'Ground',
+            getState_Net: () => 'GND',
+          }),
+        },
+      },
+      { getEasyedaVersion: () => '4.1.105', callFirst },
+    );
+    const read = await operations.getPrimitiveSnapshot('flag-a', 'netflag');
+    expect(read).toMatchObject({
+      primitiveId: 'flag-a',
+      primitiveKind: 'netflag',
+      property: { identification: 'Ground', net: 'GND' },
+    });
+    expect(read).not.toHaveProperty('nativeContext');
+    expect(projectCall).toBe(2);
+    expect(documentCall).toBe(2);
   });
 
   it('rejects malformed restore input before mutation', async () => {

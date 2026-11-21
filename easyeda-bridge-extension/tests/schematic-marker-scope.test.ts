@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   parseNativeMarkerContext,
   readNativeMarkerContext,
+  sameNativeMarkerContext,
 } from '../src/schematic-marker-scope.js';
 
 const original = {
@@ -110,6 +111,20 @@ describe('native scoped marker snapshots', () => {
       await expect(readNativeMarkerContext(callFirst, () => '4.1.105')).resolves.toBeUndefined();
     },
   );
+
+  it('keeps rollback identity only for exact before-and-after page, project and version', () => {
+    expect(sameNativeMarkerContext(original, { ...original })).toBe(true);
+    expect(sameNativeMarkerContext(original, undefined)).toBe(false);
+    expect(sameNativeMarkerContext(original, { ...original, projectId: 'project-other' })).toBe(
+      false,
+    );
+    expect(sameNativeMarkerContext(original, { ...original, documentId: 'page-other' })).toBe(
+      false,
+    );
+    expect(sameNativeMarkerContext(original, { ...original, editorVersion: '3.2.209' })).toBe(
+      false,
+    );
+  });
 
   it('keeps old non-marker snapshots without native context compatible', () => {
     expect(parseNativeMarkerContext(undefined, invalid)).toBeUndefined();

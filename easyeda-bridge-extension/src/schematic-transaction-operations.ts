@@ -1,7 +1,11 @@
 import { verifyWireInventoryReadback } from './schematic-wire-inventory.js';
 import type { ApiRuntime } from './api-runtime.js';
 import { createSchematicSnapshotRecreator } from './schematic-snapshot-recreation.js';
-import { readNativeMarkerContext, parseNativeMarkerContext } from './schematic-marker-scope.js';
+import {
+  readNativeMarkerContext,
+  parseNativeMarkerContext,
+  sameNativeMarkerContext,
+} from './schematic-marker-scope.js';
 import { isRecord } from './utils.js';
 
 export type PublicTextAlignMode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
@@ -640,6 +644,15 @@ export function createSchematicTransactionOperations(
       );
     }
 
+    // Only an explicitly typed marker query can earn native rollback scope.
+    // Capture focus on BOTH sides of the primitive read to reject tab/project
+    // switches that otherwise could bind a primitive to the wrong page.
+    const markerKindRequested =
+      expectedPrimitiveKind === 'netflag' || expectedPrimitiveKind === 'netport';
+    const beforeContext = markerKindRequested
+      ? await readNativeMarkerContext(callFirst, dependencies.getEasyedaVersion)
+      : undefined;
+
     const snapshot = expectedPrimitiveKind
       ? await readSnapshotByKind(primitiveId, expectedPrimitiveKind)
       : await readUnconstrainedSnapshot(primitiveId);
@@ -657,12 +670,11 @@ export function createSchematicTransactionOperations(
         'Use a component, net flag/port, wire, text, rectangle, circle, or polygon primitive ID.',
       );
     }
-    if (snapshot.primitiveKind === 'netflag' || snapshot.primitiveKind === 'netport') {
-      const nativeContext = await readNativeMarkerContext(
-        callFirst,
-        dependencies.getEasyedaVersion,
-      );
-      if (nativeContext) snapshot.nativeContext = nativeContext;
+    if (beforeContext && snapshot.primitiveKind === expectedPrimitiveKind) {
+      const afterContext = await readNativeMarkerContext(callFirst, dependencies.getEasyedaVersion);
+      if (sameNativeMarkerContext(beforeContext, afterContext)) {
+        snapshot.nativeContext = beforeContext;
+      }
     }
     return snapshot;
   }
