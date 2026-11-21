@@ -160,6 +160,21 @@ from 248,379 to 249,222 bytes (+843), loader from 425,642 to
 (+2,066). The enforced byte ratchets remain measured plus five bytes:
 249,227 / 427,714 / 341,784. No size check is disabled.
 
+A further 2026-11-21 #1102 regression test now traverses the full Bridge
+snapshot input parsing and fixture-only Ground recreation path using a
+verified-shaped scoped isolation witness. It failed before the optional
+unit-fixture capability was forwarded to the recreator, then passed. A
+separate negative test ensures an untrusted caller cannot enable this
+capability: the production dispatcher supplies no such opt-in and remains
+fail-closed even with a complete caller-provided witness. This is a unit
+test, not authorization to delete native markers or proof of an integrated
+native marker rollback. The exact reproducible extension archive changed
+from **249,222 to 249,343 bytes** (+121), loader from **427,709 to
+427,890 bytes** (+181), and dispatcher from **341,779 to 341,960 bytes**
+(+181). Enforced byte limits are the measured sizes plus five:
+**249,348 / 427,895 / 341,965 bytes**. CI integrity/size checks remain
+enabled.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:

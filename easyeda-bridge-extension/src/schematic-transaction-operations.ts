@@ -47,6 +47,8 @@ export interface SchematicTransactionDependencies {
   deleteCachedTextAlignMode(primitiveId: string): void;
   /** Native editor version from SYS_Environment, never the untrusted MCP request. */
   getEasyedaVersion?(): string | undefined;
+  /** Unit-fixture-only capability. The actual dispatcher never opts in to marker recreation. */
+  allowExperimentalPowerNetFlagRecreation?(): boolean;
 }
 
 export interface SchematicTransactionOperations {
@@ -244,6 +246,8 @@ export function createSchematicTransactionOperations(
     createBridgeError: newBridgeError,
     requirePublicTextAlignMode,
     getEasyedaVersion: dependencies.getEasyedaVersion,
+    // Unit-fixture-only. The production dispatcher never supplies this flag.
+    allowExperimentalPowerNetFlagRecreation: dependencies.allowExperimentalPowerNetFlagRecreation,
   });
 
   // Native Pro 3.2.209 can return matching *stale* getAll/getAllPrimitiveId

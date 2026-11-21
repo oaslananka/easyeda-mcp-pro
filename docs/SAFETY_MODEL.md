@@ -79,6 +79,12 @@ schematic safety. The netport native Direction getter was absent; its
 IN direction was independently identified through the exact native
 Netport-IN symbol and pin, not guessed from the net name.
 
+The Bridge's typed Ground recreation integration is verified through an
+explicitly opted-in unit fixture. The actual production dispatcher does
+not provide that capability, and an MCP caller cannot request or grant it.
+Matching an untrusted snapshot's claimed isolation fields is not native
+provenance or permission to perform a real marker delete.
+
 A typed Ground recreation snapshot now parses and retains only a strictly
 bounded isolation descriptor consistent with its primitive ID and native
 project/page context; malformed, unexpected and cross-kind evidence is

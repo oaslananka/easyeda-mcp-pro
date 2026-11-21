@@ -130,6 +130,91 @@ describe('untrusted native Ground reconstruction descriptor', () => {
     expect(callFirst).not.toHaveBeenCalled();
   });
 
+  it('keeps production reconstruction disabled despite a complete caller-provided Ground witness', async () => {
+    const { operations, callFirst } = createSubject({}, { getEasyedaVersion: () => '4.1.105' });
+    await expect(
+      operations.recreatePrimitiveSnapshot({
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'flag-1',
+        primitiveKind: 'netflag',
+        componentType: 'netflag',
+        property,
+        nativeContext: scope,
+        nativeIsolation: evidence,
+        allowExperimentalPowerNetFlagRecreation: true,
+      }),
+    ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
+  it('recreates a typed isolated Ground only in an explicitly opted-in unit fixture', async () => {
+    let created = false;
+    const ground = {
+      getState_PrimitiveId: () => 'flag-new',
+      getState_ComponentType: () => 'netflag',
+      getState_Net: () => 'GND',
+      getState_Name: () => 'GND',
+      getState_Component: () => property.nativeSymbol,
+      getState_X: () => 240,
+      getState_Y: () => 250,
+      getState_Rotation: () => 0,
+      getState_Mirror: () => false,
+    };
+    const nativeClass = {
+      getAll: vi.fn(async () => (created ? [ground] : [])),
+      getAllPrimitiveId: vi.fn(async () => (created ? ['flag-new'] : [])),
+      get: vi.fn(async (id: string) => (created && id === 'flag-new' ? ground : undefined)),
+    };
+    const { operations, callFirst } = createSubject(
+      { SCH_PrimitiveComponent: nativeClass },
+      {
+        getEasyedaVersion: () => '4.1.105',
+        allowExperimentalPowerNetFlagRecreation: () => true,
+      },
+    );
+    callFirst.mockImplementation(async (paths: string[]) => {
+      if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-1' };
+      if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo')) {
+        return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+      }
+      if (paths.includes('SCH_PrimitiveComponent.createNetFlag')) {
+        created = true;
+        return { primitiveId: 'flag-new' };
+      }
+      throw new Error('Unexpected native method');
+    });
+
+    const restored = await operations.recreatePrimitiveSnapshot({
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'flag-1',
+      primitiveKind: 'netflag',
+      componentType: 'netflag',
+      property,
+      nativeContext: scope,
+      nativeIsolation: evidence,
+    });
+
+    expect(restored).toMatchObject({
+      primitiveId: 'flag-new',
+      snapshot: {
+        primitiveId: 'flag-new',
+        primitiveKind: 'netflag',
+        componentType: 'netflag',
+        property: { net: 'GND', identification: 'Ground' },
+      },
+    });
+    expect(callFirst).toHaveBeenCalledWith(
+      ['SCH_PrimitiveComponent.createNetFlag', 'sch_PrimitiveComponent.createNetFlag'],
+      'Ground',
+      'GND',
+      240,
+      250,
+      0,
+      false,
+    );
+    expect(nativeClass.get).toHaveBeenCalledWith('flag-new');
+  });
+
   it('rejects unscoped isolation and isolation attached to a netport', async () => {
     const { operations, callFirst } = createSubject();
     const snapshot = {
