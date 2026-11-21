@@ -479,12 +479,87 @@ describe('schematic transaction operations', () => {
     });
   });
 
+  it.each(['netflag', 'netport', 'sheet'] as const)(
+    'rejects standalone deletion of native %s in a mixed batch before touching any wire',
+    async (kind) => {
+      const componentDelete = vi.fn().mockResolvedValue(true);
+      const wireDelete = vi.fn().mockResolvedValue(true);
+      const { operations } = createSubject({
+        SCH_PrimitiveComponent: {
+          get: vi.fn(async (id: string) =>
+            id === 'marker-1' ? { primitiveId: id, getState_ComponentType: () => kind } : undefined,
+          ),
+          delete: componentDelete,
+        },
+        SCH_PrimitiveWire: {
+          get: vi.fn(async (id: string) => (id === 'wire-1' ? { primitiveId: id } : undefined)),
+          delete: wireDelete,
+        },
+      });
+
+      await expect(operations.deletePrimitives(['wire-1', 'marker-1'])).rejects.toMatchObject({
+        code: 'UNSUPPORTED_RUNTIME',
+      });
+      expect(wireDelete).not.toHaveBeenCalled();
+      expect(componentDelete).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a component whose native type is unavailable instead of guessing it is safe to delete', async () => {
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({ primitiveId: 'untyped-1' }),
+        delete: componentDelete,
+      },
+    });
+    await expect(operations.deletePrimitives(['untyped-1'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
+    });
+    expect(componentDelete).not.toHaveBeenCalled();
+  });
+
+  it('refuses a stale native component lookup before deleting any primitive', async () => {
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({
+          primitiveId: 'different-native-id',
+          getState_ComponentType: () => 'component',
+        }),
+        delete: componentDelete,
+      },
+    });
+    await expect(operations.deletePrimitives(['requested-id'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
+    });
+    expect(componentDelete).not.toHaveBeenCalled();
+  });
+
+  it('refuses component deletion when only a native ID inventory is readable', async () => {
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        getAllPrimitiveId: vi.fn().mockResolvedValue(['marker-id-only']),
+        delete: componentDelete,
+      },
+    });
+    await expect(operations.deletePrimitives(['marker-id-only'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
+    });
+    expect(componentDelete).not.toHaveBeenCalled();
+  });
+
   it('routes deletion to the owning class and reports missing IDs', async () => {
     const componentDelete = vi.fn().mockResolvedValue(true);
     const wireDelete = vi.fn().mockResolvedValue(true);
     const { operations } = createSubject({
       SCH_PrimitiveComponent: {
-        get: vi.fn(async (id) => (id === 'cmp-1' ? { primitiveId: id } : undefined)),
+        get: vi.fn(async (id) =>
+          id === 'cmp-1'
+            ? { primitiveId: id, getState_ComponentType: () => 'component' }
+            : undefined,
+        ),
         delete: componentDelete,
       },
       SCH_PrimitiveWire: {
@@ -1044,7 +1119,7 @@ describe('schematic transaction operations', () => {
     expect(remove).toHaveBeenCalledWith(['rect-1']);
   });
 
-  it('treats ownership probe failures and missing probe APIs as not found', async () => {
+  it('refuses a deletion when native component ownership is unreadable', async () => {
     const { operations } = createSubject({
       SCH_PrimitiveComponent: {
         get: vi.fn().mockRejectedValue(new Error('get failed')),
@@ -1057,10 +1132,8 @@ describe('schematic transaction operations', () => {
       SCH_PrimitiveText: { delete: vi.fn() },
     });
 
-    await expect(operations.deletePrimitives(['missing'])).resolves.toEqual({
-      success: false,
-      deleted: [],
-      notFound: ['missing'],
+    await expect(operations.deletePrimitives(['missing'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
     });
   });
   it('recreates text, rectangle, circle, and polygon snapshots with exact explicit arguments', async () => {

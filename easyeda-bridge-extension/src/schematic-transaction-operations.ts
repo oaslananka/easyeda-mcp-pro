@@ -911,6 +911,59 @@ export function createSchematicTransactionOperations(
     }
   }
 
+  /** The native Component class also owns net flags, ports, and sheet symbols.
+   * Inspect the entire standalone request before any primitive is removed.
+   */
+  async function refuseUnsafeStandaloneComponentDeletion(primitiveIds: string[]): Promise<void> {
+    const owner = readFirstPath<any>(COMPONENT_CLASS_PATHS);
+    if (!owner || primitiveIds.length === 0) return;
+    const unsafe = (primitiveId: string, reason: string): never => {
+      throw newBridgeError(
+        'UNSUPPORTED_RUNTIME',
+        'Standalone delete refused for ' + primitiveId + ': ' + reason,
+        'Use a verified rollback-capable workflow; net flags, ports, sheets, and unknown component kinds cannot be deleted standalone.',
+      );
+    };
+
+    if (typeof owner.get !== 'function') {
+      if (typeof owner.getAllPrimitiveId === 'function') {
+        let knownIds: unknown;
+        try {
+          knownIds = await owner.getAllPrimitiveId();
+        } catch {
+          unsafe('component inventory', 'native component type inventory is unavailable');
+        }
+        if (!Array.isArray(knownIds)) {
+          return unsafe('component inventory', 'native component type inventory is invalid');
+        }
+        for (const id of primitiveIds) {
+          if (knownIds.includes(id)) unsafe(id, 'native component type cannot be confirmed');
+        }
+      }
+      return;
+    }
+
+    for (const id of primitiveIds) {
+      let component: unknown;
+      try {
+        component = await owner.get(id);
+      } catch {
+        unsafe(id, 'native component type read failed');
+      }
+      if (!component) continue;
+      if (extractPrimitiveId(component) !== id) {
+        unsafe(id, 'native component identity is missing or inconsistent');
+      }
+      const type = readComponentType(component);
+      if (type !== 'component') {
+        unsafe(
+          id,
+          type ? 'unsupported native component type ' + type : 'native component type is missing',
+        );
+      }
+    }
+  }
+
   async function deleteSchematicPrimitives(
     primitiveIdsInput: unknown,
   ): Promise<{ success: boolean; deleted: string[]; notFound: string[] }> {
@@ -930,6 +983,7 @@ export function createSchematicTransactionOperations(
     const deleted: string[] = [];
     const notFound: string[] = [];
 
+    await refuseUnsafeStandaloneComponentDeletion(primitiveIds);
     await refuseUnpersistedTextDeletion(primitiveIds);
 
     for (const primitiveId of primitiveIds) {

@@ -48,6 +48,25 @@ The previous 3.2.209 native regression, the 4.1.105 direct-vendor API tests
 and the new source-built MCP path are separately tracked in
 [issue #1060](https://github.com/oaslananka/easyeda-mcp-pro/issues/1060).
 
+### Native schematic marker deletion: standalone fail-closed preflight
+
+The native schematic Component class also contains net flags, hierarchical
+net ports and sheet-frame primitives. A generic UUID-only standalone delete
+must not infer that every object owned by that class is an ordinary component.
+The extension now checks **every requested ID before any deletion**: only a
+component whose exact ID and native type can both be read as component may
+use the standalone component path. Explicit netflag, netport, sheet,
+unknown types, missing identities, failed native reads, and ID-only component
+inventories are refused without deleting earlier primitives in a mixed batch.
+
+This closes a standalone-delete path that otherwise bypassed transactional
+marker rollback restrictions. It does not grant transactional deletion of
+components, flags or ports; the existing production transaction allowlist
+remains unchanged. Native editor concurrency and persisted outcomes still
+require independent verification; an in-process check is not a native
+cross-process writer lock. See
+[issue #1102](https://github.com/oaslananka/easyeda-mcp-pro/issues/1102).
+
 ### Project save: exact native target versus persisted outcome
 
 A successful native `sch_Document.save()` or `pcb_Document.save()`
