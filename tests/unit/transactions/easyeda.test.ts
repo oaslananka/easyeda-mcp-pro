@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   extractCreatedPrimitiveId,
+  recreatePrimitiveSnapshot,
   rollbackEasyedaTransaction,
   type TransactionBridgeCaller,
 } from '../../../src/transactions/easyeda.js';
@@ -93,6 +94,46 @@ async function exerciseGroundRollback(after: ReturnType<typeof groundSnapshot>) 
     result: await rollbackEasyedaTransaction(manager, transaction.id, bridge),
   };
 }
+
+describe('native Ground immediate compensation readback', () => {
+  it('does not use the unscoped result of the create call as rollback evidence', async () => {
+    const original = groundSnapshot('flag-old');
+    const {
+      nativeContext: _context,
+      nativeIsolation: _isolation,
+      ...unscoped
+    } = groundSnapshot('flag-new');
+    const restored = groundSnapshot('flag-new');
+    const call = vi.fn(async (method: string) =>
+      method === 'schematic.recreatePrimitiveSnapshot'
+        ? { primitiveId: 'flag-new', snapshot: unscoped }
+        : restored,
+    );
+    const bridge = { call } as unknown as TransactionBridgeCaller;
+    await expect(recreatePrimitiveSnapshot(bridge, original)).resolves.toEqual({
+      primitiveId: 'flag-new',
+      snapshot: restored,
+    });
+    expect(call).toHaveBeenLastCalledWith('schematic.getPrimitiveSnapshot', {
+      primitiveId: 'flag-new',
+      expectedPrimitiveKind: 'netflag',
+    });
+  });
+
+  it('refuses a different primitive in the independent typed readback', async () => {
+    const call = vi.fn(async (method: string) =>
+      method === 'schematic.recreatePrimitiveSnapshot'
+        ? { primitiveId: 'flag-new', snapshot: groundSnapshot('flag-new') }
+        : groundSnapshot('wrong-id'),
+    );
+    await expect(
+      recreatePrimitiveSnapshot(
+        { call } as unknown as TransactionBridgeCaller,
+        groundSnapshot('flag-old'),
+      ),
+    ).rejects.toThrow(/identity/i);
+  });
+});
 
 describe('native-scoped Ground rollback reconciliation', () => {
   it('does not normalize a forged isolation report bound to another marker', () => {

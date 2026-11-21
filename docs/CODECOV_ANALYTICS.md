@@ -217,6 +217,19 @@ bytes** (+3,352), dispatcher **346,923 to 350,275 bytes** (+3,352).
 Enforced byte budgets remain actual plus five: **253,224 / 436,211 /
 350,280**. No check is disabled.
 
+The #1102 default Ground profile and immediate compensation follow-up
+checks exact marker/pin attribute multiplicity, relative position, content,
+style and visibility before a typed native snapshot earns the existing
+v2 witness. Native V4.1.105 three-position creation tests and an actual
+source-dispatcher probe demonstrate the default/customized distinction;
+production marker deletion remains denied. Experimental reconstruction
+also rejects unverified orientation/pose, and the server requests a fresh
+typed snapshot during delete compensation. The archive grew from
+**253,219 to 254,205 bytes** (+986), loader **436,206 to 438,442 bytes**
+(+2,236), dispatcher **350,275 to 352,511 bytes** (+2,236). Enforced
+actual-plus-five budgets are **254,210 / 438,447 / 352,516**; integrity
+checks remain enabled.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:

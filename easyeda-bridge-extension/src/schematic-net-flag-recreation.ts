@@ -11,9 +11,10 @@ function hasExactPowerFlagProperties(property: Record<string, unknown>): boolean
     property.identification === 'Ground' &&
     property.net === 'GND' &&
     isVerifiedV4GroundSymbol(property.nativeSymbol) &&
-    typeof property.mirror === 'boolean' &&
-    typeof property.rotation === 'number' &&
-    Number.isFinite(property.rotation)
+    property.mirror === false &&
+    property.rotation === 0 &&
+    Number.isSafeInteger(property.x) &&
+    Number.isSafeInteger(property.y)
   );
 }
 

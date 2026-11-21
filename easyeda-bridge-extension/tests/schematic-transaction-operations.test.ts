@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createSchematicTransactionOperations } from '../src/schematic-transaction-operations.js';
+import { defaultGroundAttributeFields } from './fixtures/native-ground-default-attributes.js';
 
 function bridgeError(code: string, message: string, suggestion: string, data?: unknown): Error {
   return Object.assign(new Error(message), { code, suggestion, data });
@@ -639,26 +640,7 @@ describe('schematic transaction operations', () => {
       ParentPrimitiveId: 'sheet-1',
       Value: 'title',
     });
-    const pinAttrs = [
-      primitive({
-        PrimitiveId: 'a-2',
-        ParentPrimitiveId: 'flag-1-e15',
-        Key: 'Pin Name',
-        Value: 'Pin1',
-      }),
-      primitive({
-        PrimitiveId: 'a-3',
-        ParentPrimitiveId: 'flag-1-e15',
-        Key: 'Pin Number',
-        Value: '1',
-      }),
-      primitive({
-        PrimitiveId: 'a-4',
-        ParentPrimitiveId: 'flag-1-e15',
-        Key: 'Pin Type',
-        Value: 'IN',
-      }),
-    ];
+    const pinAttrs = defaultGroundAttributeFields('flag-1').map(primitive);
     const owner = (values: unknown[]) => ({
       getAll: vi.fn(async () => values),
       getAllPrimitiveId: vi.fn(async () => values.map((v) => readState(v, 'PrimitiveId'))),
@@ -693,7 +675,7 @@ describe('schematic transaction operations', () => {
         pagePinCount: 0,
         embeddedPinCount: 1,
         wireCount: 0,
-        attributeCount: 4,
+        attributeCount: 10,
       },
     });
     expect(result.primitiveKind).toBe('netflag');

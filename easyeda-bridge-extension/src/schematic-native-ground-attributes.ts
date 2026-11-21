@@ -86,6 +86,87 @@ function semanticAttributeRow(state: GroundAttributeState): string {
 }
 
 /**
+ * Native V4.1.105 default Ground-GND marker and embedded-pin attributes,
+ * observed at (240,250), (420,390), (120,150), with exact native list/get
+ * reconciliation. Coordinates of visible attributes are relative to the
+ * marker; hidden native metadata keeps its absolute null/zero position.
+ * This is a reconstructability prerequisite, never write authorization.
+ */
+const DEFAULT_GROUND_PROFILE = [
+  [
+    'marker',
+    'Description',
+    '',
+    [null, 0, null, null, null, null, null, null, null, null, null, null, null],
+  ],
+  [
+    'marker',
+    'Device',
+    'af20086a8911a85a',
+    [null, 0, null, null, null, null, null, null, null, null, null, null, null],
+  ],
+  [
+    'marker',
+    'Global Net Name',
+    'GND',
+    [0, -25, 0, null, 5, null, null, null, null, null, null, false, true],
+  ],
+  ['marker', 'Name', 'GND', [0, -25, 0, null, 5, null, null, null, null, null, null, false, null]],
+  [
+    'marker',
+    'Relevance',
+    '[]',
+    [null, 0, null, null, null, null, null, null, null, null, null, null, null],
+  ],
+  [
+    'marker',
+    'Symbol',
+    '17c558f9e954b079',
+    [0, -30, 0, 10, 3, null, null, null, null, null, null, false, false],
+  ],
+  [
+    'pin',
+    'Pin Name',
+    'Pin1',
+    [0, -10, 90, null, 8, null, null, null, null, null, null, false, false],
+  ],
+  [
+    'pin',
+    'Pin Number',
+    '1',
+    [-1, -10, 90, null, 3, null, '宋体', null, false, false, false, false, false],
+  ],
+  ['pin', 'Pin Type', 'IN', [0, 0, 90, null, 7, null, null, null, null, null, null, false, false]],
+];
+
+export function matchesDefaultGroundAttributes(
+  states: GroundAttributeState[],
+  x: unknown,
+  y: unknown,
+): boolean {
+  if (
+    typeof x !== 'number' ||
+    typeof y !== 'number' ||
+    !Number.isSafeInteger(x) ||
+    !Number.isSafeInteger(y)
+  ) {
+    return false;
+  }
+  const owned = states.filter((state) => state.role !== 'sheet');
+  if (owned.length !== DEFAULT_GROUND_PROFILE.length) return false;
+  const actual = owned.map((state) => {
+    const fields = [...state.fields];
+    if (typeof fields[0] === 'number') {
+      fields[0] -= x;
+      if (typeof fields[1] === 'number') fields[1] -= y;
+    }
+    return semanticAttributeRow({ ...state, fields });
+  });
+  const expected = DEFAULT_GROUND_PROFILE.map((row) => JSON.stringify(row));
+  return JSON.stringify(actual.sort()) === JSON.stringify(expected.sort());
+}
+
+/**
  * Only the marker's regenerated IDs are normalized by the surrounding
  * snapshot. The exact surviving sheet ID and attribute multiplicity bind
  * the digest to the original native sheet and all verified owned attributes.

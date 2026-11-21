@@ -2,7 +2,7 @@ import { verifyWireInventoryReadback } from './schematic-wire-inventory.js';
 import { verifiedNativeGroundDescriptor } from './schematic-native-ground-identity.js';
 import { inspectVerifiedNativeInPort } from './schematic-native-in-port-identity.js';
 import {
-  inspectIsolatedNativeGround,
+  inspectReconstructableNativeGround,
   parseNativeGroundIsolation,
   type NativeGroundIsolationEvidence,
 } from './schematic-native-ground-isolation.js';
@@ -670,7 +670,7 @@ export function createSchematicTransactionOperations(
       snapshot.primitiveKind === 'netflag' &&
       snapshot.property.identification === 'Ground' &&
       snapshot.property.nativeSymbol
-        ? await inspectIsolatedNativeGround({
+        ? await inspectReconstructableNativeGround({
             markerId: primitiveId,
             readFirstPath,
             readState: safeGetState,

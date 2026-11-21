@@ -242,6 +242,40 @@ describe('createSchematicSnapshotRecreator', () => {
     );
   });
 
+  it.each([
+    ['rotated', { rotation: 90 }],
+    ['mirrored', { mirror: true }],
+    ['fractional x', { x: 10.25 }],
+    ['nonfinite y', { y: Number.POSITIVE_INFINITY }],
+  ])('refuses unverified %s Ground pose even with a fixture witness', async (_, change) => {
+    const callFirst = vi.fn();
+    const recreator = createSchematicSnapshotRecreator({
+      callFirst,
+      createBridgeError: vi.fn((code, message) => Object.assign(new Error(message), { code })),
+      requirePublicTextAlignMode: vi.fn((value) => value as 1),
+      getEasyedaVersion: () => '4.1.105',
+      allowExperimentalPowerNetFlagRecreation: () => true,
+    });
+    await expect(
+      recreator.create({
+        ...snapshot('netflag', {
+          identification: 'Ground',
+          net: 'GND',
+          nativeSymbol: nativeGround,
+          x: 10,
+          y: 20,
+          rotation: 0,
+          mirror: false,
+          ...change,
+        }),
+        componentType: 'netflag',
+        nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+        nativeIsolation: nativeGroundIsolation,
+      }),
+    ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
   it('recreates an exact native power net flag with all typed arguments', async () => {
     const callFirst = vi.fn(async (paths: string[]) => {
       if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-1' };
@@ -263,7 +297,7 @@ describe('createSchematicSnapshotRecreator', () => {
         nativeSymbol: nativeGround,
         x: 10,
         y: 20,
-        rotation: 90,
+        rotation: 0,
         mirror: false,
       }),
       componentType: 'netflag',
@@ -276,7 +310,7 @@ describe('createSchematicSnapshotRecreator', () => {
       'GND',
       10,
       20,
-      90,
+      0,
       false,
     );
   });

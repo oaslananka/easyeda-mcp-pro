@@ -2,6 +2,7 @@ import { verifiedNativeGroundDescriptor } from './schematic-native-ground-identi
 import { isRecord } from './utils.js';
 import {
   fingerprintGroundAttributes,
+  matchesDefaultGroundAttributes,
   readGroundAttributeState,
   type GroundAttributeState,
 } from './schematic-native-ground-attributes.js';
@@ -299,6 +300,8 @@ async function capture(deps: GroundIsolationDependencies): Promise<{
   count: number;
   sheetId: string;
   states: GroundAttributeState[];
+  markerX: unknown;
+  markerY: unknown;
 }> {
   const wireReader = requiredReader(deps, 'Wire');
   const pinReader = requiredReader(deps, 'Pin');
@@ -349,6 +352,8 @@ async function capture(deps: GroundIsolationDependencies): Promise<{
     count: attributeEntries.exact.length,
     sheetId: sheet.id,
     states: attributeEntries.states,
+    markerX: deps.readState(marker, 'X'),
+    markerY: deps.readState(marker, 'Y'),
   };
 }
 
@@ -358,8 +363,9 @@ async function capture(deps: GroundIsolationDependencies): Promise<{
  * missing APIs are NOT proof of disconnection. This read-only preflight is
  * intentionally not an authorization to enable production netflag deletion.
  */
-export async function inspectIsolatedNativeGround(
+async function inspectGround(
   deps: GroundIsolationDependencies,
+  requireDefaultProfile: boolean,
 ): Promise<NativeGroundIsolationEvidence | undefined> {
   try {
     if (!deps.markerId) return undefined;
@@ -367,6 +373,11 @@ export async function inspectIsolatedNativeGround(
     await (deps.settle?.() ?? new Promise<void>((resolve) => setTimeout(resolve, 80)));
     const second = await capture(deps);
     if (first.canonical !== second.canonical) return undefined;
+    if (
+      requireDefaultProfile &&
+      !matchesDefaultGroundAttributes(second.states, second.markerX, second.markerY)
+    )
+      return undefined;
     return {
       kind: 'verified-disconnected-ground/v2',
       markerId: deps.markerId,
@@ -380,4 +391,18 @@ export async function inspectIsolatedNativeGround(
   } catch {
     return undefined;
   }
+}
+
+/** Read-only isolation diagnostics, not evidence that custom attributes can be recreated. */
+export function inspectIsolatedNativeGround(
+  deps: GroundIsolationDependencies,
+): Promise<NativeGroundIsolationEvidence | undefined> {
+  return inspectGround(deps, false);
+}
+
+/** A typed marker snapshot may earn a witness only for the known default profile. */
+export function inspectReconstructableNativeGround(
+  deps: GroundIsolationDependencies,
+): Promise<NativeGroundIsolationEvidence | undefined> {
+  return inspectGround(deps, true);
 }

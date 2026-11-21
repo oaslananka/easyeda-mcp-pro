@@ -112,6 +112,27 @@ of a production MCP dispatcher marker-delete method or native writer fence;
 fixture-only deletion/recreation remains opt-in, and the production
 transactional delete allowlist is unchanged.
 
+The typed native Ground snapshot now attaches isolation evidence only when
+all nine owned marker/pin attributes match the verified default creation
+profile, including relative geometry and the complete attribute style and
+visibility state. Real V4.1.105 native creation at three distinct integer
+positions established the relative profile; hidden native metadata retains
+its null/zero coordinates. Extra, missing, duplicate or customized attributes
+are readable but cannot earn the reconstruction witness. Mirrored, rotated or
+noninteger poses are refused by the experimental recreation helper too.
+An isolated native CLI probe exercised the actual source dispatcher: an
+unchanged default Ground earned a witness, a deliberately customized
+Description did not, and standalone delete was refused without mutating that
+marker. These unsaved test edits were discarded; the backup and test file
+hashes remained unchanged. The probe is not an installed MCP mutation test.
+
+Immediate delete compensation now obtains an independent explicitly typed
+Ground snapshot after native recreation, rather than trusting the generic
+snapshot returned by create. Missing scope/evidence or incorrect native ID
+cannot pass that readback; the transaction manager still checks the full
+normalized fingerprint. This does not establish an exclusive native writer
+reservation or grant production marker deletion permission.
+
 The Bridge's typed Ground recreation integration is verified through an
 explicitly opted-in unit fixture. The actual production dispatcher does
 not provide that capability, and an MCP caller cannot request or grant it.

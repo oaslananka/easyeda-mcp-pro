@@ -87,8 +87,21 @@ export async function recreatePrimitiveSnapshot(
   if (typeof result?.primitiveId !== 'string' || !result.primitiveId) {
     throw new Error('Recreated primitive did not return an addressable primitive ID');
   }
-  const recreatedSnapshot =
-    result.snapshot ?? (await getPrimitiveSnapshot(bridge, result.primitiveId));
+  const expectedNativeKind = nativeGroundReadKind(snapshot);
+  // A create response is not independent verification of native scope or
+  // isolation. Immediate delete compensation uses the same typed readback
+  // as explicit rollback; never trust an unscoped create-response snapshot.
+  const recreatedSnapshot = expectedNativeKind
+    ? await getPrimitiveSnapshot(bridge, result.primitiveId, expectedNativeKind)
+    : (result.snapshot ?? (await getPrimitiveSnapshot(bridge, result.primitiveId)));
+  if (
+    expectedNativeKind &&
+    (recreatedSnapshot.primitiveId !== result.primitiveId ||
+      recreatedSnapshot.primitiveKind !== expectedNativeKind ||
+      nativeGroundReadKind(recreatedSnapshot) !== expectedNativeKind)
+  ) {
+    throw new Error('Recreated native Ground identity or scoped evidence is not verified');
+  }
   return { primitiveId: result.primitiveId, snapshot: recreatedSnapshot };
 }
 
@@ -214,11 +227,8 @@ function requireBeforeSnapshot(operation: Readonly<TransactionOperation>): unkno
  * primitive is independently queried in the same scoped native kind.
  * Nothing here grants permission to delete markers in production.
  */
-function nativeGroundReadKind(
-  operation: Readonly<TransactionOperation>,
-  beforeSnapshot: unknown,
-): 'netflag' | undefined {
-  if (operation.kind !== 'delete' || !beforeSnapshot || typeof beforeSnapshot !== 'object') {
+function nativeGroundReadKind(beforeSnapshot: unknown): 'netflag' | undefined {
+  if (!beforeSnapshot || typeof beforeSnapshot !== 'object') {
     return undefined;
   }
   if (Array.isArray(beforeSnapshot)) return undefined;
@@ -291,7 +301,8 @@ export async function rollbackEasyedaTransaction(
       const pinSnapshot = asPinNoConnectSnapshot(beforeSnapshot);
       // A native-scoped Ground deletion must be verified through a fresh,
       // explicitly typed bridge read instead of a generic snapshot.
-      const expectedNativeKind = nativeGroundReadKind(operation, beforeSnapshot);
+      const expectedNativeKind =
+        operation.kind === 'delete' ? nativeGroundReadKind(beforeSnapshot) : undefined;
       const snapshot = pinSnapshot
         ? await readPinNoConnectSnapshot(bridge, pinSnapshot)
         : await getPrimitiveSnapshot(

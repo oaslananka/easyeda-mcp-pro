@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { defaultGroundAttributeFields } from './fixtures/native-ground-default-attributes.js';
 import {
   inspectIsolatedNativeGround,
+  inspectReconstructableNativeGround,
   parseNativeGroundIsolation,
 } from '../src/schematic-native-ground-isolation.js';
 
@@ -164,6 +166,54 @@ describe('native Ground isolation descriptor parsing', () => {
     expect(() => parseNativeGroundIsolation(candidate, 'flag-1', invalid)).toThrow(
       'Invalid native Ground isolation descriptor',
     );
+  });
+});
+
+describe('strict native reconstructability preflight', () => {
+  function makeDefaultFixture() {
+    const f = makeFixture();
+    const owned = defaultGroundAttributeFields('flag-1');
+    f.attributes.splice(1, 4, ...owned.map(primitive));
+    return { ...f, owned };
+  }
+
+  it('accepts the independently observed default nine owned attributes', async () => {
+    const f = makeDefaultFixture();
+    await expect(inspectReconstructableNativeGround(f.opts)).resolves.toMatchObject({
+      attributeCount: 10,
+      attributeFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
+    });
+  });
+
+  it.each([
+    ['custom content', 'Name', { Value: 'custom' }],
+    ['custom visibility', 'Global Net Name', { ValueVisible: false }],
+    ['custom geometry', 'Pin Name', { Y: 241 }],
+    ['custom font', 'Pin Number', { FontName: 'Arial' }],
+    ['unexpected reference', 'Relevance', { Value: '[1]' }],
+  ])('refuses %s before earning reconstruction evidence', async (_, key, change) => {
+    const f = makeDefaultFixture();
+    const index = f.owned.findIndex((row) => row.Key === key);
+    f.attributes[index + 1] = primitive({ ...f.owned[index], ...change });
+    await expect(inspectIsolatedNativeGround(f.opts)).resolves.toBeDefined();
+    await expect(inspectReconstructableNativeGround(f.opts)).resolves.toBeUndefined();
+  });
+
+  it('refuses unknown, duplicate and missing native owned attributes', async () => {
+    const f = makeDefaultFixture();
+    f.attributes.push(primitive({ ...f.owned[0], PrimitiveId: 'another-owned-attr' }));
+    await expect(inspectReconstructableNativeGround(f.opts)).resolves.toBeUndefined();
+    f.attributes.pop();
+    f.attributes[1] = primitive({ ...f.owned[0], Key: 'Unexpected' });
+    await expect(inspectReconstructableNativeGround(f.opts)).resolves.toBeUndefined();
+    f.attributes.splice(1, 1);
+    await expect(inspectReconstructableNativeGround(f.opts)).resolves.toBeUndefined();
+  });
+
+  it('does not mistake a readable but non-default Ground for a reconstructable one', async () => {
+    const f = makeFixture();
+    await expect(inspectIsolatedNativeGround(f.opts)).resolves.toBeDefined();
+    await expect(inspectReconstructableNativeGround(f.opts)).resolves.toBeUndefined();
   });
 });
 
