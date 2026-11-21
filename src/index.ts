@@ -18,51 +18,62 @@ import { RemoteGateway } from './remote/gateway.js';
 import { createHostedCloudRuntime } from './cloud/runtime.js';
 import { createHostedUsageAuditLog } from './cloud/usage.js';
 import { assertSupportedNodeRuntime } from './runtime/policy.js';
+import { runPrivateGroundCheck } from './cli/private-ground.js';
 
-async function main() {
+async function handleLocalCommand(): Promise<boolean> {
+  if (process.argv[2] === 'private-ground-check') {
+    assertSupportedNodeRuntime();
+    process.exitCode = await runPrivateGroundCheck(process.argv.slice(3));
+    return true;
+  }
   const cli = parseCliArgs(process.argv.slice(2));
 
   if (!['doctor', 'help', 'version'].includes(cli.command)) assertSupportedNodeRuntime();
 
   if (cli.command === 'init') {
     await runInteractiveInit();
-    return;
+    return true;
   }
 
   if (cli.command === 'setup') {
     process.stdout.write(
       `${runSetup({ client: cli.setupClient as SetupOptions['client'], profile: cli.setupProfile })}\n`,
     );
-    return;
+    return true;
   }
 
   if (cli.command === 'extension') {
     process.stdout.write(`${runExtension({ open: cli.extensionOpen, copy: cli.extensionCopy })}\n`);
-    return;
+    return true;
   }
 
   if (cli.command === 'setup-local') {
     process.stdout.write(`${formatSetupLocalReport()}\n`);
-    return;
+    return true;
   }
 
   if (cli.command === 'doctor') {
     const report = await createDoctorReport();
     process.stdout.write(`${formatDoctorReport(report, { fix: cli.doctorFix })}\n`);
     process.exitCode = doctorExitCode(report);
-    return;
+    return true;
   }
 
   if (cli.command === 'help') {
     process.stdout.write(`${formatHelp()}\n`);
-    return;
+    return true;
   }
 
   if (cli.command === 'version') {
     process.stdout.write(`${formatVersion()}\n`);
-    return;
+    return true;
   }
 
+  return false;
+}
+
+async function main() {
+  if (await handleLocalCommand()) return;
   const config = loadEnvConfig();
   const hostedCloud = await createHostedCloudRuntime(config);
   const registeredHostedToolNames = new Set<string>();

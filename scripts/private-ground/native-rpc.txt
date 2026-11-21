@@ -1,0 +1,94 @@
+return await (async()=>{
+__NATIVE_BUNDLE__
+const req=__NATIVE_REQUEST__;
+const path='/workspace/WORKING.eprj2';
+const {projectId,pageId,markerId}=req.scope;
+const version=()=>eda.sys_Environment.getEditorCurrentVersion();
+const get=(o,k)=>{try{const f=o?.['getState_'+k];return typeof f==='function'?f.call(o):undefined}catch{return undefined}};
+const id=o=>typeof o==='string'?o:(get(o,'PrimitiveId')??o?.primitiveId??'');
+const readFirstPath=paths=>{
+ for(const p of paths){const [first,...rest]=p.split('.');const key=first.replace(/^[A-Z]+(?=_)/,m=>m.toLowerCase());let o=eda[key];for(const k of rest)o=o?.[k];if(o!==undefined)return o}
+};
+const makeError=(code,message)=>Object.assign(new Error(message),{code});
+const callFirst=async(paths,...args)=>{
+ for(const p of paths){const split=p.split('.'),name=split.pop(),parent=readFirstPath([split.join('.')]);if(typeof parent?.[name]==='function')return await parent[name](...args)}
+ throw makeError('METHOD_NOT_FOUND',paths.join(','));
+};
+const scope=async()=>{
+ const p=await eda.dmt_Project.getCurrentProjectInfo(),q=await eda.dmt_SelectControl.getCurrentDocumentInfo();
+ if(version()!=='4.1.105'||p?.uuid!==projectId||q?.uuid!==pageId||q?.parentProjectUuid!==projectId||q?.documentType!==1)throw makeError('SCOPE_MISMATCH','Disposable project/page not focused');
+};
+const ops=NativeTxn.createSchematicTransactionOperations({callFirst, readFirstPath, readState:get, extractPrimitiveId:id,
+ readComponentType:o=>get(o,'ComponentType')??'',readPinPoint:o=>({x:get(o,'X'),y:get(o,'Y'),rotation:get(o,'Rotation')}),
+ createBridgeError:makeError,logRecoverableError:()=>{},asPublicTextAlignMode:v=>typeof v==='number'&&v>=1&&v<=9?v:undefined,
+ requirePublicTextAlignMode:v=>{if(!Number.isInteger(v)||v<1||v>9)throw Error('Bad align');return v},
+ getCachedTextAlignMode:()=>undefined,setCachedTextAlignMode:()=>{},deleteCachedTextAlignMode:()=>{},getEasyedaVersion:version,
+ allowExperimentalPowerNetFlagRecreation:()=>true});
+const compare=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+const inventory=async()=>{
+ const read=async kind=>{const api=eda['sch_Primitive'+kind],all=await api.getAll(),ids=await api.getAllPrimitiveId();if(!Array.isArray(all)||!Array.isArray(ids)||all.length!==ids.length||new Set(ids).size!==ids.length||!all.every(v=>ids.includes(id(v))))throw makeError('INVENTORY_MISMATCH',kind);return all};
+ const components=await read('Component'),wires=await read('Wire'),pins=await read('Pin'),attrs=await read('Attribute');
+ if(wires.length||pins.length)throw makeError('CONNECTED_PAGE','Page no longer isolated');
+ return {components:components.map(v=>({id:id(v),kind:get(v,'ComponentType')})),attributeCount:attrs.length};
+};
+try {
+ if(req.method==='bootstrap'){
+  if(version()!=='4.1.105'||!await eda.dmt_Project.waitForReady(path,18000))throw Error('Unsupported editor or project');
+  const pages=await eda.dmt_Schematic.getAllSchematicPagesInfo();
+  if(!Array.isArray(pages)||pages.length!==1||typeof pages[0]?.uuid!=='string')throw Error('Only a single schematic page is supported');
+  const pageId=pages[0].uuid;
+  const tab=await eda.dmt_EditorControl.openDocument(pageId);
+  if(!tab||!await eda.dmt_EditorControl.waitForDocumentReady(tab,16000)||!await eda.dmt_EditorControl.activateDocument(tab))throw Error('Page focus failed');
+  const p=await eda.dmt_Project.getCurrentProjectInfo(),q=await eda.dmt_SelectControl.getCurrentDocumentInfo();
+  if(!p?.uuid||q?.uuid!==pageId||q?.parentProjectUuid!==p.uuid||q?.documentType!==1)throw Error('Project scope not verified');
+  const a=await inventory();
+  if(a.components.length!==2||a.attributeCount!==38||a.components.filter(x=>x.kind==='sheet').length!==1||a.components.filter(x=>x.kind==='netflag').length!==1)throw Error('Only the verified default disconnected Ground profile is supported');
+  const markerId=a.components.find(x=>x.kind==='netflag').id;
+  const snapshot=await ops.getPrimitiveSnapshot(markerId,'netflag');
+  if(snapshot.nativeIsolation?.kind!=='verified-disconnected-ground/v2'||snapshot.nativeContext?.projectId!==p.uuid||snapshot.nativeContext?.documentId!==pageId)throw Error('Native Ground profile unsupported');
+  return {result:{projectId:p.uuid,pageId,markerId,snapshot}};
+ }
+ await scope();
+ if(req.method==='privateGround.getRecreationDevice'){
+  const f=await eda.sys_FileManager.getDeviceFileByDeviceUuid('af20086a8911a85a','project','elibz2');
+  const v=await eda.lib_Device.get('2e4e71fea06848c9a86eef0ed6338204','0819f05c4eef4c71ace90d822a990e87');
+  await scope();
+  if(!f||f.size<1||f.size>65536||!v)return {result:null};
+  const bytes=new Uint8Array(await f.arrayBuffer());let binary='';
+  for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.slice(i,i+8192));
+  return {result:{archive:btoa(binary),systemDevice:{uuid:v.uuid,libraryUuid:v.libraryUuid,name:v.name,association:v.association?.symbol}}};
+ }
+ if(req.method==='schematic.getPrimitiveSnapshot'){
+  const snap=await ops.getPrimitiveSnapshot(req.params.primitiveId,'netflag');
+  await scope();return {result:snap};
+ }
+ if(req.method==='inventory')return {result:await inventory()};
+ if(req.method==='privateGround.delete'){
+  if(req.params.primitiveId!==markerId)throw Error('Wrong bound Ground marker');
+  const actual=await ops.getPrimitiveSnapshot(markerId,'netflag');
+  if(actual.nativeIsolation?.kind!=='verified-disconnected-ground/v2'||actual.nativeIsolation.attributeCount!==38||
+    !compare(actual,req.params.snapshot))throw makeError('PRECONDITION_CHANGED','Native snapshot fingerprint changed before delete');
+  const before=await inventory();
+  if(before.components.length!==2||before.attributeCount!==38||!before.components.some(x=>x.id===markerId&&x.kind==='netflag'))throw Error('Unexpected pre-delete inventory');
+  await scope();
+  // Private file only; the ordinary production dispatcher remains fail-closed.
+  const ack=await eda.sch_PrimitiveComponent.delete([markerId]);
+  await scope();
+  const after=await inventory();
+  const old=await eda.sch_PrimitiveComponent.get(markerId);
+  if(ack!==true||old||after.components.length!==1||after.components[0].kind!=='sheet'||after.attributeCount!==29)throw makeError('DELETE_UNCONFIRMED','Native delete not reconciled');
+  return {result:{deleted:[markerId],notFound:[],inventory:after}};
+ }
+ if(req.method==='schematic.recreatePrimitiveSnapshot'){
+  const before=await inventory();
+  if(before.components.length!==1||before.components[0].kind!=='sheet'||before.attributeCount!==29||req.params.snapshot.primitiveId!==markerId)throw Error('Ground reconstruction precondition failed');
+  const created=await ops.recreatePrimitiveSnapshot(req.params.snapshot);
+  await scope();return {result:created};
+ }
+ if(req.method==='schematic.save'){
+  const before=await inventory();if(before.components.length!==2||before.attributeCount!==38)throw Error('Do not save unverified state');
+  return {result:await eda.sch_Document.save()};
+ }
+ throw Error('Unsupported private worker RPC');
+} catch(e){return {error:{code:e?.code??'PRIVATE_GROUND_FAILURE',message:String(e?.message??e)}}}
+})();

@@ -173,6 +173,31 @@ general native writer lock. The production GUI/Cloud allowlist remains
 unchanged. The native document-source beta API is not used for production
 rollback.
 
+The explicit Linux-only acceptance command is:
+
+    easyeda-mcp-pro private-ground-check --project input.eprj2 --output verified.eprj2 \
+      --editor /path/to/easyeda-pro --activation /path/to/existing-activation.txt \
+      --confirm-write --allow-library-network
+
+This runs a real MCP delete/rollback round-trip against a disposable copy
+of the narrowly supported V4.1.105 single-page default Ground fixture,
+including the verified project-local device and symbol IDs and exact owned
+attribute profile. Other project-local IDs are currently unsupported. It
+does not expose a general interactive worker or extend ordinary marker
+mutation permission. It needs a non-root Linux account with functional
+user namespaces, bubblewrap, Xvfb, socat, Python 3, and a legitimate locally
+activated EasyEDA Pro 4.1.105 installation. The output must not exist.
+The worker uses a separate network namespace and a bounded CONNECT relay
+to pro.easyeda.com; the relay restricts destinations, not individual
+encrypted requests. No existing editor profile or login is reused.
+The native editor receives the selected local offline activation through a
+read-only mount; the HTTPS relay does not inspect encrypted vendor traffic.
+If the precise device, topology, native state or persistence cannot be
+verified, it produces no output. The original is never overwritten.
+The command publishes only after a fresh isolated native cold reopen and
+matching snapshot, with a no-clobber output operation. This is a narrow
+acceptance/diagnostic workflow, not a claim of general component rollback.
+
 The Bridge's typed Ground recreation integration is verified through an
 explicitly opted-in unit fixture. The actual production dispatcher does
 not provide that capability, and an MCP caller cannot request or grant it.
