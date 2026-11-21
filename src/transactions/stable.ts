@@ -101,7 +101,7 @@ export function snapshotForHash(
     typeof isolation === 'object' &&
     !Array.isArray(isolation) &&
     record.primitiveKind === 'netflag' &&
-    (isolation as Record<string, unknown>).kind === 'verified-disconnected-ground/v1' &&
+    (isolation as Record<string, unknown>).kind === 'verified-disconnected-ground/v2' &&
     typeof record.primitiveId === 'string' &&
     (isolation as Record<string, unknown>).markerId === record.primitiveId
   ) {

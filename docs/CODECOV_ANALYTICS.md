@@ -202,6 +202,21 @@ loader **429,710 to 432,854 bytes** (+3,144), dispatcher **343,780 to
 346,923 bytes** (+3,143). Strict output-plus-five byte limits remain
 **251,377 / 432,859 / 346,928**. Integrity checks remain enabled.
 
+The #1102 Ground evidence version 2 adds exact native attribute
+list/get validation and SHA-256 semantic fingerprinting to detect content,
+style, geometry or visibility changes even when attribute counts agree.
+Only regenerated IDs, generated sheet update metadata and the narrowly
+observed unset Relevance visibility representation are normalized.
+An isolated real V4.1.105 native CLI fixture exercised the source
+TransactionManager and Bridge snapshot/recreation code; it initially
+detected a genuine representation mismatch and then verified a fresh
+rollback with matching fingerprint. This is not production MCP marker
+permission or cross-process native writer acceptance. The archive grew
+from **251,372 to 253,219 bytes** (+1,847), loader **432,854 to 436,206
+bytes** (+3,352), dispatcher **346,923 to 350,275 bytes** (+3,352).
+Enforced byte budgets remain actual plus five: **253,224 / 436,211 /
+350,280**. No check is disabled.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:

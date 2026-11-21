@@ -1,5 +1,10 @@
 import { verifiedNativeGroundDescriptor } from './schematic-native-ground-identity.js';
 import { isRecord } from './utils.js';
+import {
+  fingerprintGroundAttributes,
+  readGroundAttributeState,
+  type GroundAttributeState,
+} from './schematic-native-ground-attributes.js';
 
 type NativeReader = {
   getAll?: () => Promise<unknown>;
@@ -13,13 +18,14 @@ interface InventoryRecord {
 }
 
 export interface NativeGroundIsolationEvidence {
-  kind: 'verified-disconnected-ground/v1';
+  kind: 'verified-disconnected-ground/v2';
   markerId: string;
   componentCount: 2;
   wireCount: 0;
   pagePinCount: 0;
   embeddedPinCount: 1;
   attributeCount: number;
+  attributeFingerprint: string;
 }
 
 function isBoundedAttributeCount(value: unknown): value is number {
@@ -35,6 +41,7 @@ function hasExactIsolationKeys(value: Record<string, unknown>): boolean {
     'pagePinCount',
     'embeddedPinCount',
     'attributeCount',
+    'attributeFingerprint',
   ];
   return (
     Object.keys(value).length === keys.length &&
@@ -54,7 +61,7 @@ export function parseNativeGroundIsolation(
   if (
     !isRecord(input) ||
     !hasExactIsolationKeys(input) ||
-    input.kind !== 'verified-disconnected-ground/v1' ||
+    input.kind !== 'verified-disconnected-ground/v2' ||
     typeof primitiveId !== 'string' ||
     !primitiveId ||
     input.markerId !== primitiveId ||
@@ -62,18 +69,21 @@ export function parseNativeGroundIsolation(
     input.wireCount !== 0 ||
     input.pagePinCount !== 0 ||
     input.embeddedPinCount !== 1 ||
-    !isBoundedAttributeCount(input.attributeCount)
+    !isBoundedAttributeCount(input.attributeCount) ||
+    typeof input.attributeFingerprint !== 'string' ||
+    !/^[0-9a-f]{64}$/.test(input.attributeFingerprint)
   ) {
     throw invalid('Invalid native Ground isolation descriptor');
   }
   return {
-    kind: 'verified-disconnected-ground/v1',
+    kind: 'verified-disconnected-ground/v2',
     markerId: primitiveId,
     componentCount: 2,
     wireCount: 0,
     pagePinCount: 0,
     embeddedPinCount: 1,
     attributeCount: input.attributeCount,
+    attributeFingerprint: input.attributeFingerprint,
   };
 }
 
@@ -99,7 +109,8 @@ function requiredReader(deps: GroundIsolationDependencies, kind: InventoryKind):
   if (
     typeof reader?.getAll !== 'function' ||
     typeof reader.getAllPrimitiveId !== 'function' ||
-    ((kind === 'Component' || kind === 'Pin') && typeof reader.get !== 'function')
+    ((kind === 'Component' || kind === 'Pin' || kind === 'Attribute') &&
+      typeof reader.get !== 'function')
   ) {
     throw new Error('Native ' + kind + ' inventory readback unavailable');
   }
@@ -231,47 +242,63 @@ async function readVerifiedEmbeddedGroundPin(
   return { id, signature };
 }
 
-function readVerifiedGroundAttributes(
+async function readVerifiedGroundAttributes(
   deps: GroundIsolationDependencies,
+  reader: NativeReader,
   attributes: NativeInventory,
   sheetId: string,
   pinId: string,
-): unknown[][] {
+): Promise<{ exact: unknown[][]; states: GroundAttributeState[] }> {
   const allowedPinKeys = new Map([
     ['Pin Name', 'Pin1'],
     ['Pin Number', '1'],
     ['Pin Type', 'IN'],
   ]);
   const seen = new Set<string>();
-  const entries = attributes.items.map(({ id, primitive }) => {
+  const exact: unknown[][] = [];
+  const states: GroundAttributeState[] = [];
+  for (const { id, primitive } of attributes.items) {
     const owner = deps.readState(primitive, 'ParentPrimitiveId');
-    const value = deps.readState(primitive, 'Value');
-    const key = deps.readState(primitive, 'Key');
-    if (owner === pinId) {
-      if (typeof key !== 'string' || seen.has(key) || allowedPinKeys.get(key) !== value) {
+    const role =
+      owner === sheetId
+        ? 'sheet'
+        : owner === deps.markerId
+          ? 'marker'
+          : owner === pinId
+            ? 'pin'
+            : undefined;
+    if (!role) throw new Error('Attribute ownership not safely readable');
+    const state = readGroundAttributeState(deps.readState, primitive, role);
+    if (role === 'pin') {
+      if (seen.has(state.key) || allowedPinKeys.get(state.key) !== state.value) {
         throw new Error('Ground embedded pin attributes do not match native pin');
       }
-      seen.add(key);
+      seen.add(state.key);
     }
+    const direct = await reader.get?.(id);
     if (
-      (owner !== sheetId && owner !== deps.markerId && owner !== pinId) ||
-      (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') ||
-      (typeof value === 'string' && value.length > 1024) ||
-      (typeof value === 'number' && !Number.isFinite(value))
+      !direct ||
+      deps.extractPrimitiveId(direct) !== id ||
+      deps.readState(direct, 'ParentPrimitiveId') !== owner ||
+      JSON.stringify(readGroundAttributeState(deps.readState, direct, role)) !==
+        JSON.stringify(state)
     ) {
-      throw new Error('Attribute ownership or value not safely readable');
+      throw new Error('Native exact-ID attribute read differs from inventory');
     }
-    return [id, owner, key, value];
-  });
+    exact.push([id, owner, state]);
+    states.push(state);
+  }
   if (seen.size !== allowedPinKeys.size) {
     throw new Error('Native Ground embedded pin attributes incomplete');
   }
-  return entries;
+  return { exact, states };
 }
 
 async function capture(deps: GroundIsolationDependencies): Promise<{
   canonical: string;
   count: number;
+  sheetId: string;
+  states: GroundAttributeState[];
 }> {
   const wireReader = requiredReader(deps, 'Wire');
   const pinReader = requiredReader(deps, 'Pin');
@@ -303,7 +330,13 @@ async function capture(deps: GroundIsolationDependencies): Promise<{
   }
 
   const pin = await readVerifiedEmbeddedGroundPin(deps, marker, direct, pinReader);
-  const attributeEntries = readVerifiedGroundAttributes(deps, attributes, sheet.id, pin.id);
+  const attributeEntries = await readVerifiedGroundAttributes(
+    deps,
+    attributeReader,
+    attributes,
+    sheet.id,
+    pin.id,
+  );
   return {
     canonical: JSON.stringify([
       sheet.id,
@@ -311,9 +344,11 @@ async function capture(deps: GroundIsolationDependencies): Promise<{
       markerSignature,
       pin.id,
       pin.signature,
-      attributeEntries,
+      attributeEntries.exact,
     ]),
-    count: attributeEntries.length,
+    count: attributeEntries.exact.length,
+    sheetId: sheet.id,
+    states: attributeEntries.states,
   };
 }
 
@@ -333,13 +368,14 @@ export async function inspectIsolatedNativeGround(
     const second = await capture(deps);
     if (first.canonical !== second.canonical) return undefined;
     return {
-      kind: 'verified-disconnected-ground/v1',
+      kind: 'verified-disconnected-ground/v2',
       markerId: deps.markerId,
       componentCount: 2,
       wireCount: 0,
       pagePinCount: 0,
       embeddedPinCount: 1,
       attributeCount: second.count,
+      attributeFingerprint: await fingerprintGroundAttributes(second.sheetId, second.states),
     };
   } catch {
     return undefined;

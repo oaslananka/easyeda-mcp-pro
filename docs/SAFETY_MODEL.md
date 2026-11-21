@@ -89,6 +89,29 @@ native variants remain unverified. The descriptor is direction/identity
 evidence only, not proof of electrical isolation, attribute equivalence,
 a native writer reservation or supported transactional deletion.
 
+The isolated Ground evidence format is now version 2. It compares exact
+attribute list/ID/get results across two native reads and includes a
+SHA-256 fingerprint of every verified owned attribute's key, value, position,
+rotation, color, font, alignment, text style, fill and visibility. The
+fingerprint retains the surviving sheet identity and multiplicity; regenerated
+marker/pin/attribute IDs do not change the semantic digest. Only native
+sheet update date/time metadata and the unset (undefined versus null)
+visibility fields of empty marker Relevance metadata are normalized.
+Actual true/false visibility and other content or style changes are not
+equivalent. Raw repeated reads still compare exact unnormalized state.
+
+A disposable V4.1.105 acceptance harness using the repository's actual
+TransactionManager and source-built Bridge snapshot/recreation operations
+through the native CLI demonstrated a real Ground delete and verified
+rollback with a new ID and matching full attribute fingerprint. The initial
+run deliberately failed rollback verification on the observed unset metadata
+representation change; a fresh copy passed after the narrow normalization.
+An altered pre-delete fingerprint was refused before mutation in the
+fixture harness. The native Save was acknowledged. This is **not** acceptance
+of a production MCP dispatcher marker-delete method or native writer fence;
+fixture-only deletion/recreation remains opt-in, and the production
+transactional delete allowlist is unchanged.
+
 The Bridge's typed Ground recreation integration is verified through an
 explicitly opted-in unit fixture. The actual production dispatcher does
 not provide that capability, and an MCP caller cannot request or grant it.

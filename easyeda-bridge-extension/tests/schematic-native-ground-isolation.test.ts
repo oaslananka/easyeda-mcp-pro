@@ -11,9 +11,28 @@ const symbol = {
 };
 
 type Field = Record<string, unknown>;
+const attrDefaults = {
+  PrimitiveType: 'Attribute',
+  Key: 'Description',
+  X: null,
+  Y: 0,
+  Rotation: null,
+  Color: null,
+  FontName: null,
+  FontSize: null,
+  Bold: null,
+  Italic: null,
+  UnderLine: null,
+  AlignMode: null,
+  FillColor: null,
+  KeyVisible: null,
+  ValueVisible: null,
+};
 const primitive = (fields: Field) =>
   Object.fromEntries(
-    Object.entries(fields).map(([name, value]) => ['getState_' + name, () => value]),
+    Object.entries('ParentPrimitiveId' in fields ? { ...attrDefaults, ...fields } : fields).map(
+      ([name, value]) => ['getState_' + name, () => value],
+    ),
   );
 
 function makeFixture() {
@@ -102,13 +121,14 @@ function makeFixture() {
 
 describe('native Ground isolation descriptor parsing', () => {
   const valid = {
-    kind: 'verified-disconnected-ground/v1',
+    kind: 'verified-disconnected-ground/v2',
     markerId: 'flag-1',
     componentCount: 2,
     wireCount: 0,
     pagePinCount: 0,
     embeddedPinCount: 1,
     attributeCount: 38,
+    attributeFingerprint: 'a'.repeat(64),
   };
   const invalid = (message: string) =>
     Object.assign(new Error(message), { code: 'INVALID_PARAMS' });
@@ -135,6 +155,9 @@ describe('native Ground isolation descriptor parsing', () => {
       { ...valid, attributeCount: 0 },
       { ...valid, attributeCount: 257 },
       { ...valid, attributeCount: 1.5 },
+      { ...valid, attributeFingerprint: undefined },
+      { ...valid, attributeFingerprint: 'bad-hash' },
+      { ...valid, kind: 'verified-disconnected-ground/v1' },
       { ...valid, additionalCapability: true },
     ].slice(1),
   )('refuses malformed or overclaimed native Ground evidence: %j', (candidate) => {
@@ -145,10 +168,68 @@ describe('native Ground isolation descriptor parsing', () => {
 });
 
 describe('native disconnected Ground topology inspection', () => {
+  it('distinguishes stable inventories with equal counts but different attribute contents', async () => {
+    const f = makeFixture();
+    const original = await inspectIsolatedNativeGround(f.opts);
+    f.attributes[1] = primitive({
+      PrimitiveId: 'a-2',
+      ParentPrimitiveId: 'flag-1',
+      Key: 'Description',
+      Value: 'changed',
+    });
+    const changed = await inspectIsolatedNativeGround(f.opts);
+    expect(original?.attributeFingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(changed?.attributeCount).toBe(original?.attributeCount);
+    expect(changed?.attributeFingerprint).not.toBe(original?.attributeFingerprint);
+  });
+
+  it('normalizes only unset visibility in empty native marker Relevance metadata', async () => {
+    const f = makeFixture();
+    const base = { PrimitiveId: 'a-2', ParentPrimitiveId: 'flag-1', Key: 'Relevance', Value: '[]' };
+    f.attributes[1] = primitive({ ...base, KeyVisible: undefined, ValueVisible: undefined });
+    const before = await inspectIsolatedNativeGround(f.opts);
+    expect(before?.attributeFingerprint).toMatch(/^[0-9a-f]{64}$/);
+    f.attributes[1] = primitive({ ...base, KeyVisible: null, ValueVisible: null });
+    const restored = await inspectIsolatedNativeGround(f.opts);
+    expect(restored?.attributeFingerprint).toBe(before?.attributeFingerprint);
+    f.attributes[1] = primitive({ ...base, KeyVisible: false, ValueVisible: null });
+    const actualVisibilityChanged = await inspectIsolatedNativeGround(f.opts);
+    expect(actualVisibilityChanged?.attributeFingerprint).not.toBe(before?.attributeFingerprint);
+    f.attributes[1] = primitive({ ...base, Value: '[1]', KeyVisible: undefined });
+    await expect(inspectIsolatedNativeGround(f.opts)).resolves.toBeUndefined();
+    f.attributes[1] = primitive({ ...base, Key: 'Name', Value: 'GND', ValueVisible: undefined });
+    await expect(inspectIsolatedNativeGround(f.opts)).resolves.toBeUndefined();
+  });
+
+  it('detects an attribute geometry change without a count or content change', async () => {
+    const f = makeFixture();
+    const before = await inspectIsolatedNativeGround(f.opts);
+    f.attributes[1] = primitive({
+      PrimitiveId: 'a-2',
+      ParentPrimitiveId: 'flag-1',
+      Value: 'GND',
+      X: 123,
+    });
+    const after = await inspectIsolatedNativeGround(f.opts);
+    expect(after?.attributeCount).toBe(before?.attributeCount);
+    expect(after?.attributeFingerprint).not.toBe(before?.attributeFingerprint);
+  });
+
+  it('refuses a stale exact attribute read even when the inventory and counts match', async () => {
+    const f = makeFixture();
+    const original = f.owners.SCH_PrimitiveAttribute.get.getMockImplementation();
+    f.owners.SCH_PrimitiveAttribute.get.mockImplementation(async (id: string) =>
+      id === 'a-2'
+        ? primitive({ PrimitiveId: id, ParentPrimitiveId: 'flag-1', Value: 'changed' })
+        : original?.(id),
+    );
+    await expect(inspectIsolatedNativeGround(f.opts)).resolves.toBeUndefined();
+  });
+
   it('accepts two independent, exact-ID native inventories with sheet-owned attributes', async () => {
     const { opts, owners } = makeFixture();
     await expect(inspectIsolatedNativeGround(opts)).resolves.toMatchObject({
-      kind: 'verified-disconnected-ground/v1',
+      kind: 'verified-disconnected-ground/v2',
       markerId: 'flag-1',
       componentCount: 2,
       wireCount: 0,

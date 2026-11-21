@@ -48,13 +48,14 @@ const groundSnapshot = (id: string) => ({
   },
   nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
   nativeIsolation: {
-    kind: 'verified-disconnected-ground/v1',
+    kind: 'verified-disconnected-ground/v2',
     markerId: id,
     componentCount: 2,
     wireCount: 0,
     pagePinCount: 0,
     embeddedPinCount: 1,
     attributeCount: 38,
+    attributeFingerprint: 'a'.repeat(64),
   },
 });
 
@@ -140,6 +141,15 @@ describe('native-scoped Ground rollback reconciliation', () => {
       },
     },
     { label: 'missing native isolation evidence', replacement: { nativeIsolation: undefined } },
+    {
+      label: 'changed normalized native attributes despite matching counts',
+      replacement: {
+        nativeIsolation: {
+          ...groundSnapshot('flag-new').nativeIsolation,
+          attributeFingerprint: 'b'.repeat(64),
+        },
+      },
+    },
     {
       label: 'connected native topology',
       replacement: {

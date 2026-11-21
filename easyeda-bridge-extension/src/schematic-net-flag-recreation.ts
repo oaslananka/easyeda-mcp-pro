@@ -23,7 +23,7 @@ function hasExactPowerFlagProperties(property: Record<string, unknown>): boolean
 function hasMatchingGroundIsolation(snapshot: SchematicPrimitiveSnapshot): boolean {
   const evidence = snapshot.nativeIsolation;
   return (
-    evidence?.kind === 'verified-disconnected-ground/v1' &&
+    evidence?.kind === 'verified-disconnected-ground/v2' &&
     typeof snapshot.primitiveId === 'string' &&
     snapshot.primitiveId.length > 0 &&
     evidence.markerId === snapshot.primitiveId &&
@@ -33,7 +33,9 @@ function hasMatchingGroundIsolation(snapshot: SchematicPrimitiveSnapshot): boole
     evidence.embeddedPinCount === 1 &&
     Number.isInteger(evidence.attributeCount) &&
     evidence.attributeCount > 0 &&
-    evidence.attributeCount <= 256
+    evidence.attributeCount <= 256 &&
+    typeof evidence.attributeFingerprint === 'string' &&
+    /^[0-9a-f]{64}$/.test(evidence.attributeFingerprint)
   );
 }
 

@@ -12,13 +12,14 @@ const nativeGround = {
 };
 
 const nativeGroundIsolation = {
-  kind: 'verified-disconnected-ground/v1' as const,
+  kind: 'verified-disconnected-ground/v2' as const,
   markerId: 'netflag-old',
   componentCount: 2 as const,
   wireCount: 0 as const,
   pagePinCount: 0 as const,
   embeddedPinCount: 1 as const,
   attributeCount: 38,
+  attributeFingerprint: 'a'.repeat(64),
 };
 
 function snapshot(

@@ -233,7 +233,7 @@ function nativeGroundReadKind(
   ) {
     return undefined;
   }
-  return (isolation as Record<string, unknown>).kind === 'verified-disconnected-ground/v1'
+  return (isolation as Record<string, unknown>).kind === 'verified-disconnected-ground/v2'
     ? 'netflag'
     : undefined;
 }

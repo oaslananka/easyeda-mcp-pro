@@ -100,13 +100,14 @@ describe('untrusted native Ground reconstruction descriptor', () => {
     mirror: false,
   };
   const evidence = {
-    kind: 'verified-disconnected-ground/v1',
+    kind: 'verified-disconnected-ground/v2',
     markerId: 'flag-1',
     componentCount: 2,
     wireCount: 0,
     pagePinCount: 0,
     embeddedPinCount: 1,
     attributeCount: 38,
+    attributeFingerprint: 'a'.repeat(64),
   };
 
   it.each([
@@ -581,9 +582,28 @@ describe('schematic transaction operations', () => {
   });
 
   it('attaches read-only isolation evidence only after complete native inventories and stable focus', async () => {
+    const attrDefaults = {
+      PrimitiveType: 'Attribute',
+      Key: 'Description',
+      X: null,
+      Y: 0,
+      Rotation: null,
+      Color: null,
+      FontName: null,
+      FontSize: null,
+      Bold: null,
+      Italic: null,
+      UnderLine: null,
+      AlignMode: null,
+      FillColor: null,
+      KeyVisible: null,
+      ValueVisible: null,
+    };
     const primitive = (fields: Record<string, unknown>) =>
       Object.fromEntries(
-        Object.entries(fields).map(([key, value]) => ['getState_' + key, () => value]),
+        Object.entries('ParentPrimitiveId' in fields ? { ...attrDefaults, ...fields } : fields).map(
+          ([key, value]) => ['getState_' + key, () => value],
+        ),
       );
     const sheet = primitive({ PrimitiveId: 'sheet-1', ComponentType: 'sheet' });
     const pin = primitive({
@@ -667,7 +687,7 @@ describe('schematic transaction operations', () => {
     expect(result).toMatchObject({
       nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
       nativeIsolation: {
-        kind: 'verified-disconnected-ground/v1',
+        kind: 'verified-disconnected-ground/v2',
         markerId: 'flag-1',
         componentCount: 2,
         pagePinCount: 0,
