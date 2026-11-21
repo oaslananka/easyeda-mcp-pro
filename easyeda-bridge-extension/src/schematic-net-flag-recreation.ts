@@ -1,16 +1,22 @@
 import type { SchematicPrimitiveSnapshot } from './schematic-transaction-operations.js';
-import { isVerifiedV4GroundSymbol } from './schematic-native-ground-identity.js';
+import {
+  isVerifiedV4GroundSymbol,
+  type PrivateGroundProfile,
+} from './schematic-native-ground-identity.js';
 import type { SchematicSnapshotRecreationDependencies } from './schematic-snapshot-recreation.js';
 
 type NativeContext = NonNullable<SchematicPrimitiveSnapshot['nativeContext']>;
 type NativeProject = { uuid?: unknown };
 type NativeDocument = { uuid?: unknown; parentProjectUuid?: unknown; documentType?: unknown };
 
-function hasExactPowerFlagProperties(property: Record<string, unknown>): boolean {
+function hasExactPowerFlagProperties(
+  property: Record<string, unknown>,
+  profile?: PrivateGroundProfile,
+): boolean {
   return (
     property.identification === 'Ground' &&
     property.net === 'GND' &&
-    isVerifiedV4GroundSymbol(property.nativeSymbol) &&
+    isVerifiedV4GroundSymbol(property.nativeSymbol, profile) &&
     property.mirror === false &&
     property.rotation === 0 &&
     Number.isSafeInteger(property.x) &&
@@ -18,20 +24,32 @@ function hasExactPowerFlagProperties(property: Record<string, unknown>): boolean
   );
 }
 
+function matchesGroundTopology(
+  evidence: NonNullable<SchematicPrimitiveSnapshot['nativeIsolation']>,
+  profile?: PrivateGroundProfile,
+): boolean {
+  return (
+    evidence.componentCount === (profile?.sheetCount === 0 ? 1 : 2) &&
+    evidence.wireCount === 0 &&
+    evidence.pagePinCount === 0 &&
+    evidence.embeddedPinCount === 1
+  );
+}
+
 /** This is a bounded fixture descriptor check, not an authorization token.
  * Production still denies marker deletion and does not enable this capability.
  */
-function hasMatchingGroundIsolation(snapshot: SchematicPrimitiveSnapshot): boolean {
+function hasMatchingGroundIsolation(
+  snapshot: SchematicPrimitiveSnapshot,
+  profile?: PrivateGroundProfile,
+): boolean {
   const evidence = snapshot.nativeIsolation;
   return (
     evidence?.kind === 'verified-disconnected-ground/v2' &&
     typeof snapshot.primitiveId === 'string' &&
     snapshot.primitiveId.length > 0 &&
     evidence.markerId === snapshot.primitiveId &&
-    evidence.componentCount === 2 &&
-    evidence.wireCount === 0 &&
-    evidence.pagePinCount === 0 &&
-    evidence.embeddedPinCount === 1 &&
+    matchesGroundTopology(evidence, profile) &&
     Number.isInteger(evidence.attributeCount) &&
     evidence.attributeCount > 0 &&
     evidence.attributeCount <= 256 &&
@@ -49,8 +67,8 @@ function requirePowerDescriptor(
     deps.allowExperimentalPowerNetFlagRecreation?.() !== true ||
     deps.getEasyedaVersion?.() !== '4.1.105' ||
     snapshot.componentType !== 'netflag' ||
-    !hasExactPowerFlagProperties(property) ||
-    !hasMatchingGroundIsolation(snapshot)
+    !hasExactPowerFlagProperties(property, deps.privateGroundProfile) ||
+    !hasMatchingGroundIsolation(snapshot, deps.privateGroundProfile)
   ) {
     throw deps.createBridgeError(
       'UNSUPPORTED_RUNTIME',

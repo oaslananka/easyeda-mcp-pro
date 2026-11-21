@@ -7,21 +7,28 @@ function record(value: unknown): RecordValue {
   return value as RecordValue;
 }
 
+interface PrivateGroundProfile {
+  deviceUuid: string;
+  symbolUuid: string;
+  sheetCount: 0 | 1;
+}
+
 interface PrivateGroundHostAdapter {
   sessionId: string;
   path: string;
   projectId: string;
   pageId: string;
   markerId: string;
+  groundProfile: PrivateGroundProfile;
   listSessions(): Promise<unknown>;
   invoke(method: string, params: RecordValue): Promise<unknown>;
 }
 
-function hasGroundDevice(value: unknown): boolean {
+function hasGroundDevice(value: unknown, profile: PrivateGroundProfile): boolean {
   const symbol = record(value);
   return (
     symbol.name === 'Ground-GND' &&
-    symbol.uuid === 'af20086a8911a85a' &&
+    symbol.uuid === profile.deviceUuid &&
     symbol.libraryUuid === '0819f05c4eef4c71ace90d822a990e87'
   );
 }
@@ -36,13 +43,15 @@ const GROUND_SOURCE_SYMBOL = '1c18ed5a06f64a07bdb5b0cf525b3d9e';
  * provenance from the native project device export and independently resolve
  * the exact source device. The project-local UUID alone is not a system UUID.
  */
-function hasGroundCreationDevice(value: unknown): boolean {
+function hasGroundCreationDevice(value: unknown, profile: PrivateGroundProfile): boolean {
   const evidence = record(value);
   const device = record(evidence.systemDevice);
   const symbol = record(device.association);
   return (
-    evidence.projectDeviceUuid === 'af20086a8911a85a' &&
-    evidence.projectSymbolUuid === '17c558f9e954b079' &&
+    evidence.projectDeviceUuid === profile.deviceUuid &&
+    evidence.projectSymbolUuid === profile.symbolUuid &&
+    evidence.geometryFingerprint ===
+      '478117d8bd516816a28e9714e4511dc961a85a996b7221ef6c66de2b9439c2ef' &&
     evidence.deviceSource === GROUND_SOURCE_DEVICE + '|' + GROUND_LIBRARY &&
     evidence.symbolSource === GROUND_SOURCE_SYMBOL + '|' + GROUND_LIBRARY &&
     device.name === 'Ground-GND' &&
@@ -54,7 +63,11 @@ function hasGroundCreationDevice(value: unknown): boolean {
   );
 }
 
-function hasGroundIdentity(snapshot: PrimitiveSnapshotResult, id: string): boolean {
+function hasGroundIdentity(
+  snapshot: PrimitiveSnapshotResult,
+  id: string,
+  profile: PrivateGroundProfile,
+): boolean {
   const property = record(snapshot.property);
   return (
     snapshot.schemaVersion === 'schematic-primitive-snapshot/v1' &&
@@ -63,7 +76,7 @@ function hasGroundIdentity(snapshot: PrimitiveSnapshotResult, id: string): boole
     snapshot.componentType === 'netflag' &&
     property.identification === 'Ground' &&
     property.net === 'GND' &&
-    hasGroundDevice(property.nativeSymbol) &&
+    hasGroundDevice(property.nativeSymbol, profile) &&
     Number.isSafeInteger(property.x) &&
     Number.isSafeInteger(property.y) &&
     property.rotation === 0 &&
@@ -83,18 +96,20 @@ function hasGroundScope(
   );
 }
 
-function hasGroundWitness(snapshot: PrimitiveSnapshotResult, id: string): boolean {
+function hasGroundWitness(
+  snapshot: PrimitiveSnapshotResult,
+  id: string,
+  profile: PrivateGroundProfile,
+): boolean {
   const witness = record(snapshot.nativeIsolation);
   return (
     witness.kind === 'verified-disconnected-ground/v2' &&
     witness.markerId === id &&
-    witness.componentCount === 2 &&
+    witness.componentCount === profile.sheetCount + 1 &&
     witness.wireCount === 0 &&
     witness.pagePinCount === 0 &&
     witness.embeddedPinCount === 1 &&
-    Number.isSafeInteger(witness.attributeCount) &&
-    Number(witness.attributeCount) >= 9 &&
-    Number(witness.attributeCount) <= 256 &&
+    witness.attributeCount === (profile.sheetCount === 0 ? 9 : 38) &&
     typeof witness.attributeFingerprint === 'string' &&
     /^[0-9a-f]{64}$/.test(witness.attributeFingerprint)
   );
@@ -115,7 +130,20 @@ export class PrivateNativeGroundSession implements TransactionBridgeCaller {
   private restoredId: string | undefined;
   private busy = false;
 
-  constructor(private readonly host: PrivateGroundHostAdapter) {}
+  private readonly profile: PrivateGroundProfile;
+  constructor(private readonly host: PrivateGroundHostAdapter) {
+    const candidate = host.groundProfile;
+    if (
+      !candidate ||
+      !/^[0-9a-f]{16}$/.test(candidate.deviceUuid) ||
+      !/^[0-9a-f]{16}$/.test(candidate.symbolUuid) ||
+      candidate.deviceUuid === candidate.symbolUuid ||
+      (candidate.sheetCount !== 0 && candidate.sheetCount !== 1)
+    ) {
+      throw new Error('Private Ground host profile invalid');
+    }
+    this.profile = Object.freeze({ ...candidate });
+  }
 
   get connected(): boolean {
     return this.phase !== 'poisoned';
@@ -167,9 +195,9 @@ export class PrivateNativeGroundSession implements TransactionBridgeCaller {
 
   private assertGround(snapshot: PrimitiveSnapshotResult, id: string): void {
     if (
-      !hasGroundIdentity(snapshot, id) ||
+      !hasGroundIdentity(snapshot, id, this.profile) ||
       !hasGroundScope(snapshot, this.host) ||
-      !hasGroundWitness(snapshot, id)
+      !hasGroundWitness(snapshot, id, this.profile)
     ) {
       throw new Error('Native Ground is not a verified reconstructable private-session marker');
     }
@@ -197,7 +225,7 @@ export class PrivateNativeGroundSession implements TransactionBridgeCaller {
    */
   private async assertCreationDevice(): Promise<void> {
     const device = await this.invokeOwned('privateGround.getRecreationDevice', {});
-    if (!hasGroundCreationDevice(device)) {
+    if (!hasGroundCreationDevice(device, this.profile)) {
       throw new Error(
         'Verified native Ground creation device is unavailable in the private worker',
       );

@@ -1,5 +1,8 @@
 import { verifyWireInventoryReadback } from './schematic-wire-inventory.js';
-import { verifiedNativeGroundDescriptor } from './schematic-native-ground-identity.js';
+import {
+  verifiedNativeGroundDescriptor,
+  type PrivateGroundProfile,
+} from './schematic-native-ground-identity.js';
 import { inspectVerifiedNativeInPort } from './schematic-native-in-port-identity.js';
 import {
   inspectReconstructableNativeGround,
@@ -50,6 +53,8 @@ export interface SchematicTransactionDependencies {
   getEasyedaVersion?(): string | undefined;
   /** Unit-fixture-only capability. The actual dispatcher never opts in to marker recreation. */
   allowExperimentalPowerNetFlagRecreation?(): boolean;
+  /** Internal host-bound profile; ordinary dispatcher never sets this. */
+  privateGroundProfile?: PrivateGroundProfile;
 }
 
 export interface SchematicTransactionOperations {
@@ -249,6 +254,7 @@ export function createSchematicTransactionOperations(
     getEasyedaVersion: dependencies.getEasyedaVersion,
     // Unit-fixture-only. The production dispatcher never supplies this flag.
     allowExperimentalPowerNetFlagRecreation: dependencies.allowExperimentalPowerNetFlagRecreation,
+    privateGroundProfile: dependencies.privateGroundProfile,
   });
 
   // Native Pro 3.2.209 can return matching *stale* getAll/getAllPrimitiveId
@@ -428,6 +434,7 @@ export function createSchematicTransactionOperations(
               safeGetState(current, 'Component'),
               dependencies.getEasyedaVersion?.(),
               nativeNet,
+              dependencies.privateGroundProfile,
             )
           : undefined;
       return compactDefinedRecord({
@@ -675,6 +682,7 @@ export function createSchematicTransactionOperations(
             readFirstPath,
             readState: safeGetState,
             extractPrimitiveId,
+            privateGroundProfile: dependencies.privateGroundProfile,
           })
         : undefined;
     const portIdentity =
@@ -787,6 +795,7 @@ export function createSchematicTransactionOperations(
           message,
           'Obtain the descriptor through a fresh typed native marker snapshot; caller-provided claims are not proof of disconnection.',
         ),
+      dependencies.privateGroundProfile,
     );
     if (
       nativeIsolation !== undefined &&

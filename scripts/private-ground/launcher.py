@@ -116,7 +116,7 @@ def main():
     parser.add_argument('--editor', required=True, help='Path to an installed EasyEDA Pro executable')
     parser.add_argument('--activation', required=True, help='Existing legitimate local offline activation file; mounted read-only for the isolated editor')
     parser.add_argument('--confirm-write', action='store_true')
-    parser.add_argument('--allow-library-network', action='store_true', help='Permit bounded HTTPS connection to pro.easyeda.com')
+    parser.add_argument('--allow-library-network', action='store_true', help='Permit bounded HTTPS access to pro.easyeda.com and image-pro.easyeda.com')
     parser.add_argument('--node', required=True, help=argparse.SUPPRESS)
     args = parser.parse_args()
     if not args.confirm_write or not args.allow_library_network:

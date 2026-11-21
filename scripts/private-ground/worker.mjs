@@ -26,6 +26,62 @@ async function cli(args, timeout = 65000) {
   return response.value;
 }
 
+function boundGroundScope(b) {
+  const profile = b?.groundProfile;
+  if (
+    !b?.projectId ||
+    !b?.pageId ||
+    !b?.markerId ||
+    !profile ||
+    !/^[0-9a-f]{16}$/.test(profile.deviceUuid) ||
+    !/^[0-9a-f]{16}$/.test(profile.symbolUuid) ||
+    profile.deviceUuid === profile.symbolUuid ||
+    ![0, 1].includes(profile.sheetCount)
+  )
+    throw new Error('Native Ground scope unavailable');
+  return { projectId: b.projectId, pageId: b.pageId, markerId: b.markerId, groundProfile: profile };
+}
+
+async function readSourceEvidence(value, profile) {
+  if (!value?.archive || !value?.systemArchive)
+    throw new Error('Native Ground archives unavailable');
+  try {
+    const { stdout } = await execFileAsync(
+      '/usr/bin/python3',
+      [
+        '/launch/archive-evidence.py',
+        profile.deviceUuid,
+        profile.symbolUuid,
+        value.archive,
+        value.systemArchive,
+      ],
+      { timeout: 10000, maxBuffer: 65536, shell: false },
+    );
+    return { ...JSON.parse(stdout), systemDevice: value.systemDevice };
+  } catch {
+    // execFile errors include the complete argument list. Never emit native archive data.
+    throw new Error('Native Ground archive proof refused');
+  }
+}
+
+async function verifyBootstrap(invoke, b, profile) {
+  const evidence = await invoke('privateGround.getRecreationDevice');
+  if (
+    !evidence?.geometryFingerprint ||
+    evidence.projectDeviceUuid !== profile.deviceUuid ||
+    evidence.projectSymbolUuid !== profile.symbolUuid
+  )
+    throw new Error('Native Ground library proof unavailable');
+  const snapshot = await invoke('schematic.getPrimitiveSnapshot', { primitiveId: b.markerId });
+  if (
+    snapshot?.nativeIsolation?.kind !== 'verified-disconnected-ground/v2' ||
+    snapshot.nativeContext?.projectId !== b.projectId ||
+    snapshot.nativeContext?.documentId !== b.pageId
+  )
+    throw new Error('Verified native Ground snapshot unavailable');
+  return snapshot;
+}
+
 function createAdapter(sessionId) {
   const template = readFileSync('/launch/native-rpc.txt', 'utf8');
   const source = readFileSync('/launch/native-transaction.js', 'utf8');
@@ -76,14 +132,8 @@ function createAdapter(sessionId) {
         // ambiguous native failure by this exact structured error code.
         throw Object.assign(new Error('Native operation refused: ' + code), { code });
       }
-      if (method === 'privateGround.getRecreationDevice' && value?.result?.archive) {
-        const { stdout } = await execFileAsync(
-          '/usr/bin/python3',
-          ['/launch/archive-evidence.py', value.result.archive],
-          { timeout: 10000, maxBuffer: 65536, shell: false },
-        );
-        return { ...JSON.parse(stdout), systemDevice: value.result.systemDevice };
-      }
+      if (method === 'privateGround.getRecreationDevice')
+        return readSourceEvidence(value?.result, scope.groundProfile);
       return value?.result;
     } finally {
       unlinkSync(file);
@@ -94,10 +144,10 @@ function createAdapter(sessionId) {
     listSessions,
     bootstrap: async () => {
       const b = await invoke('bootstrap');
-      if (!b?.projectId || !b?.pageId || !b?.markerId || !b?.snapshot)
-        throw new Error('Native Ground scope unavailable');
-      scope = { projectId: b.projectId, pageId: b.pageId, markerId: b.markerId };
-      return { ...scope, snapshot: b.snapshot };
+      scope = boundGroundScope(b);
+      const profile = scope.groundProfile;
+      const snapshot = await verifyBootstrap(invoke, b, profile);
+      return { ...scope, snapshot };
     },
   };
 }

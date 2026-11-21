@@ -1,3 +1,4 @@
+import type { PrivateGroundProfile } from './schematic-native-ground-identity.js';
 import type { ApiRuntime } from './api-runtime.js';
 import { recreateVerifiedPowerNetFlag } from './schematic-net-flag-recreation.js';
 import type {
@@ -14,6 +15,7 @@ export interface SchematicSnapshotRecreationDependencies {
   getEasyedaVersion?(): string | undefined;
   /** Fixture-only opt-in. Production must not expose BETA marker rollback without live proof. */
   allowExperimentalPowerNetFlagRecreation?(): boolean;
+  privateGroundProfile?: PrivateGroundProfile;
 }
 
 export interface SchematicSnapshotRecreator {

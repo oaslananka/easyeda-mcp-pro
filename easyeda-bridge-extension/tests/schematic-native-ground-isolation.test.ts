@@ -177,6 +177,39 @@ describe('strict native reconstructability preflight', () => {
     return { ...f, owned };
   }
 
+  it('certifies a source-bound private marker with independently allocated IDs on a sheetless page', async () => {
+    const f = makeDefaultFixture();
+    const profile = {
+      deviceUuid: '319c703be1c3d74e',
+      symbolUuid: 'b20f8332e03c640f',
+      sheetCount: 0 as const,
+    };
+    f.components.splice(0, 1);
+    f.attributes.splice(0, 1);
+    f.marker.getState_Component = () => ({ ...symbol, uuid: profile.deviceUuid });
+    for (const [i, row] of f.owned.entries()) {
+      if (row.Key === 'Device' || row.Key === 'Symbol') {
+        f.attributes[i] = primitive({
+          ...row,
+          Value: row.Key === 'Device' ? profile.deviceUuid : profile.symbolUuid,
+        });
+      }
+    }
+    await expect(inspectReconstructableNativeGround(f.opts)).resolves.toBeUndefined();
+    await expect(
+      inspectReconstructableNativeGround({ ...f.opts, privateGroundProfile: profile }),
+    ).resolves.toMatchObject({
+      componentCount: 1,
+      attributeCount: 9,
+    });
+    await expect(
+      inspectReconstructableNativeGround({
+        ...f.opts,
+        privateGroundProfile: { ...profile, symbolUuid: '0000000000000000' },
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   it('accepts the independently observed default nine owned attributes', async () => {
     const f = makeDefaultFixture();
     await expect(inspectReconstructableNativeGround(f.opts)).resolves.toMatchObject({

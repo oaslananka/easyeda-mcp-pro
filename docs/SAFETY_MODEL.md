@@ -152,10 +152,12 @@ a newly created marker lacked its native library identity in the fresh
 offline profile. No file was exported and the original was unchanged.
 The project export identified the cause: the native snapshot contains
 project-local device and symbol copies, not the system-library record IDs.
-The private adapter now requires both project-local source associations
-from the native device archive and an independent lookup of the actual
-system Ground device and its associated symbol, during preflight and
-immediately before mutation. A readable project copy, matching name, or
+The private adapter now binds the actual project-local device and symbol
+IDs to their source associations from the native device archive, and
+independently resolves the exact system Ground device and its associated
+symbol. Both native archives must match the reviewed fingerprint of all
+17 semantic symbol records, including geometry and pin attributes, during
+preflight and immediately before mutation. A readable project copy, matching name, or
 unrelated system record cannot authorize deletion. The offline system
 library does not contain the matching source IDs. The project library
 export preserved the associations, but the tested project and private
@@ -180,15 +182,17 @@ The explicit Linux-only acceptance command is:
       --confirm-write --allow-library-network
 
 This runs a real MCP delete/rollback round-trip against a disposable copy
-of the narrowly supported V4.1.105 single-page default Ground fixture,
-including the verified project-local device and symbol IDs and exact owned
-attribute profile. Other project-local IDs are currently unsupported. It
+of the narrowly supported V4.1.105 single-page default Ground profile
+(one marker, zero wires/free pins, either no frame or one default sheet).
+Project-local device and symbol IDs are discovered from native readback
+and verified against the exact system source and geometry, not a fixed
+project-ID list. Custom marker properties remain unsupported. It
 does not expose a general interactive worker or extend ordinary marker
 mutation permission. It needs a non-root Linux account with functional
 user namespaces, bubblewrap, Xvfb, socat, Python 3, and a legitimate locally
 activated EasyEDA Pro 4.1.105 installation. The output must not exist.
 The worker uses a separate network namespace and a bounded CONNECT relay
-to pro.easyeda.com; the relay restricts destinations, not individual
+to pro.easyeda.com and image-pro.easyeda.com; the relay restricts destinations, not individual
 encrypted requests. No existing editor profile or login is reused.
 The native editor receives the selected local offline activation through a
 read-only mount; the HTTPS relay does not inspect encrypted vendor traffic.

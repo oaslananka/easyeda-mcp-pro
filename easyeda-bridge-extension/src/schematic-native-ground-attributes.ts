@@ -1,3 +1,5 @@
+import type { PrivateGroundProfile } from './schematic-native-ground-identity.js';
+
 /**
  * Documented V4 attribute state fields. The isolated native Ground fixture
  * proved each field through getAll() and independent get(id). Relevance
@@ -143,6 +145,7 @@ export function matchesDefaultGroundAttributes(
   states: GroundAttributeState[],
   x: unknown,
   y: unknown,
+  profile?: PrivateGroundProfile,
 ): boolean {
   if (
     typeof x !== 'number' ||
@@ -162,7 +165,15 @@ export function matchesDefaultGroundAttributes(
     }
     return semanticAttributeRow({ ...state, fields });
   });
-  const expected = DEFAULT_GROUND_PROFILE.map((row) => JSON.stringify(row));
+  const expected = DEFAULT_GROUND_PROFILE.map((row) => {
+    const value =
+      profile && row[1] === 'Device'
+        ? profile.deviceUuid
+        : profile && row[1] === 'Symbol'
+          ? profile.symbolUuid
+          : row[2];
+    return JSON.stringify([row[0], row[1], value, row[3]]);
+  });
   return JSON.stringify(actual.sort()) === JSON.stringify(expected.sort());
 }
 

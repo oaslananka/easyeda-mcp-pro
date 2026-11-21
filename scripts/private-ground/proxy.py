@@ -5,7 +5,7 @@ def monitor_parent():
  while os.getppid()==parent_pid and time.monotonic()<deadline:time.sleep(0.5)
  os._exit(0)
 threading.Thread(target=monitor_parent,daemon=True).start()
-allowed={'pro.easyeda.com'}
+allowed={'pro.easyeda.com','image-pro.easyeda.com'}
 budget_lock=threading.Lock()
 budget={'connections':0,'bytes':0}
 MAX_CONNECTIONS=1200

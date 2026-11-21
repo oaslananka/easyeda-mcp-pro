@@ -33,6 +33,7 @@ const original = {
 };
 // The project-local device and symbol IDs differ from their system-library sources.
 const creationEvidence = {
+  geometryFingerprint: '478117d8bd516816a28e9714e4511dc961a85a996b7221ef6c66de2b9439c2ef',
   projectDeviceUuid: 'af20086a8911a85a',
   projectSymbolUuid: '17c558f9e954b079',
   deviceSource: '2e4e71fea06848c9a86eef0ed6338204|0819f05c4eef4c71ace90d822a990e87',
@@ -55,11 +56,19 @@ const session = {
   origin: 'cli',
   headless: true,
 };
-function fixture() {
+function fixture(
+  profile = {
+    deviceUuid: 'af20086a8911a85a',
+    symbolUuid: '17c558f9e954b079',
+    sheetCount: 1 as 0 | 1,
+  },
+  snapshot = original,
+  evidence = creationEvidence,
+) {
   const listSessions = vi.fn(async (): Promise<unknown> => [session]);
   const invoke = vi.fn(async (method: string, _params: unknown): Promise<unknown> => {
-    if (method === 'schematic.getPrimitiveSnapshot') return structuredClone(original);
-    if (method === 'privateGround.getRecreationDevice') return creationEvidence;
+    if (method === 'schematic.getPrimitiveSnapshot') return structuredClone(snapshot);
+    if (method === 'privateGround.getRecreationDevice') return evidence;
     if (method === 'privateGround.delete') return { deleted: ['ground-old'], notFound: [] };
     throw new Error('Unexpected native method');
   });
@@ -69,6 +78,7 @@ function fixture() {
     projectId: 'project-1',
     pageId: 'page-1',
     markerId: 'ground-old',
+    groundProfile: profile,
     listSessions,
     invoke,
   });
@@ -76,6 +86,41 @@ function fixture() {
 }
 
 describe('host-managed private Ground session', () => {
+  it('binds independently allocated project IDs and the sheetless native inventory', async () => {
+    const profile = {
+      deviceUuid: '319c703be1c3d74e',
+      symbolUuid: 'b20f8332e03c640f',
+      sheetCount: 0 as const,
+    };
+    const snapshot = structuredClone(original);
+    snapshot.property.nativeSymbol.uuid = profile.deviceUuid;
+    snapshot.nativeIsolation.componentCount = 1;
+    snapshot.nativeIsolation.attributeCount = 9;
+    const evidence = {
+      ...creationEvidence,
+      projectDeviceUuid: profile.deviceUuid,
+      projectSymbolUuid: profile.symbolUuid,
+    };
+    const { bridge, invoke } = fixture(profile, snapshot, evidence);
+    await expect(bridge.preflight('project-1', 'ground-old')).resolves.toEqual(snapshot);
+    invoke.mockImplementation(async (method) =>
+      method === 'schematic.getPrimitiveSnapshot' ? original : evidence,
+    );
+    await expect(
+      bridge.call('schematic.deletePrimitive', { primitiveIds: ['ground-old'] }),
+    ).rejects.toThrow();
+    expect(invoke.mock.calls.some(([method]) => method === 'privateGround.delete')).toBe(false);
+  });
+
+  it('rejects a malformed or aliased host profile at construction', () => {
+    expect(() =>
+      fixture({ deviceUuid: 'bad', symbolUuid: 'b20f8332e03c640f', sheetCount: 0 }),
+    ).toThrow('host profile invalid');
+    expect(() =>
+      fixture({ deviceUuid: 'b20f8332e03c640f', symbolUuid: 'b20f8332e03c640f', sheetCount: 0 }),
+    ).toThrow('host profile invalid');
+  });
+
   it('does not authorize a caller-supplied project or unrelated marker', async () => {
     const { bridge, invoke } = fixture();
     await expect(bridge.preflight('wrong', 'ground-old')).rejects.toThrow();
@@ -100,6 +145,7 @@ describe('host-managed private Ground session', () => {
     original.property.nativeSymbol,
     { ...creationEvidence, projectDeviceUuid: 'other-device' },
     { ...creationEvidence, deviceSource: 'wrong-source' },
+    { ...creationEvidence, geometryFingerprint: '0'.repeat(64) },
     { ...creationEvidence, projectSymbolUuid: 'other-symbol' },
     { ...creationEvidence, symbolSource: 'wrong-symbol' },
     {

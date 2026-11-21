@@ -1,4 +1,7 @@
-import { verifiedNativeGroundDescriptor } from './schematic-native-ground-identity.js';
+import {
+  verifiedNativeGroundDescriptor,
+  type PrivateGroundProfile,
+} from './schematic-native-ground-identity.js';
 import { isRecord } from './utils.js';
 import {
   fingerprintGroundAttributes,
@@ -21,7 +24,7 @@ interface InventoryRecord {
 export interface NativeGroundIsolationEvidence {
   kind: 'verified-disconnected-ground/v2';
   markerId: string;
-  componentCount: 2;
+  componentCount: 1 | 2;
   wireCount: 0;
   pagePinCount: 0;
   embeddedPinCount: 1;
@@ -50,6 +53,19 @@ function hasExactIsolationKeys(value: Record<string, unknown>): boolean {
   );
 }
 
+function matchesIsolationTopology(
+  input: Record<string, unknown>,
+  profile?: PrivateGroundProfile,
+): boolean {
+  return (
+    input.componentCount === (profile?.sheetCount === 0 ? 1 : 2) &&
+    input.wireCount === 0 &&
+    input.pagePinCount === 0 &&
+    input.embeddedPinCount === 1 &&
+    isBoundedAttributeCount(input.attributeCount)
+  );
+}
+
 /** Parse a caller-visible snapshot descriptor by exact shape.
  * This is a consistency check, NOT independent native evidence or a write grant.
  */
@@ -57,6 +73,7 @@ export function parseNativeGroundIsolation(
   input: unknown,
   primitiveId: string,
   invalid: (message: string) => Error,
+  profile?: PrivateGroundProfile,
 ): NativeGroundIsolationEvidence | undefined {
   if (input === undefined) return undefined;
   if (
@@ -66,11 +83,7 @@ export function parseNativeGroundIsolation(
     typeof primitiveId !== 'string' ||
     !primitiveId ||
     input.markerId !== primitiveId ||
-    input.componentCount !== 2 ||
-    input.wireCount !== 0 ||
-    input.pagePinCount !== 0 ||
-    input.embeddedPinCount !== 1 ||
-    !isBoundedAttributeCount(input.attributeCount) ||
+    !matchesIsolationTopology(input, profile) ||
     typeof input.attributeFingerprint !== 'string' ||
     !/^[0-9a-f]{64}$/.test(input.attributeFingerprint)
   ) {
@@ -79,11 +92,11 @@ export function parseNativeGroundIsolation(
   return {
     kind: 'verified-disconnected-ground/v2',
     markerId: primitiveId,
-    componentCount: 2,
+    componentCount: profile?.sheetCount === 0 ? 1 : 2,
     wireCount: 0,
     pagePinCount: 0,
     embeddedPinCount: 1,
-    attributeCount: input.attributeCount,
+    attributeCount: Number(input.attributeCount),
     attributeFingerprint: input.attributeFingerprint,
   };
 }
@@ -94,6 +107,7 @@ interface GroundIsolationDependencies {
   readState(primitive: unknown, key: string): unknown;
   extractPrimitiveId(primitive: unknown): string;
   settle?(): Promise<void>;
+  privateGroundProfile?: PrivateGroundProfile;
 }
 
 type InventoryKind = 'Wire' | 'Pin' | 'Component' | 'Attribute';
@@ -156,7 +170,12 @@ function groundSignature(deps: GroundIsolationDependencies, primitive: unknown):
   if (
     get('ComponentType') !== 'netflag' ||
     get('Name') !== 'GND' ||
-    !verifiedNativeGroundDescriptor(get('Component'), '4.1.105', get('Net')) ||
+    !verifiedNativeGroundDescriptor(
+      get('Component'),
+      '4.1.105',
+      get('Net'),
+      deps.privateGroundProfile,
+    ) ||
     typeof get('X') !== 'number' ||
     !Number.isFinite(get('X')) ||
     typeof get('Y') !== 'number' ||
@@ -243,6 +262,18 @@ async function readVerifiedEmbeddedGroundPin(
   return { id, signature };
 }
 
+function attributeRole(
+  owner: unknown,
+  sheetId: string,
+  markerId: string,
+  pinId: string,
+): 'sheet' | 'marker' | 'pin' | undefined {
+  if (sheetId && owner === sheetId) return 'sheet';
+  if (owner === markerId) return 'marker';
+  if (owner === pinId) return 'pin';
+  return undefined;
+}
+
 async function readVerifiedGroundAttributes(
   deps: GroundIsolationDependencies,
   reader: NativeReader,
@@ -260,14 +291,7 @@ async function readVerifiedGroundAttributes(
   const states: GroundAttributeState[] = [];
   for (const { id, primitive } of attributes.items) {
     const owner = deps.readState(primitive, 'ParentPrimitiveId');
-    const role =
-      owner === sheetId
-        ? 'sheet'
-        : owner === deps.markerId
-          ? 'marker'
-          : owner === pinId
-            ? 'pin'
-            : undefined;
+    const role = attributeRole(owner, sheetId, deps.markerId, pinId);
     if (!role) throw new Error('Attribute ownership not safely readable');
     const state = readGroundAttributeState(deps.readState, primitive, role);
     if (role === 'pin') {
@@ -295,6 +319,31 @@ async function readVerifiedGroundAttributes(
   return { exact, states };
 }
 
+function isolatedComponentScope(
+  deps: GroundIsolationDependencies,
+  wires: NativeInventory,
+  pins: NativeInventory,
+  components: NativeInventory,
+) {
+  if (
+    wires.items.length !== 0 ||
+    pins.items.length !== 0 ||
+    components.items.length !== (deps.privateGroundProfile?.sheetCount === 0 ? 1 : 2)
+  ) {
+    throw new Error('Page has wires, pins, or other components');
+  }
+  const marker = components.byId.get(deps.markerId)?.primitive;
+  const sheet = components.items.find(
+    ({ id, primitive }) =>
+      id !== deps.markerId && deps.readState(primitive, 'ComponentType') === 'sheet',
+  );
+  if (!marker || (deps.privateGroundProfile?.sheetCount !== 0 && !sheet))
+    throw new Error('Target marker or unique sheet missing');
+  const sheetId = sheet?.id ?? '';
+
+  return { marker, sheetId };
+}
+
 async function capture(deps: GroundIsolationDependencies): Promise<{
   canonical: string;
   count: number;
@@ -313,15 +362,7 @@ async function capture(deps: GroundIsolationDependencies): Promise<{
   const components = await readInventory(deps, componentReader, 'Component');
   const attributes = await readInventory(deps, attributeReader, 'Attribute');
 
-  if (wires.items.length !== 0 || pins.items.length !== 0 || components.items.length !== 2) {
-    throw new Error('Page has wires, pins, or other components');
-  }
-  const marker = components.byId.get(deps.markerId)?.primitive;
-  const sheet = components.items.find(
-    ({ id, primitive }) =>
-      id !== deps.markerId && deps.readState(primitive, 'ComponentType') === 'sheet',
-  );
-  if (!marker || !sheet) throw new Error('Target marker or unique sheet missing');
+  const { marker, sheetId } = isolatedComponentScope(deps, wires, pins, components);
 
   const markerSignature = groundSignature(deps, marker);
   const direct = await componentReader.get?.(deps.markerId);
@@ -337,12 +378,12 @@ async function capture(deps: GroundIsolationDependencies): Promise<{
     deps,
     attributeReader,
     attributes,
-    sheet.id,
+    sheetId,
     pin.id,
   );
   return {
     canonical: JSON.stringify([
-      sheet.id,
+      sheetId,
       deps.markerId,
       markerSignature,
       pin.id,
@@ -350,7 +391,7 @@ async function capture(deps: GroundIsolationDependencies): Promise<{
       attributeEntries.exact,
     ]),
     count: attributeEntries.exact.length,
-    sheetId: sheet.id,
+    sheetId,
     states: attributeEntries.states,
     markerX: deps.readState(marker, 'X'),
     markerY: deps.readState(marker, 'Y'),
@@ -375,13 +416,18 @@ async function inspectGround(
     if (first.canonical !== second.canonical) return undefined;
     if (
       requireDefaultProfile &&
-      !matchesDefaultGroundAttributes(second.states, second.markerX, second.markerY)
+      !matchesDefaultGroundAttributes(
+        second.states,
+        second.markerX,
+        second.markerY,
+        deps.privateGroundProfile,
+      )
     )
       return undefined;
     return {
       kind: 'verified-disconnected-ground/v2',
       markerId: deps.markerId,
-      componentCount: 2,
+      componentCount: deps.privateGroundProfile?.sheetCount === 0 ? 1 : 2,
       wireCount: 0,
       pagePinCount: 0,
       embeddedPinCount: 1,
