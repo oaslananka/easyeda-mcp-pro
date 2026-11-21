@@ -209,6 +209,45 @@ function requireBeforeSnapshot(operation: Readonly<TransactionOperation>): unkno
   return operation.beforeSnapshot;
 }
 
+/**
+ * Read-only native Ground evidence is meaningful only when the restored
+ * primitive is independently queried in the same scoped native kind.
+ * Nothing here grants permission to delete markers in production.
+ */
+function nativeGroundReadKind(
+  operation: Readonly<TransactionOperation>,
+  beforeSnapshot: unknown,
+): 'netflag' | undefined {
+  if (operation.kind !== 'delete' || !beforeSnapshot || typeof beforeSnapshot !== 'object') {
+    return undefined;
+  }
+  if (Array.isArray(beforeSnapshot)) return undefined;
+  const record = beforeSnapshot as Record<string, unknown>;
+  const isolation = record.nativeIsolation;
+  if (
+    record.primitiveKind !== 'netflag' ||
+    !record.nativeContext ||
+    !isolation ||
+    typeof isolation !== 'object' ||
+    Array.isArray(isolation)
+  ) {
+    return undefined;
+  }
+  return (isolation as Record<string, unknown>).kind === 'verified-disconnected-ground/v1'
+    ? 'netflag'
+    : undefined;
+}
+
+function verifiedRollbackExactId(
+  snapshot: PrimitiveSnapshotResult | PinNoConnectSnapshot,
+  requestedId: string,
+  pinSnapshot: PinNoConnectSnapshot | undefined,
+): boolean {
+  // Pin snapshots are verified through their independent native pin ID.
+  if (pinSnapshot) return true;
+  return 'primitiveId' in snapshot && snapshot.primitiveId === requestedId;
+}
+
 export async function rollbackEasyedaTransaction(
   manager: TransactionManager,
   transactionId: string,
@@ -250,9 +289,18 @@ export async function rollbackEasyedaTransaction(
       }
       const beforeSnapshot = requireBeforeSnapshot(operation);
       const pinSnapshot = asPinNoConnectSnapshot(beforeSnapshot);
+      // A native-scoped Ground deletion must be verified through a fresh,
+      // explicitly typed bridge read instead of a generic snapshot.
+      const expectedNativeKind = nativeGroundReadKind(operation, beforeSnapshot);
       const snapshot = pinSnapshot
         ? await readPinNoConnectSnapshot(bridge, pinSnapshot)
-        : await getPrimitiveSnapshot(bridge, restoreResult.restoredTargetId ?? operation.target.id);
+        : await getPrimitiveSnapshot(
+            bridge,
+            restoreResult.restoredTargetId ?? operation.target.id,
+            expectedNativeKind,
+          );
+      const requestedId = restoreResult.restoredTargetId ?? operation.target.id;
+      if (!verifiedRollbackExactId(snapshot, requestedId, pinSnapshot)) return false;
       if (!operation.beforeHash) return false;
       return (
         stableHash(snapshotForHash(snapshot, operation.snapshotHashMode)) === operation.beforeHash

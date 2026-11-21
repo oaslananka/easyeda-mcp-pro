@@ -55,5 +55,24 @@ export function snapshotForHash(
   if (typeof snapshot !== 'object' || snapshot === null || Array.isArray(snapshot)) return snapshot;
   const record = snapshot as Record<string, unknown>;
   const { primitiveId: _primitiveId, ...rest } = record;
+  // A verified native Ground isolation report is read-only provenance, not
+  // an intrinsic primitive attribute. A recreated marker receives a NEW
+  // primitive ID and a correspondingly NEW markerId in its proven topology.
+  // Compare all the other evidence (including native project/page/version,
+  // wire and pin counts) while permitting only that expected ID rotation.
+  // Unknown isolation kinds are never normalized.
+  const isolation = record.nativeIsolation;
+  if (
+    isolation !== null &&
+    typeof isolation === 'object' &&
+    !Array.isArray(isolation) &&
+    record.primitiveKind === 'netflag' &&
+    (isolation as Record<string, unknown>).kind === 'verified-disconnected-ground/v1' &&
+    typeof record.primitiveId === 'string' &&
+    (isolation as Record<string, unknown>).markerId === record.primitiveId
+  ) {
+    const { markerId: _markerId, ...restIsolation } = isolation as Record<string, unknown>;
+    return { ...rest, nativeIsolation: restIsolation };
+  }
   return rest;
 }
