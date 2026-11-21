@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 import signal
 import stat
-import subprocess
+import subprocess  # nosec B404 -- Required for fixed, shell-free sandbox helper invocations.
 import sys
 import tempfile
 import time
@@ -56,12 +56,21 @@ def publish(staged, output):
 
 
 def run_worker(root, mode, original, editor, activation, node, expected=None):
+    if mode not in ('transaction', 'interactive', 'cold') or (expected is not None) != (mode == 'cold'):
+        raise ValueError('Invalid worker mode or cold proof')
+    # Every host operand is an absolute validated path, never a command or option.
+    for path in (root, original, editor, activation, node, *((expected,) if expected is not None else ())):
+        if not isinstance(path, Path) or not path.is_absolute():
+            raise ValueError('Expected absolute worker input paths')
     evidence = root / mode
     evidence.mkdir(mode=0o700)
     sock = root / (mode + '.sock')
     with (root / (mode + '-proxy.log')).open('wb') as log:
-        proxy = subprocess.Popen([sys.executable, str(ASSETS / 'proxy.py'), str(sock)],
-                                 stdin=subprocess.DEVNULL, stdout=log, stderr=log)
+        # Fixed interpreter/script; sock is created in the current private directory.
+        proxy = subprocess.Popen(  # nosec B603
+            [sys.executable, str(ASSETS / 'proxy.py'), str(sock)],
+            shell=False, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
+
         try:
             for _ in range(40):
                 if sock.is_socket():
@@ -73,11 +82,12 @@ def run_worker(root, mode, original, editor, activation, node, expected=None):
                 raise RuntimeError('Vendor relay did not start')
             sock.chmod(0o600)
             command = [
-                '/usr/bin/bwrap', '--unshare-all', '--die-with-parent', '--new-session', '--clearenv',
+                '--unshare-all', '--die-with-parent', '--new-session', '--clearenv',
                 '--ro-bind', '/usr', '/usr', '--ro-bind', '/etc', '/etc',
                 '--symlink', 'usr/bin', '/bin', '--symlink', 'usr/lib', '/lib',
                 '--symlink', 'usr/lib64', '/lib64', '--proc', '/proc', '--dev', '/dev',
-                '--tmpfs', '/tmp', '--tmpfs', '/run', '--tmpfs', '/home',
+                # New namespace-local tmpfs, not a host temporary file.
+                '--tmpfs', '/tmp', '--tmpfs', '/run', '--tmpfs', '/home',  # nosec B108
                 '--ro-bind', str(editor.parent), '/vendor', '--tmpfs', '/workspace',
                 '--ro-bind', str(original), '/original.eprj2', '--ro-bind', str(node), '/node',
                 '--bind', str(evidence), '/evidence', '--ro-bind', str(ASSETS), '/launch',
@@ -96,9 +106,13 @@ def run_worker(root, mode, original, editor, activation, node, expected=None):
             if expected:
                 command.extend(['--ro-bind', str(expected), '/expected.json'])
             command.extend(['--chdir', '/workspace', '/usr/bin/python3', '/launch/worker.py', mode])
-            subprocess.run(command, stdin=None if mode == "interactive" else subprocess.DEVNULL,
-                           stdout=None if mode == "interactive" else sys.stderr, stderr=sys.stderr,
-                           check=True, timeout=360)
+            # The executable, options and destination mounts are fixed; only absolute
+            # operator-selected source paths are variable positional operands.
+            subprocess.run(  # nosec B603
+                ['/usr/bin/bwrap', *command], shell=False,
+                stdin=None if mode == 'interactive' else subprocess.DEVNULL,
+                stdout=None if mode == 'interactive' else sys.stderr, stderr=sys.stderr,
+                check=True, timeout=360)
             return evidence
         finally:
             proxy.terminate()
@@ -149,7 +163,9 @@ def main():
         seed.mkdir(mode=0o700)
         config = {'type': 'HALF_OFFLINE', 'firstRun': False, 'gpu': '', 'devTools': '', 'logLevel': 'warn', 'logEnable': True, 'sqlTimeout': 2000, 'connectTimeout': 5000, 'systemLibName': 'easyeda-std',
                   'canvas2d': True, 'crashUploadToServer': False, 'APP_PROJECT_DIR': '/home/worker/EasyEDA-Pro',
-                  'proxy': {'enable': True, 'protocol': 'http', 'host': '127.0.0.1', 'port': 18765, 'username': '', 'password': ''}}
+                  # The namespace-local CONNECT relay deliberately has no credentials.
+                  'proxy': {'enable': True, 'protocol': 'http', 'host': '127.0.0.1', 'port': 18765,
+                            'username': '', 'password': ''}}  # nosec B105
         (seed / 'config.json').write_text(json.dumps(config))
         print('Verifying private Ground transaction...', file=sys.stderr)
         result_dir = run_worker(root, 'interactive' if args.interactive else 'transaction', source, editor, activation, node)
