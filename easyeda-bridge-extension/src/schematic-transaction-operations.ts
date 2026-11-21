@@ -829,6 +829,86 @@ export function createSchematicTransactionOperations(
     return '';
   }
 
+  async function exactNativeComponentKind(
+    owner: any,
+    id: string,
+    invalid: () => never,
+  ): Promise<string> {
+    let item: unknown;
+    try {
+      item = await owner.get(id);
+    } catch {
+      return invalid();
+    }
+    if (!item || primitiveIdFromValue(item) !== id) return invalid();
+    const kind = readComponentType(item);
+    if (!['sheet', 'component', 'netflag', 'netport'].includes(kind)) return invalid();
+    return kind;
+  }
+
+  /** A native component ID inventory contains sheet, component, netflag and
+   * netport IDs together. Empty/stale getAll() is not proof of a requested kind.
+   * Reconcile each candidate by exact native ID and verified runtime type.
+   */
+  async function typedComponentIdsFromFallback(
+    owner: any,
+    primitiveIds: string[],
+    requestedKind: 'component' | 'netflag' | 'netport',
+  ): Promise<string[]> {
+    const invalid = (): never => {
+      throw newBridgeError(
+        'NATIVE_INVENTORY_UNVERIFIED',
+        'Native component ID inventory cannot be classified by exact primitive kind',
+        'Inspect the focused schematic; retry only after native inventories settle.',
+      );
+    };
+    if (primitiveIds.length === 0) return [];
+    if (typeof owner.get !== 'function' || new Set(primitiveIds).size !== primitiveIds.length)
+      invalid();
+
+    const matched: string[] = [];
+    for (const id of primitiveIds) {
+      if ((await exactNativeComponentKind(owner, id, invalid)) === requestedKind) matched.push(id);
+    }
+    return matched;
+  }
+
+  function verifiedTypedIdList(raw: unknown): string[] {
+    if (!Array.isArray(raw) || raw.some((id) => typeof id !== 'string' || id.length === 0)) {
+      throw newBridgeError(
+        'NATIVE_INVENTORY_UNVERIFIED',
+        'Native component ID inventory has malformed entries',
+        'Inspect the focused schematic; wait for a complete native ID inventory.',
+      );
+    }
+    return [...raw].sort((a, b) => a.localeCompare(b));
+  }
+
+  async function verifiedFallbackIds(
+    owner: any,
+    kind: SchematicPrimitiveSnapshotKind,
+  ): Promise<string[] | undefined> {
+    if (typeof owner.getAllPrimitiveId !== 'function') return undefined;
+    let raw: unknown;
+    try {
+      raw = await owner.getAllPrimitiveId();
+    } catch (error) {
+      logRecoverableError('failed to list ' + kind + ' primitive IDs', error);
+      return undefined;
+    }
+    if (kind === 'component' || kind === 'netflag' || kind === 'netport') {
+      return typedComponentIdsFromFallback(owner, verifiedTypedIdList(raw), kind);
+    }
+    const primitiveIds = Array.isArray(raw)
+      ? raw
+          .filter(
+            (value: unknown): value is string => typeof value === 'string' && value.length > 0,
+          )
+          .sort((a: string, b: string) => a.localeCompare(b))
+      : [];
+    return Array.from(new Set(primitiveIds));
+  }
+
   async function listSchematicPrimitiveIds(
     kindInput: unknown,
   ): Promise<{ primitiveKind: SchematicPrimitiveSnapshotKind; primitiveIds: string[] }> {
@@ -850,24 +930,15 @@ export function createSchematicTransactionOperations(
       }
     }
 
-    if (values.length === 0 && typeof primitiveClass.getAllPrimitiveId === 'function') {
-      try {
-        const primitiveIds = ((await primitiveClass.getAllPrimitiveId()) || [])
-          .filter(
-            (value: unknown): value is string => typeof value === 'string' && value.length > 0,
-          )
-          .sort((a: string, b: string) => a.localeCompare(b));
-        return { primitiveKind, primitiveIds: Array.from(new Set(primitiveIds)) };
-      } catch (error) {
-        logRecoverableError(`failed to list ${primitiveKind} primitive IDs`, error);
-      }
+    if (values.length === 0) {
+      const fallback = await verifiedFallbackIds(primitiveClass, primitiveKind);
+      if (fallback !== undefined) return { primitiveKind, primitiveIds: fallback };
     }
 
     const primitiveIds = values
       .filter((value) => {
         if (primitiveKind === 'component') {
-          const componentType = readComponentType(value);
-          return componentType !== 'netflag' && componentType !== 'netport';
+          return readComponentType(value) === 'component';
         }
         if (primitiveKind === 'netflag' || primitiveKind === 'netport') {
           return readComponentType(value) === primitiveKind;

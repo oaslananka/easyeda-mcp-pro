@@ -92,6 +92,17 @@ refused. A caller-supplied descriptor remains untrusted data, so no
 production marker deletion is authorized by this parser or the direct
 native round-trip alone.
 
+The schematic component-ID fallback must not convert the native
+getAllPrimitiveId collection into an untyped list of requested net flags,
+net ports or ordinary components. The same native component class includes
+sheet symbols and multiple marker kinds. When getAll is empty or stale,
+the fallback now checks every returned ID with an independent exact native
+get(id) and ComponentType read. Wrong, stale, duplicate or malformed IDs
+and unavailable native type evidence fail closed rather than pretending
+that a different marker was recreated. Sheet primitives are never included
+in the ordinary-component inventory. This is a reconstruction identity
+guard, not a native writer fence or production marker-delete permission.
+
 Before the first write, the extension now resolves the entire deletion batch,
 rechecks exact native component identity and type at ownership resolution,
 and rejects duplicate IDs. If a component changes into a marker or becomes

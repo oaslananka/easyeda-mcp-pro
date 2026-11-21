@@ -1282,6 +1282,7 @@ describe('schematic transaction operations', () => {
   it('filters component, net-flag, and net-port inventories by runtime type', async () => {
     const values = [
       { primitiveId: 'component-1', getState_ComponentType: () => 'component' },
+      { primitiveId: 'sheet-1', getState_ComponentType: () => 'sheet' },
       { primitiveId: 'flag-1', getState_ComponentType: () => 'netflag' },
       { primitiveId: 'port-1', getState_ComponentType: () => 'netport' },
     ];
@@ -1298,6 +1299,93 @@ describe('schematic transaction operations', () => {
       primitiveIds: ['port-1'],
     });
     expect(getAll).toHaveBeenCalledWith(undefined, true);
+  });
+
+  it('classifies component ID fallback by exact native kind rather than treating every ID as the requested marker kind', async () => {
+    const kinds: Record<string, string> = {
+      'sheet-1': 'sheet',
+      'cmp-1': 'component',
+      'flag-1': 'netflag',
+      'port-1': 'netport',
+    };
+    const get = vi.fn(async (id: string) =>
+      kinds[id]
+        ? { getState_PrimitiveId: () => id, getState_ComponentType: () => kinds[id] }
+        : undefined,
+    );
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        getAll: vi.fn().mockResolvedValue([]),
+        getAllPrimitiveId: vi.fn().mockResolvedValue(Object.keys(kinds)),
+        get,
+      },
+    });
+    for (const [requested, expected] of [
+      ['component', ['cmp-1']],
+      ['netflag', ['flag-1']],
+      ['netport', ['port-1']],
+    ] as const) {
+      await expect(operations.listPrimitiveIds(requested)).resolves.toEqual({
+        primitiveKind: requested,
+        primitiveIds: expected,
+      });
+    }
+    expect(get).toHaveBeenCalledWith('sheet-1');
+    expect(get).toHaveBeenCalledWith('flag-1');
+    expect(get).toHaveBeenCalledWith('port-1');
+  });
+
+  it('fails closed when a component fallback lacks typed native get(id)', async () => {
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        getAll: vi.fn().mockResolvedValue([]),
+        getAllPrimitiveId: vi.fn().mockResolvedValue(['flag-1']),
+      },
+    });
+    await expect(operations.listPrimitiveIds('netport')).rejects.toMatchObject({
+      code: 'NATIVE_INVENTORY_UNVERIFIED',
+    });
+  });
+
+  it.each([
+    ['stale exact ID', undefined],
+    [
+      'wrong exact ID',
+      { getState_PrimitiveId: () => 'other', getState_ComponentType: () => 'netflag' },
+    ],
+    ['missing native kind', { getState_PrimitiveId: () => 'flag-1' }],
+  ])('rejects ambiguous typed fallback: %s', async (_, item) => {
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        getAll: vi.fn().mockResolvedValue([]),
+        getAllPrimitiveId: vi.fn().mockResolvedValue(['flag-1']),
+        get: vi.fn().mockResolvedValue(item),
+      },
+    });
+    await expect(operations.listPrimitiveIds('netflag')).rejects.toMatchObject({
+      code: 'NATIVE_INVENTORY_UNVERIFIED',
+    });
+  });
+
+  it.each([
+    ['null native inventory', null],
+    ['non-array native inventory', { id: 'flag-1' }],
+    ['mixed scalar primitive IDs', ['flag-1', 42]],
+    ['duplicate primitive IDs', ['flag-1', 'flag-1']],
+  ])('refuses unverified component fallback: %s', async (_, ids) => {
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        getAll: vi.fn().mockResolvedValue([]),
+        getAllPrimitiveId: vi.fn().mockResolvedValue(ids),
+        get: vi.fn(async () => ({
+          getState_PrimitiveId: () => 'flag-1',
+          getState_ComponentType: () => 'netflag',
+        })),
+      },
+    });
+    await expect(operations.listPrimitiveIds('netflag')).rejects.toMatchObject({
+      code: 'NATIVE_INVENTORY_UNVERIFIED',
+    });
   });
 
   it('accepts scalar PrimitiveId fallback values but rejects objects', async () => {

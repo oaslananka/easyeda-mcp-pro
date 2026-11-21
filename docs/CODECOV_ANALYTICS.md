@@ -175,6 +175,20 @@ from **249,222 to 249,343 bytes** (+121), loader from **427,709 to
 **249,348 / 427,895 / 341,965 bytes**. CI integrity/size checks remain
 enabled.
 
+The 2026-11-21 #1102 follow-up fixes mixed native component-ID fallback
+classification in the Bridge. When the native component getAll collection is
+empty/stale, untyped getAllPrimitiveId IDs can include sheet, component,
+netflag and netport objects. The Bridge now requires an exact native get(id)
+and verified ComponentType for each fallback ID before returning the requested
+kind. Missing/mismatched IDs, ambiguous kinds, duplicate IDs and malformed
+collections fail closed. The ordinary-component list also excludes sheet
+objects. Nine red-to-green regression cases cover mixed lists and negative
+native identity evidence; this does not authorize production marker deletion.
+The reproducible archive changed from **249,343 to 250,192 bytes** (+849);
+loader **427,890 to 429,710 bytes** (+1,820); dispatcher **341,960 to
+343,780 bytes** (+1,820). Strict output-plus-five byte ratchets:
+**250,197 / 429,715 / 343,785**. Integrity and size checks remain enabled.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:
