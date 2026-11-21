@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CHECKSUM_MANIFEST_NAME, verifyChecksumManifest } from './checksums.mjs';
+import { findPhoneLikeContent } from './marketplace-phone-content.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -47,17 +48,6 @@ function readPngDimensions(path) {
     width: buffer.readUInt32BE(16),
     height: buffer.readUInt32BE(20),
   };
-}
-
-function findPhoneLikeContent(text) {
-  const matches = [];
-  const phoneLikePattern = /(?:\+?\d[\s().:-]*){7,}\d/g;
-  for (const match of text.matchAll(phoneLikePattern)) {
-    const raw = match[0];
-    const digits = raw.replace(/\D/g, '');
-    if (digits.length >= 7) matches.push(raw.trim());
-  }
-  return matches;
 }
 
 let ok = true;
@@ -228,12 +218,23 @@ if (existsSync(packagePath)) {
       pythonExecutable,
       trustedPythonArgs([
         '-c',
-        "import sys, zipfile; z=zipfile.ZipFile(sys.argv[1]); files=['README.md','CHANGELOG.md','extension.json','dist/index.js']; print('\\n'.join(z.read(f).decode('utf-8', 'ignore') for f in files))",
+        "import json, sys, zipfile; z=zipfile.ZipFile(sys.argv[1]); files=['README.md','CHANGELOG.md','extension.json','dist/index.js']; print(json.dumps([z.read(f).decode('utf-8') for f in files], ensure_ascii=False))",
         packagePath,
       ]),
       { encoding: 'utf8', maxBuffer: 5 * 1024 * 1024 },
     );
-    const packagePhoneLikeMatches = findPhoneLikeContent(packageContent);
+    const members = ['README.md', 'CHANGELOG.md', 'extension.json', 'dist/index.js'];
+    const contents = JSON.parse(packageContent);
+    if (
+      !Array.isArray(contents) ||
+      contents.length !== members.length ||
+      contents.some((content) => typeof content !== 'string')
+    ) {
+      throw new Error('Invalid packaged text inventory');
+    }
+    const packagePhoneLikeMatches = contents.flatMap((content, index) =>
+      findPhoneLikeContent(content, members[index]),
+    );
     if (packagePhoneLikeMatches.length > 0) {
       console.error('PACKAGE HAS PHONE-LIKE CONTENT');
       for (const match of packagePhoneLikeMatches.slice(0, 10)) console.error(`  ${match}`);
