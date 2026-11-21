@@ -394,8 +394,51 @@ describe('RemoteGateway', () => {
       const scheduledDeadlines = timerSpy.mock.calls
         .map(([, duration]) => duration)
         .filter((duration): duration is number => typeof duration === 'number');
-      expect(scheduledDeadlines).toContain(120_000);
-      expect(scheduledDeadlines.every((duration) => duration <= 120_000)).toBe(true);
+      expect(scheduledDeadlines.length).toBeGreaterThan(0);
+      expect(scheduledDeadlines).not.toContain(Number.MAX_SAFE_INTEGER);
+      expect(
+        scheduledDeadlines.every((duration) =>
+          [120_000, 30_000, 10_000, 1_000, 100, 10, 1].includes(duration),
+        ),
+      ).toBe(true);
+    } finally {
+      timerSpy.mockRestore();
+    }
+  });
+
+  it('does not use untrusted deadline values as timer durations', async () => {
+    const { gateway } = makeGateway();
+    const session = registerFakeExtension(gateway);
+    const code = gateway.createPairingCode({
+      identity: readIdentity,
+      sessionId: session.sessionId,
+    });
+    expect(
+      gateway.completePairing({ identity: readIdentity, code, sessionId: session.sessionId }),
+    ).toBe(true);
+
+    const timerSpy = vi.spyOn(globalThis, 'setTimeout');
+    try {
+      await expect(
+        gateway.routeToolRequest({
+          identity: readIdentity,
+          sessionId: session.sessionId,
+          toolName: 'schematic.getDocument',
+          riskLevel: 'read',
+          deadlineMs: 37,
+        }),
+      ).resolves.toMatchObject({ ok: true });
+
+      const relayDurations = timerSpy.mock.calls
+        .map(([, duration]) => duration)
+        .filter((duration): duration is number => typeof duration === 'number');
+      expect(relayDurations.length).toBeGreaterThan(0);
+      expect(relayDurations).not.toContain(37);
+      expect(
+        relayDurations.every((duration) =>
+          [120_000, 30_000, 10_000, 1_000, 100, 10, 1].includes(duration),
+        ),
+      ).toBe(true);
     } finally {
       timerSpy.mockRestore();
     }
