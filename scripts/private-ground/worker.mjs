@@ -10,14 +10,15 @@ import { promisify } from 'node:util';
 import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { stableHash, snapshotForHash } from '../../src/transactions/stable.ts';
 
-const exec = promisify(execFile);
+const execFileAsync = promisify(execFile);
 const json = (path) => JSON.parse(readFileSync(path, 'utf8'));
 const put = (path, value) => writeFileSync(path, JSON.stringify(value), { mode: 0o600 });
 const markerHash = (snapshot) => stableHash(snapshotForHash(snapshot, 'ignore-primitive-id'));
 
 async function cli(args, timeout = 65000) {
-  const { stdout } = await exec('/vendor/easyeda-pro', [...args, '--no-sandbox'], {
+  const { stdout } = await execFileAsync('/vendor/easyeda-pro', [...args, '--no-sandbox'], {
     timeout,
+    shell: false,
     maxBuffer: 2 * 1024 * 1024,
   });
   const response = JSON.parse(stdout);
@@ -76,10 +77,10 @@ function createAdapter(sessionId) {
         throw Object.assign(new Error('Native operation refused: ' + code), { code });
       }
       if (method === 'privateGround.getRecreationDevice' && value?.result?.archive) {
-        const { stdout } = await exec(
+        const { stdout } = await execFileAsync(
           '/usr/bin/python3',
           ['/launch/archive-evidence.py', value.result.archive],
-          { timeout: 10000, maxBuffer: 65536 },
+          { timeout: 10000, maxBuffer: 65536, shell: false },
         );
         return { ...JSON.parse(stdout), systemDevice: value.result.systemDevice };
       }
