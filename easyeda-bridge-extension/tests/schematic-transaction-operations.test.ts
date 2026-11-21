@@ -283,6 +283,105 @@ describe('schematic transaction operations', () => {
     });
   });
 
+  it('attaches read-only isolation evidence only after complete native inventories and stable focus', async () => {
+    const primitive = (fields: Record<string, unknown>) =>
+      Object.fromEntries(
+        Object.entries(fields).map(([key, value]) => ['getState_' + key, () => value]),
+      );
+    const sheet = primitive({ PrimitiveId: 'sheet-1', ComponentType: 'sheet' });
+    const pin = primitive({
+      PrimitiveId: 'flag-1-e15',
+      PinName: 'Pin1',
+      PinNumber: '1',
+      pinType: 'IN',
+      X: 240,
+      Y: 250,
+      Rotation: 90,
+      NoConnected: false,
+    });
+    const flag = {
+      ...primitive({
+        PrimitiveId: 'flag-1',
+        ComponentType: 'netflag',
+        Name: 'GND',
+        Net: 'GND',
+        X: 240,
+        Y: 250,
+        Rotation: 0,
+        Mirror: false,
+        Component: {
+          name: 'Ground-GND',
+          libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+          uuid: 'af20086a8911a85a',
+        },
+      }),
+      getAllPins: vi.fn(async () => [pin]),
+    };
+    const attribute = primitive({
+      PrimitiveId: 'a-1',
+      ParentPrimitiveId: 'sheet-1',
+      Value: 'title',
+    });
+    const pinAttrs = [
+      primitive({
+        PrimitiveId: 'a-2',
+        ParentPrimitiveId: 'flag-1-e15',
+        Key: 'Pin Name',
+        Value: 'Pin1',
+      }),
+      primitive({
+        PrimitiveId: 'a-3',
+        ParentPrimitiveId: 'flag-1-e15',
+        Key: 'Pin Number',
+        Value: '1',
+      }),
+      primitive({
+        PrimitiveId: 'a-4',
+        ParentPrimitiveId: 'flag-1-e15',
+        Key: 'Pin Type',
+        Value: 'IN',
+      }),
+    ];
+    const owner = (values: unknown[]) => ({
+      getAll: vi.fn(async () => values),
+      getAllPrimitiveId: vi.fn(async () => values.map((v) => readState(v, 'PrimitiveId'))),
+      get: vi.fn(async (id: string) => values.find((v) => readState(v, 'PrimitiveId') === id)),
+    });
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveWire: owner([]),
+        SCH_PrimitivePin: {
+          ...owner([]),
+          get: vi.fn(async (id: string) => (id === 'flag-1-e15' ? pin : undefined)),
+        },
+        SCH_PrimitiveComponent: owner([sheet, flag]),
+        SCH_PrimitiveAttribute: owner([attribute, ...pinAttrs]),
+      },
+      {
+        getEasyedaVersion: () => '4.1.105',
+        callFirst: vi.fn(async (paths: string[]) =>
+          paths.includes('DMT_Project.getCurrentProjectInfo')
+            ? { uuid: 'project-1' }
+            : { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 },
+        ),
+      },
+    );
+    const result = await operations.getPrimitiveSnapshot('flag-1', 'netflag');
+    expect(result).toMatchObject({
+      nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+      nativeIsolation: {
+        kind: 'verified-disconnected-ground/v1',
+        markerId: 'flag-1',
+        componentCount: 2,
+        pagePinCount: 0,
+        embeddedPinCount: 1,
+        wireCount: 0,
+        attributeCount: 4,
+      },
+    });
+    expect(result.primitiveKind).toBe('netflag');
+  });
+
   it('does not turn a generic marker read into a rollback-authorized native snapshot', async () => {
     const callFirst = vi.fn(async (paths: string[]) => {
       if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-a' };

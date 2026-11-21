@@ -1,5 +1,9 @@
 import { verifyWireInventoryReadback } from './schematic-wire-inventory.js';
 import { verifiedNativeGroundDescriptor } from './schematic-native-ground-identity.js';
+import {
+  inspectIsolatedNativeGround,
+  type NativeGroundIsolationEvidence,
+} from './schematic-native-ground-isolation.js';
 import type { ApiRuntime } from './api-runtime.js';
 import { createSchematicSnapshotRecreator } from './schematic-snapshot-recreation.js';
 import {
@@ -22,6 +26,8 @@ export interface SchematicPrimitiveSnapshot {
   property: Record<string, unknown>;
   /** Native-scoped origin required for experimental marker reconstruction. */
   nativeContext?: { projectId: string; documentId: string; editorVersion: string };
+  /** Read-only evidence for an isolated V4 Ground fixture, NOT delete permission. */
+  nativeIsolation?: NativeGroundIsolationEvidence;
 }
 
 export interface SchematicTransactionDependencies {
@@ -684,9 +690,25 @@ export function createSchematicTransactionOperations(
       );
     }
     if (beforeContext && snapshot.primitiveKind === expectedPrimitiveKind) {
+      // Only an independently proven Ground-GND symbol receives the strict
+      // zero-wire/pin and exact native component/attribute inventory check.
+      // A missing reader or a changing page remains readable but earns NO
+      // isolation evidence and NEVER authorizes a production deletion.
+      const isolation =
+        snapshot.primitiveKind === 'netflag' &&
+        snapshot.property.identification === 'Ground' &&
+        snapshot.property.nativeSymbol
+          ? await inspectIsolatedNativeGround({
+              markerId: primitiveId,
+              readFirstPath,
+              readState: safeGetState,
+              extractPrimitiveId,
+            })
+          : undefined;
       const afterContext = await readNativeMarkerContext(callFirst, dependencies.getEasyedaVersion);
       if (sameNativeMarkerContext(beforeContext, afterContext)) {
         snapshot.nativeContext = beforeContext;
+        if (isolation) snapshot.nativeIsolation = isolation;
       }
     }
     return snapshot;
