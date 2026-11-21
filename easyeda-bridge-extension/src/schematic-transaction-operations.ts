@@ -964,14 +964,10 @@ export function createSchematicTransactionOperations(
     }
   }
 
-  async function deleteSchematicPrimitives(
-    primitiveIdsInput: unknown,
-  ): Promise<{ success: boolean; deleted: string[]; notFound: string[] }> {
-    const primitiveIds = Array.isArray(primitiveIdsInput)
-      ? primitiveIdsInput.filter(
-          (value): value is string => typeof value === 'string' && value.length > 0,
-        )
-      : [];
+  /** Plan a single ownership read, rechecking native component type before any batch mutation. */
+  async function resolveStandaloneDeletionOwner(
+    primitiveId: string,
+  ): Promise<{ primitiveId: string; owner?: any; kind?: SchematicPrimitiveSnapshotKind }> {
     const kinds: SchematicPrimitiveSnapshotKind[] = [
       'component',
       'wire',
@@ -980,36 +976,69 @@ export function createSchematicTransactionOperations(
       'circle',
       'polygon',
     ];
+    for (const kind of kinds) {
+      const primitiveClass = readFirstPath<any>(schematicPrimitiveClassPaths(kind));
+      if (!primitiveClass || typeof primitiveClass.delete !== 'function') continue;
+      if (!(await primitiveExistsInClass(primitiveClass, primitiveId))) continue;
+      if (kind === 'component') {
+        const current = await primitiveClass.get?.(primitiveId);
+        if (
+          !current ||
+          extractPrimitiveId(current) !== primitiveId ||
+          readComponentType(current) !== 'component'
+        ) {
+          throw newBridgeError(
+            'UNSUPPORTED_RUNTIME',
+            'Native component type or identity changed during standalone delete preflight',
+            'Inspect the current schematic and retry only after confirming the intended ordinary component.',
+          );
+        }
+      }
+      return { primitiveId, owner: primitiveClass, kind };
+    }
+    return { primitiveId };
+  }
+
+  async function deleteSchematicPrimitives(
+    primitiveIdsInput: unknown,
+  ): Promise<{ success: boolean; deleted: string[]; notFound: string[] }> {
+    const primitiveIds = Array.isArray(primitiveIdsInput)
+      ? primitiveIdsInput.filter(
+          (value): value is string => typeof value === 'string' && value.length > 0,
+        )
+      : [];
     const deleted: string[] = [];
     const notFound: string[] = [];
+    if (new Set(primitiveIds).size !== primitiveIds.length) {
+      throw newBridgeError(
+        'INVALID_PARAMS',
+        'Standalone delete requires unique primitive IDs',
+        'Provide each exact native primitive ID at most once per request.',
+      );
+    }
 
     await refuseUnsafeStandaloneComponentDeletion(primitiveIds);
     await refuseUnpersistedTextDeletion(primitiveIds);
 
+    // Resolve every target before the first write. A native component can
+    // change type after the initial preflight, so recheck the exact kind and
+    // identity when ownership is resolved. Never partially delete a mixed
+    // wire/marker batch due to a stale component lookup.
+    const planned = [];
     for (const primitiveId of primitiveIds) {
-      let owner: any;
-      let deletedText = false;
-      for (const kind of kinds) {
-        const primitiveClass = readFirstPath<any>(schematicPrimitiveClassPaths(kind));
-        if (!primitiveClass || typeof primitiveClass.delete !== 'function') continue;
-        if (await primitiveExistsInClass(primitiveClass, primitiveId)) {
-          if (kind === 'text') {
-            await deleteAcceptedV4Text(primitiveClass, primitiveId);
-            dependencies.deleteCachedTextAlignMode(primitiveId);
-            deleted.push(primitiveId);
-            deletedText = true;
-            break;
-          }
-          owner = primitiveClass;
-          break;
-        }
-      }
-      if (deletedText) continue;
+      planned.push(await resolveStandaloneDeletionOwner(primitiveId));
+    }
+
+    for (const { primitiveId, owner, kind } of planned) {
       if (!owner) {
         notFound.push(primitiveId);
         continue;
       }
-      await owner.delete([primitiveId]);
+      if (kind === 'text') {
+        await deleteAcceptedV4Text(owner, primitiveId);
+      } else {
+        await owner.delete([primitiveId]);
+      }
       dependencies.deleteCachedTextAlignMode(primitiveId);
       deleted.push(primitiveId);
     }

@@ -550,6 +550,75 @@ describe('schematic transaction operations', () => {
     expect(componentDelete).not.toHaveBeenCalled();
   });
 
+  it('rejects a component changed to a net flag after initial type preflight before deleting an earlier wire', async () => {
+    let markerReads = 0;
+    const wireDelete = vi.fn().mockResolvedValue(true);
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn(async (id: string) => {
+          if (id !== 'marker-1') return undefined;
+          markerReads += 1;
+          return {
+            primitiveId: id,
+            getState_ComponentType: () => (markerReads === 1 ? 'component' : 'netflag'),
+          };
+        }),
+        delete: componentDelete,
+      },
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) => (id === 'wire-1' ? { primitiveId: id } : undefined)),
+        delete: wireDelete,
+      },
+    });
+    await expect(operations.deletePrimitives(['wire-1', 'marker-1'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
+    });
+    expect(wireDelete).not.toHaveBeenCalled();
+    expect(componentDelete).not.toHaveBeenCalled();
+  });
+
+  it('rejects an initially missing component if it appears as a net flag during batch resolution', async () => {
+    let markerReads = 0;
+    const wireDelete = vi.fn().mockResolvedValue(true);
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn(async (id: string) => {
+          if (id !== 'marker-1') return undefined;
+          markerReads += 1;
+          return markerReads === 1
+            ? undefined
+            : { primitiveId: id, getState_ComponentType: () => 'netflag' };
+        }),
+        delete: componentDelete,
+      },
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) => (id === 'wire-1' ? { primitiveId: id } : undefined)),
+        delete: wireDelete,
+      },
+    });
+    await expect(operations.deletePrimitives(['wire-1', 'marker-1'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
+    });
+    expect(wireDelete).not.toHaveBeenCalled();
+    expect(componentDelete).not.toHaveBeenCalled();
+  });
+
+  it('rejects repeated standalone IDs without deleting a primitive twice', async () => {
+    const wireDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) => (id === 'wire-1' ? { primitiveId: id } : undefined)),
+        delete: wireDelete,
+      },
+    });
+    await expect(operations.deletePrimitives(['wire-1', 'wire-1'])).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+    });
+    expect(wireDelete).not.toHaveBeenCalled();
+  });
+
   it('routes deletion to the owning class and reports missing IDs', async () => {
     const componentDelete = vi.fn().mockResolvedValue(true);
     const wireDelete = vi.fn().mockResolvedValue(true);

@@ -68,6 +68,13 @@ disconnection, so the fixture-only flag and the production delete prohibition
 remain necessary. Runtime scope checks and cold-reopen verification are
 additional gates, not substitutes for native writer coordination.
 
+Before the first write, the extension now resolves the entire deletion batch,
+rechecks exact native component identity and type at ownership resolution,
+and rejects duplicate IDs. If a component changes into a marker or becomes
+unreadable between preflight and ownership resolution, no earlier wire is
+deleted. This is fail-closed preflight, not atomic execution: an external
+native editor writer may still change state after the final read.
+
 This closes a standalone-delete path that otherwise bypassed transactional
 marker rollback restrictions. It does not grant transactional deletion of
 components, flags or ports; the existing production transaction allowlist

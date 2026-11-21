@@ -131,6 +131,19 @@ dispatcher.js **338,898** (previous **338,332**, +566). The reviewed budget
 ratchets remain output plus five bytes: **248,074 / 424,832 / 338,903**.
 All size and integrity checks remain mandatory.
 
+The 2026-11-21 continuation of PR #1110 adds a second native component
+type/identity check during the **full-batch ownership resolution**, before
+any standalone schematic delete is executed. This refuses stale component
+lookups that change from an ordinary component into a marker between reads,
+and prevents duplicate IDs from causing repeated deletes. The reproducible
+build changed from **248,069 to 248,379 bytes** for the packaged extension
+(+310 bytes), **424,827 to 425,642 bytes** for index.js (+815), and
+**338,898 to 339,713 bytes** for dispatcher.js (+815).
+The reviewed byte ratchets are **248,384 / 425,647 / 339,718 bytes**
+(output plus five bytes each); the integrity/size checks remain enforced.
+This is a bounded in-process preflight, not a cross-process native editor
+writer fence or permission to delete markers in production.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:
