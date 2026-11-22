@@ -50,6 +50,14 @@ and the new source-built MCP path are separately tracked in
 
 ### Native schematic marker deletion: standalone fail-closed preflight
 
+For ordinary atomic schematic batches, the existing drawing-primitive
+delete allowlist also uses a deep-copied initial snapshot witness.
+Immediately before each transactional delete, the server re-reads
+the exact primitive ID and refuses a changed kind, net or property
+without issuing the native delete. This reduces preflight-to-delete
+drift, but it is **not** an exclusive editor-wide writer lock and
+does not enable netflag, netport or component transactional deletion.
+
 The native schematic Component class also contains net flags, hierarchical
 net ports and sheet-frame primitives. A generic UUID-only standalone delete
 must not infer that every object owned by that class is an ordinary component.

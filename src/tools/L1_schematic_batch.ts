@@ -11,6 +11,7 @@ import {
   rollbackEasyedaTransaction,
   TransactionError,
 } from '../transactions/index.js';
+import { stableHash } from '../transactions/stable.js';
 import { type ToolContext, type ToolDefinition } from './types.js';
 
 const pointSchema = z.object({ x: z.number().finite(), y: z.number().finite() });
@@ -280,7 +281,7 @@ async function preflightDeleteOperations(
       );
     }
     const snapshot = await context.bridge.preflight(projectId, operation.primitiveId);
-    return new Map([[operation.primitiveId, snapshot]]);
+    return new Map([[operation.primitiveId, structuredClone(snapshot)]]);
   }
   const snapshots = new Map<string, Record<string, unknown>>();
   for (const operation of operations) {
@@ -298,7 +299,7 @@ async function preflightDeleteOperations(
         },
       );
     }
-    snapshots.set(operation.primitiveId, snapshot);
+    snapshots.set(operation.primitiveId, structuredClone(snapshot));
   }
   return snapshots;
 }
@@ -465,9 +466,33 @@ async function executeDelete(
   context: ToolContext,
   transactionId: string,
   operation: z.infer<typeof deleteOperationSchema>,
+  preflightSnapshots: ReadonlyMap<string, Record<string, unknown>>,
 ) {
+  const expected = preflightSnapshots.get(operation.primitiveId);
+  if (!expected) {
+    throw new TransactionError(
+      'TRANSACTION_INVALID_STATE',
+      'Delete lacks a verified initial primitive snapshot',
+    );
+  }
   return getGlobalTransactionManager().runDelete(transactionId, operation.primitiveId, {
-    getSnapshot: async () => getPrimitiveSnapshot(context.bridge, operation.primitiveId),
+    getSnapshot: async () => {
+      const current = await getPrimitiveSnapshot(context.bridge, operation.primitiveId);
+      // A batch may contain operations before this delete. Never delete a
+      // primitive whose kind, net, properties, or identity changed since the
+      // initial all-target preflight, even if the original kind was permitted.
+      if (
+        current.primitiveId !== operation.primitiveId ||
+        stableHash(current) !== stableHash(expected)
+      ) {
+        throw new TransactionError(
+          'TRANSACTION_INVALID_STATE',
+          'Primitive changed after batch delete preflight',
+          { primitiveId: operation.primitiveId },
+        );
+      }
+      return current;
+    },
     apply: async () => deletePrimitiveExact(context.bridge, operation.primitiveId),
     exists: async () => primitiveExists(context.bridge, operation.primitiveId),
     recreate: async (snapshot) => {
@@ -579,6 +604,7 @@ async function executeBatchOperation(
   transactionId: string,
   projectId: string,
   operation: BatchOperation,
+  preflightSnapshots: ReadonlyMap<string, Record<string, unknown>>,
 ): Promise<BatchItemResult> {
   if (operation.action === 'create') {
     const executed = await executeCreate(context, transactionId, operation);
@@ -612,7 +638,7 @@ async function executeBatchOperation(
       transaction_operation_id: executed.operation.id,
     };
   }
-  const executed = await executeDelete(context, transactionId, operation);
+  const executed = await executeDelete(context, transactionId, operation, preflightSnapshots);
   return {
     operation_id: operation.operationId,
     action: 'delete',
@@ -783,14 +809,24 @@ async function handleSchematicBatchWrite(
   };
 
   try {
-    await preflightDeleteOperations(context, parsed.operations, parsed.projectId);
+    const preflightSnapshots = await preflightDeleteOperations(
+      context,
+      parsed.operations,
+      parsed.projectId,
+    );
     if (parsed.dryRun) return dryRunBatchResponse(parsed);
     session = openBatchSession(parsed);
     const transactionId = session.transactionId;
     if (!transactionId) throw new Error('Batch transaction was not initialized');
     for (const operation of parsed.operations) {
       results.push(
-        await executeBatchOperation(context, transactionId, parsed.projectId, operation),
+        await executeBatchOperation(
+          context,
+          transactionId,
+          parsed.projectId,
+          operation,
+          preflightSnapshots,
+        ),
       );
     }
     return await successfulBatchResponse(session, parsed.operations.length, results);

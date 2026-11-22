@@ -624,6 +624,84 @@ describe('easyeda_schematic_batch_write', () => {
     });
   });
 
+  it.each([
+    ['primitive subtype', { primitiveKind: 'netflag', property: { net: 'GND' } }],
+    ['net property', { primitiveKind: 'wire', property: { line: [0, 0, 10, 0], net: 'N2' } }],
+  ] as const)(
+    'refuses deletion when the %s changes between batch preflight and transaction snapshot',
+    async (_reason, changed) => {
+      const before = {
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'wire-1',
+        primitiveKind: 'wire',
+        property: { line: [0, 0, 10, 0], net: 'N1' },
+      };
+      let snapshotReads = 0;
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'schematic.getPrimitiveSnapshot') {
+          expect(params.primitiveId).toBe('wire-1');
+          snapshotReads += 1;
+          return structuredClone(snapshotReads === 1 ? before : { ...before, ...changed });
+        }
+        if (method === 'schematic.deletePrimitive') {
+          return { deleted: params.primitiveIds, notFound: [] };
+        }
+        throw new Error(`Unexpected bridge method ${method}`);
+      });
+
+      const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+        projectId: 'project-1',
+        operations: [{ operationId: 'delete-wire', action: 'delete', primitiveId: 'wire-1' }],
+        atomic: true,
+        dryRun: false,
+        confirmWrite: true,
+      });
+      expect(snapshotReads).toBeGreaterThanOrEqual(2);
+      expect(result).toMatchObject({
+        success: false,
+        committed: false,
+        error_code: 'TRANSACTION_INVALID_STATE',
+      });
+      expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+    },
+  );
+
+  it('keeps an immutable preflight witness when the bridge reuses its snapshot object', async () => {
+    const shared = {
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'wire-1',
+      primitiveKind: 'wire',
+      property: { line: [0, 0, 10, 0], net: 'N1' },
+    };
+    let reads = 0;
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'schematic.getPrimitiveSnapshot') {
+        reads++;
+        if (reads === 2) shared.property.net = 'N2';
+        return shared;
+      }
+      if (method === 'schematic.deletePrimitive') {
+        return { deleted: params.primitiveIds, notFound: [] };
+      }
+      throw new Error(`Unexpected bridge method ${method}`);
+    });
+
+    const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+      projectId: 'project-1',
+      operations: [{ operationId: 'delete-wire', action: 'delete', primitiveId: 'wire-1' }],
+      atomic: true,
+      dryRun: false,
+      confirmWrite: true,
+    });
+    expect(reads).toBeGreaterThanOrEqual(2);
+    expect(result).toMatchObject({
+      success: false,
+      committed: false,
+      error_code: 'TRANSACTION_INVALID_STATE',
+    });
+    expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+  });
+
   it('rejects duplicate delete targets before any native mutation', async () => {
     await expect(
       registry.get('easyeda_schematic_batch_write')?.handler(context, {
