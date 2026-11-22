@@ -17,6 +17,7 @@ import {
   sameNativeMarkerContext,
 } from './schematic-marker-scope.js';
 import { isRecord } from './utils.js';
+import { createNativeTransactionalDeleteGuard } from './schematic-native-delete-guard.js';
 
 export type PublicTextAlignMode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
@@ -70,6 +71,8 @@ export interface SchematicTransactionOperations {
   ): Promise<{ primitiveKind: SchematicPrimitiveSnapshotKind; primitiveIds: string[] }>;
   deletePrimitives(
     primitiveIds: unknown,
+    expectedPrimitiveSnapshot?: unknown,
+    expectedNativeScope?: { projectId: string; documentId: string },
   ): Promise<{ success: boolean; deleted: string[]; notFound: string[] }>;
   recreatePrimitiveSnapshot(
     snapshot: unknown,
@@ -1125,6 +1128,8 @@ export function createSchematicTransactionOperations(
 
   async function deleteSchematicPrimitives(
     primitiveIdsInput: unknown,
+    expectedPrimitiveSnapshot?: unknown,
+    expectedNativeScope?: { projectId: string; documentId: string },
   ): Promise<{ success: boolean; deleted: string[]; notFound: string[] }> {
     const primitiveIds = Array.isArray(primitiveIdsInput)
       ? primitiveIdsInput.filter(
@@ -1133,6 +1138,18 @@ export function createSchematicTransactionOperations(
       : [];
     const deleted: string[] = [];
     const notFound: string[] = [];
+
+    const nativeGuard = createNativeTransactionalDeleteGuard(
+      primitiveIds,
+      expectedPrimitiveSnapshot,
+      expectedNativeScope,
+      {
+        parseSnapshot: parseSchematicPrimitiveSnapshot,
+        getSnapshot: getSchematicPrimitiveSnapshot,
+        callFirst,
+        createBridgeError: newBridgeError,
+      },
+    );
     if (new Set(primitiveIds).size !== primitiveIds.length) {
       throw newBridgeError(
         'INVALID_PARAMS',
@@ -1158,6 +1175,7 @@ export function createSchematicTransactionOperations(
         notFound.push(primitiveId);
         continue;
       }
+      if (nativeGuard) await nativeGuard.assertBeforeDelete(primitiveId, kind);
       if (kind === 'text') {
         await deleteAcceptedV4Text(owner, primitiveId);
       } else {

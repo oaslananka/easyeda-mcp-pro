@@ -67,6 +67,18 @@ change during a reserved delete can still yield an unresolved/failed transaction
 which must be inspected rather than reported as successful rollback. This is
 not a global native writer lock, and cannot prove connected-component safety.
 
+For scoped transactional drawing deletes, the server now also sends its
+deep-copied expected native primitive snapshot across the bridge. At the
+extension's **final pre-delete boundary**, the native runtime rechecks exact
+focused project/page and re-reads the primitive's ID, kind, net and all
+normalized properties, comparing the full JSON witness independently of
+object key order. A missing scope, changed identity, changed properties,
+unreadable snapshot or multi-target request fails closed before deletion.
+Unscoped standalone legacy deletion is not promoted to rollback-safe, and
+this last-moment check still cannot rule out a concurrent editor write after
+the read. It is not a native writer lease, nor does it authorize netflag,
+netport or component transactional deletion.
+
 The native schematic Component class also contains net flags, hierarchical
 net ports and sheet-frame primitives. A generic UUID-only standalone delete
 must not infer that every object owned by that class is an ordinary component.

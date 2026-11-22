@@ -62,13 +62,22 @@ export async function deletePrimitiveExact(
   bridge: TransactionBridgeCaller,
   primitiveId: string,
   nativeScope?: NativeSchematicScope,
+  expectedSnapshot?: PrimitiveSnapshotResult,
 ): Promise<unknown> {
   const result = await bridge.call<
-    { primitiveIds: string[]; expectedProjectUuid?: string; expectedSchematicPageUuid?: string },
+    {
+      primitiveIds: string[];
+      expectedProjectUuid?: string;
+      expectedSchematicPageUuid?: string;
+      expectedPrimitiveSnapshot?: PrimitiveSnapshotResult;
+    },
     DeletePrimitiveResult
   >('schematic.deletePrimitive', {
     primitiveIds: [primitiveId],
     ...(nativeScope ? nativeSchematicTarget(nativeScope) : {}),
+    ...(nativeScope && expectedSnapshot
+      ? { expectedPrimitiveSnapshot: structuredClone(expectedSnapshot) }
+      : {}),
   });
   if (
     result &&

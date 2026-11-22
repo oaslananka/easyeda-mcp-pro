@@ -904,6 +904,233 @@ describe('schematic transaction operations', () => {
     expect(componentDelete).not.toHaveBeenCalled();
   });
 
+  it('refuses a transactional wire whose native net changed after server snapshot verification', async () => {
+    let nativeNet = 'N1';
+    const nativeDelete = vi.fn().mockResolvedValue(true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) =>
+          id === 'wire-1'
+            ? {
+                primitiveId: 'wire-1',
+                getState_Line: () => [0, 0, 10, 0],
+                getState_Net: () => nativeNet,
+              }
+            : undefined,
+        ),
+        delete: nativeDelete,
+      },
+    });
+    const expected = await operations.getPrimitiveSnapshot('wire-1');
+    expect(expected.property.net).toBe('N1');
+    nativeNet = 'N2';
+    callFirst.mockImplementation(async (paths: string[]) => {
+      if (paths[0] === 'DMT_Project.getCurrentProjectInfo') return { uuid: 'project-1' };
+      if (paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo') {
+        return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+      }
+      throw new Error('Unexpected native getter');
+    });
+
+    await expect(
+      operations.deletePrimitives(['wire-1'], expected, {
+        projectId: 'project-1',
+        documentId: 'page-1',
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_DELETE_PRECONDITION_CHANGED' });
+    expect(nativeDelete).not.toHaveBeenCalled();
+  });
+
+  it('refuses a scoped transactional delete when the native project/page differs at final pre-write boundary', async () => {
+    const nativeDelete = vi.fn().mockResolvedValue(true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) =>
+          id === 'wire-1'
+            ? {
+                primitiveId: 'wire-1',
+                getState_Line: () => [0, 0, 10, 0],
+                getState_Net: () => 'N1',
+              }
+            : undefined,
+        ),
+        delete: nativeDelete,
+      },
+    });
+    const expected = await operations.getPrimitiveSnapshot('wire-1');
+    callFirst.mockImplementation(async (paths: string[]) => {
+      if (paths[0] === 'DMT_Project.getCurrentProjectInfo') return { uuid: 'project-1' };
+      if (paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo') {
+        return { uuid: 'different-page', parentProjectUuid: 'project-1', documentType: 1 };
+      }
+      throw new Error('Unexpected native getter');
+    });
+    await expect(
+      operations.deletePrimitives(['wire-1'], expected, {
+        projectId: 'project-1',
+        documentId: 'page-1',
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_DELETE_PRECONDITION_CHANGED' });
+    expect(nativeDelete).not.toHaveBeenCalled();
+  });
+
+  it('deletes only when a transactional native witness and project/page match exactly', async () => {
+    const nativeDelete = vi.fn().mockResolvedValue(true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) =>
+          id === 'wire-1'
+            ? {
+                primitiveId: 'wire-1',
+                getState_Line: () => [0, 0, 10, 0],
+                getState_Net: () => 'N1',
+              }
+            : undefined,
+        ),
+        delete: nativeDelete,
+      },
+    });
+    callFirst.mockImplementation(async (paths: string[]) => {
+      if (paths[0] === 'DMT_Project.getCurrentProjectInfo') return { uuid: 'project-1' };
+      if (paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo') {
+        return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+      }
+      throw new Error('Unexpected native getter');
+    });
+    const expected = await operations.getPrimitiveSnapshot('wire-1');
+    // JSON transport can reorder keys without changing primitive semantics.
+    const reordered = {
+      property: { net: 'N1', line: [0, 0, 10, 0] },
+      primitiveKind: expected.primitiveKind,
+      primitiveId: expected.primitiveId,
+      schemaVersion: expected.schemaVersion,
+    };
+    await expect(
+      operations.deletePrimitives(['wire-1'], reordered, {
+        projectId: 'project-1',
+        documentId: 'page-1',
+      }),
+    ).resolves.toMatchObject({ deleted: ['wire-1'], notFound: [] });
+    expect(nativeDelete).toHaveBeenCalledExactlyOnceWith(['wire-1']);
+    expect(callFirst).toHaveBeenCalledWith(['DMT_SelectControl.getCurrentDocumentInfo']);
+  });
+
+  it('refuses a focused-page switch during the native snapshot read even with matching wire properties', async () => {
+    let focusedPageReads = 0;
+    const nativeDelete = vi.fn().mockResolvedValue(true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) =>
+          id === 'wire-1'
+            ? {
+                primitiveId: 'wire-1',
+                getState_Line: () => [0, 0, 10, 0],
+                getState_Net: () => 'N1',
+              }
+            : undefined,
+        ),
+        delete: nativeDelete,
+      },
+    });
+    const expected = await operations.getPrimitiveSnapshot('wire-1');
+    callFirst.mockImplementation(async (paths: string[]) => {
+      if (paths[0] === 'DMT_Project.getCurrentProjectInfo') return { uuid: 'project-1' };
+      if (paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo') {
+        focusedPageReads += 1;
+        return {
+          uuid: focusedPageReads === 1 ? 'page-1' : 'page-2',
+          parentProjectUuid: 'project-1',
+          documentType: 1,
+        };
+      }
+      throw new Error('Unexpected native getter');
+    });
+    await expect(
+      operations.deletePrimitives(['wire-1'], expected, {
+        projectId: 'project-1',
+        documentId: 'page-1',
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_DELETE_PRECONDITION_CHANGED' });
+    expect(focusedPageReads).toBeGreaterThanOrEqual(2);
+    expect(nativeDelete).not.toHaveBeenCalled();
+  });
+
+  it('refuses caller-claimed netflag witnesses without enabling marker deletion', async () => {
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn(async (id: string) =>
+          id === 'flag-1'
+            ? {
+                primitiveId: 'flag-1',
+                getState_ComponentType: () => 'netflag',
+              }
+            : undefined,
+        ),
+        delete: componentDelete,
+      },
+    });
+    await expect(
+      operations.deletePrimitives(
+        ['flag-1'],
+        {
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveId: 'flag-1',
+          primitiveKind: 'netflag',
+          componentType: 'netflag',
+          property: { net: 'GND', identification: 'Ground' },
+        },
+        { projectId: 'project-1', documentId: 'page-1' },
+      ),
+    ).rejects.toMatchObject({
+      code: 'NATIVE_DELETE_PRECONDITION_CHANGED',
+    });
+    expect(componentDelete).not.toHaveBeenCalled();
+  });
+
+  it('does not delete even a matching wire with missing native page scope', async () => {
+    const nativeDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) =>
+          id === 'wire-1'
+            ? {
+                primitiveId: 'wire-1',
+                getState_Line: () => [0, 0, 10, 0],
+                getState_Net: () => 'N1',
+              }
+            : undefined,
+        ),
+        delete: nativeDelete,
+      },
+    });
+    const expected = await operations.getPrimitiveSnapshot('wire-1');
+    await expect(operations.deletePrimitives(['wire-1'], expected)).rejects.toMatchObject({
+      code: 'NATIVE_DELETE_PRECONDITION_CHANGED',
+    });
+    expect(nativeDelete).not.toHaveBeenCalled();
+  });
+
+  it('does not turn a validated drawing witness into a multi-target delete', async () => {
+    const nativeDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveWire: { delete: nativeDelete },
+    });
+    await expect(
+      operations.deletePrimitives(
+        ['wire-1', 'wire-2'],
+        {
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveKind: 'wire',
+          primitiveId: 'wire-1',
+          property: { net: 'N1', line: [0, 0, 10, 0] },
+        },
+        { projectId: 'project-1', documentId: 'page-1' },
+      ),
+    ).rejects.toMatchObject({ code: 'NATIVE_DELETE_PRECONDITION_CHANGED' });
+    expect(nativeDelete).not.toHaveBeenCalled();
+  });
+
   it('rejects repeated standalone IDs without deleting a primitive twice', async () => {
     const wireDelete = vi.fn().mockResolvedValue(true);
     const { operations } = createSubject({

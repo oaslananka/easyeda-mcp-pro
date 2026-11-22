@@ -627,6 +627,12 @@ describe('easyeda_schematic_batch_write', () => {
       primitiveIds: ['wire-old'],
       expectedProjectUuid: 'project-1',
       expectedSchematicPageUuid: 'page-1',
+      expectedPrimitiveSnapshot: {
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'wire-old',
+        primitiveKind: 'wire',
+        property: { line: [0, 0, 10, 0], net: 'N1' },
+      },
     });
     expect(snapshots.has('wire-old')).toBe(false);
     expect(snapshots.has('wire-restored')).toBe(true);

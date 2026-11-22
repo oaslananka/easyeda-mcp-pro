@@ -536,7 +536,7 @@ async function executeDelete(
       if (scope) {
         await assertFocusedSchematicScope(context.bridge, scope.projectId, scope.documentId);
       }
-      return deletePrimitiveExact(context.bridge, operation.primitiveId, scope);
+      return deletePrimitiveExact(context.bridge, operation.primitiveId, scope, witness.snapshot);
     },
     exists: async () => {
       if (scope) {

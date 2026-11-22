@@ -594,6 +594,24 @@ describe('createDispatcherDomainRouter', () => {
       handled: true,
       value: { method: 'schematic.deletePrimitive', primitiveIds: ['wire-1'] },
     });
+    const expectedPrimitiveSnapshot = {
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'wire-1',
+      primitiveKind: 'wire',
+      property: { line: [0, 0, 10, 0], net: 'N1' },
+    };
+    await router.tryDispatch('schematic.deletePrimitive', {
+      primitiveIds: ['wire-1'],
+      expectedProjectUuid: 'project-1',
+      expectedSchematicPageUuid: 'page-1',
+      expectedPrimitiveSnapshot,
+    });
+    expect(dependencies.schematicTransactionOperations.deletePrimitives).toHaveBeenLastCalledWith(
+      ['wire-1'],
+      expectedPrimitiveSnapshot,
+      { projectId: 'project-1', documentId: 'page-1' },
+    );
+
     const snapshot = { schemaVersion: 'schematic-primitive-snapshot/v1' };
     await expect(
       router.tryDispatch('schematic.recreatePrimitiveSnapshot', { snapshot }),
