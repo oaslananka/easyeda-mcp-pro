@@ -356,6 +356,20 @@ The command publishes only after a fresh isolated native cold reopen and
 matching snapshot, with a no-clobber output operation. This is a narrow
 acceptance/diagnostic workflow, not a claim of general component rollback.
 
+For the same limited fixture, a user who wants to **remove** the isolated
+default Ground from a **new copy**, rather than test rollback, can run:
+
+    easyeda-mcp-pro private-ground-check --project input.eprj2 --output ground-free.eprj2 \
+      --editor /path/to/easyeda-pro --activation /path/to/existing-activation.txt \
+      --confirm-write --allow-library-network --publish-delete
+
+This explicit one-shot choice drives the same fixed preview → begin → delete →
+validated commit → native Save → independent cold reopen as the private
+interactive MCP workflow. The output must be a previously nonexistent path;
+the input stays untouched. On any failed safety/readback gate it publishes
+nothing. It is **not** a general component or connected-netport delete
+capability and it does not modify an ordinary live GUI or Cloud design.
+
 The bounded interactive candidate uses the same isolated file workflow
 over a standalone stdio MCP connection:
 

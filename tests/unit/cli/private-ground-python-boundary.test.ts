@@ -10,6 +10,7 @@ const directory = resolve('scripts/private-ground');
 const harness = [
   'import importlib.util, pathlib, sys',
   'from unittest.mock import patch',
+  'import subprocess,json',
   'root=pathlib.Path(sys.argv[1])',
   'def load(name):',
   '    spec=importlib.util.spec_from_file_location(name,root/(name+".py"))',
@@ -61,12 +62,33 @@ const harness = [
   '                assert run.call_args.kwargs["timeout"]==360',
   '                assert start.call_args.kwargs["shell"] is False',
   '                proxy.terminate.assert_called_once()',
+  '    elif mode=="valid-scripted":',
+  '        from tempfile import TemporaryDirectory',
+  '        from unittest.mock import Mock',
+  '        with TemporaryDirectory() as folder:',
+  '            root=pathlib.Path(folder)',
+  '            source=root/"input.eprj2"',
+  '            editor=root/"vendor"/"easyeda-pro"',
+  '            activation=root/"activation.txt"',
+  '            node=root/"node"',
+  '            proxy=Mock()',
+  '            with patch("subprocess.Popen",return_value=proxy), patch("subprocess.run") as run, patch.object(pathlib.Path,"is_socket",return_value=True), patch.object(pathlib.Path,"chmod"):',
+  '                launcher.run_worker(root,"interactive",source,editor,activation,node,scripted_delete=True)',
+  '                argv=run.call_args.args[0]',
+  '                assert argv[0]=="/usr/bin/bwrap"',
+  '                assert argv[-1]=="interactive"',
+  '                assert run.call_args.kwargs["shell"] is False',
+  '                assert run.call_args.kwargs["stdout"]==subprocess.DEVNULL',
+  '                assert run.call_args.kwargs["text"] is True',
+  '                assert run.call_args.kwargs["input"]=="".join(json.dumps({"action":x},separators=(",",":"))+"\\n" for x in ("preview","begin","delete","publish_delete"))',
+  '                assert "stdin" not in run.call_args.kwargs',
+  '                proxy.terminate.assert_called_once()',
   '    else: raise AssertionError("unknown test")',
   'print("verified")',
 ].join('\n');
 
 describe.skipIf(!available)('private Ground Python argument boundary', () => {
-  it.each(['valid', 'invalid-native', 'invalid-launcher', 'valid-launcher'])(
+  it.each(['valid', 'invalid-native', 'invalid-launcher', 'valid-launcher', 'valid-scripted'])(
     'checks %s without spawning a native process',
     (mode) => {
       const result = spawnSync(python, ['-B', '-c', harness, directory, mode], {

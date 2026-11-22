@@ -905,6 +905,7 @@ export function formatHelp(): string {
     '    --fix     Print suggested fixes for each detected failure (no files are changed)',
     '  easyeda-mcp-pro private-ground-session --help  Start isolated Ground stdio MCP (Linux, opt-in)',
     '  easyeda-mcp-pro private-ground-check --help  Verify isolated Ground rollback (Linux, opt-in)',
+    '  easyeda-mcp-pro private-ground-check --publish-delete  Publish verified Ground-free project COPY (Linux; confirmWrite)',
     '  easyeda-mcp-pro --version                    Print package version',
     '',
     'Examples:',

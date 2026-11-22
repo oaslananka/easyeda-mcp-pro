@@ -55,8 +55,18 @@ def publish(staged, output):
         os.unlink(name)
 
 
-def run_worker(root, mode, original, editor, activation, node, expected=None):
-    if mode not in ('transaction', 'interactive', 'cold') or (expected is not None) != (mode == 'cold'):
+# No arbitrary commands, user-provided JSON or native RPC parameters enter the
+# scripted path. All safety checks remain in the interactive MCP transaction.
+DELETE_ACTIONS = ''.join(
+    json.dumps({'action': name}, separators=(',', ':')) + '\n'
+    for name in ('preview', 'begin', 'delete', 'publish_delete')
+)
+
+
+def run_worker(root, mode, original, editor, activation, node, expected=None, *, scripted_delete=False):
+    if (mode not in ('transaction', 'interactive', 'cold') or
+            (expected is not None) != (mode == 'cold') or
+            (scripted_delete and mode != 'interactive')):
         raise ValueError('Invalid worker mode or cold proof')
     # Every host operand is an absolute validated path, never a command or option.
     for path in (root, original, editor, activation, node, *((expected,) if expected is not None else ())):
@@ -108,11 +118,15 @@ def run_worker(root, mode, original, editor, activation, node, expected=None):
             command.extend(['--chdir', '/workspace', '/usr/bin/python3', '/launch/worker.py', mode])
             # The executable, options and destination mounts are fixed; only absolute
             # operator-selected source paths are variable positional operands.
-            subprocess.run(  # nosec B603
-                ['/usr/bin/bwrap', *command], shell=False,
-                stdin=None if mode == 'interactive' else subprocess.DEVNULL,
-                stdout=None if mode == 'interactive' else sys.stderr, stderr=sys.stderr,
-                check=True, timeout=360)
+            options = {'shell': False, 'stderr': sys.stderr, 'check': True, 'timeout': 360}
+            if scripted_delete:
+                # Fixed actions are piped into the isolated node worker.
+                # Hide intermediate MCP diagnostics; stdout is one final proof.
+                options.update(input=DELETE_ACTIONS, text=True, stdout=subprocess.DEVNULL)
+            else:
+                options.update(stdin=None if mode == 'interactive' else subprocess.DEVNULL,
+                               stdout=None if mode == 'interactive' else sys.stderr)
+            subprocess.run(['/usr/bin/bwrap', *command], **options)  # nosec B603
             return evidence
         finally:
             proxy.terminate()
@@ -134,9 +148,13 @@ def main():
     parser.add_argument('--allow-library-network', action='store_true', help='Permit bounded HTTPS access to pro.easyeda.com and image-pro.easyeda.com')
     parser.add_argument('--node', required=True, help=argparse.SUPPRESS)
     parser.add_argument('--interactive', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--publish-delete', action='store_true',
+                        help='Permanently delete the one verified Ground in a NEW isolated output copy; never overwrite input')
     args = parser.parse_args()
     if not args.confirm_write or not args.allow_library_network:
         parser.error('Both --confirm-write and --allow-library-network are required')
+    if args.publish_delete and args.interactive:
+        parser.error('Cannot combine --publish-delete with --interactive')
     if sys.platform != 'linux' or os.geteuid() == 0:
         parser.error('Requires a non-root Linux host with user namespaces')
     for binary in ('bwrap', 'Xvfb', 'socat', 'python3'):
@@ -168,7 +186,10 @@ def main():
                             'username': '', 'password': ''}}  # nosec B105
         (seed / 'config.json').write_text(json.dumps(config))
         print('Verifying private Ground transaction...', file=sys.stderr)
-        result_dir = run_worker(root, 'interactive' if args.interactive else 'transaction', source, editor, activation, node)
+        result_dir = run_worker(
+            root, 'interactive' if args.interactive or args.publish_delete else 'transaction',
+            source, editor, activation, node, scripted_delete=args.publish_delete,
+        )
         result = json.loads((result_dir / 'result.json').read_text())
         staged = input_file(result_dir / 'staged.eprj2', '.eprj2')
         staged_hash = digest(staged)
@@ -176,7 +197,7 @@ def main():
         cold_dir = run_worker(root, 'cold', staged, editor, activation, node, result_dir / 'result.json')
         cold = json.loads((cold_dir / 'cold.json').read_text())
         publication = 'publish'
-        if args.interactive and result.get('mode') == 'deletion':
+        if (args.interactive or args.publish_delete) and result.get('mode') == 'deletion':
             transaction = result.get('transaction')
             operations = transaction.get('operations') if isinstance(transaction, dict) else None
             if (cold.get('verified') is not True or cold.get('deleted') is not True or
@@ -193,7 +214,7 @@ def main():
                 raise RuntimeError('Durable committed Ground deletion not proven')
             publication = 'publish_delete'
         else:
-            if (result.get('mode') is not None or
+            if (args.publish_delete or result.get('mode') is not None or
                     cold.get('verified') is not True or cold.get('snapshot') != result.get('after') or
                     result['transaction'].get('rollback_complete') is not True or
                     result.get('save') is not True):
