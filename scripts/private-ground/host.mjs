@@ -6,20 +6,37 @@ import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 import { z } from 'zod';
 
+function verifiedPublicationBase(result) {
+  return [
+    result.coldReopenVerified === true,
+    result.originalUnchanged === true,
+    /^[0-9a-f]{64}$/.test(result.sha256 ?? ''),
+    typeof result.output === 'string',
+  ].every(Boolean);
+}
+
+function verifiedDeletionPublication(result) {
+  return [
+    verifiedPublicationBase(result),
+    result.deletedVerified === true,
+    result.deleteCommitted === true,
+    result.rollbackComplete === false,
+    typeof result.deletedId === 'string',
+    result.deletedId?.length > 0,
+  ].every(Boolean);
+}
+
 async function checkedResponse(action, value, exit) {
   const response = JSON.parse(value);
   if (response?.action !== action || typeof response.result?.success !== 'boolean')
     throw new Error('Private worker response does not match the request');
   const result = response.result;
-  if (action === 'publish' && result.success === true) {
-    if (
-      result.coldReopenVerified !== true ||
-      result.originalUnchanged !== true ||
-      result.rollbackComplete !== true ||
-      !/^[0-9a-f]{64}$/.test(result.sha256 ?? '') ||
-      typeof result.output !== 'string' ||
-      (await exit) !== 0
-    )
+  if (result.success === true && action === 'publish_delete') {
+    if (!verifiedDeletionPublication(result) || (await exit) !== 0)
+      throw new Error('Verified committed deletion output unavailable');
+  }
+  if (result.success === true && action === 'publish') {
+    if (!verifiedPublicationBase(result) || result.rollbackComplete !== true || (await exit) !== 0)
       throw new Error('Verified output result unavailable');
   }
   return result;
@@ -85,6 +102,11 @@ const specs = [
     'Save the verified rollback, cold reopen in a new worker, and publish only a new output file. Ends this session.',
     true,
   ],
+  [
+    'publish_delete',
+    'Commit the independently verified Ground deletion, save and cold reopen a new project COPY. Never overwrites the original; there is no rollback after publication.',
+    true,
+  ],
 ];
 
 async function main(args) {
@@ -93,7 +115,7 @@ async function main(args) {
       'private-ground-session --project INPUT.eprj2 --output NEW.eprj2 --editor PATH --activation PATH --confirm-write --allow-library-network',
     );
     console.log(
-      'Linux-only stdio MCP session for one disconnected default Ground. Preview, begin, delete, rollback, and publish. The isolated worker has a bounded 260-second operation window. Disconnect discards unverified work.',
+      'Linux-only stdio MCP session for one disconnected default Ground. Preview, begin, delete; then rollback+publish or publish_delete into a NEW copy. The isolated worker has a bounded 260-second operation window. Disconnect discards unverified work.',
     );
     return;
   }
@@ -109,7 +131,7 @@ async function main(args) {
           : z.object({}).strict(),
         annotations: {
           readOnlyHint: action === 'inspect' || action === 'preview',
-          destructiveHint: action === 'delete',
+          destructiveHint: action === 'delete' || action === 'publish_delete',
         },
       },
       async (_input, context) => {

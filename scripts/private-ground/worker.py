@@ -101,7 +101,7 @@ def main():
             if mode in ('transaction', 'interactive'):
                 result = Path('/evidence/result.json')
                 if not result.is_file() or not json.loads(result.read_text()).get('save'):
-                    raise RuntimeError('Rollback proof missing')
+                    raise RuntimeError('Verified private Ground save proof missing')
                 shutil.copyfile(PROJECT, '/evidence/staged.eprj2')
             elif not Path('/evidence/cold.json').is_file():
                 raise RuntimeError('Cold reopen proof missing')

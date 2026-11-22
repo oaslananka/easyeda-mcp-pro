@@ -25,16 +25,20 @@ function fixture() {
     primitiveId: 'new',
     nativeIsolation: { ...before.nativeIsolation, markerId: 'new' },
   };
+  const survivorState = { sheetId: null, attributes: [] };
   const baseline = {
     projectId: 'project',
     markerId: 'old',
     groundProfile: { sheetCount: 0 },
     snapshot: before,
+    survivors: structuredClone(survivorState),
   };
   const adapter = {
-    invoke: vi.fn(async (method: string) =>
-      method === 'inventory' ? { components: [], attributeCount: 0 } : true,
-    ),
+    invoke: vi.fn(async (method: string) => {
+      if (method === 'inventory') return { components: [], attributeCount: 0 };
+      if (method === 'privateGround.survivors') return structuredClone(survivorState);
+      return true;
+    }),
   };
   const bridge = {
     preflight: vi.fn(async () => before),
@@ -46,6 +50,22 @@ function fixture() {
     if (name === 'easyeda_schematic_batch_write')
       return args.dryRun ? { dry_run: true } : { committed: false, transaction_state: 'active' };
     if (name === 'easyeda_project_begin_transaction') return { transaction: { id: 'tx' } };
+    if (name === 'easyeda_project_validate_transaction')
+      return {
+        transaction: {
+          id: 'tx',
+          state: 'validated',
+          operations: [{ kind: 'delete', state: 'applied' }],
+        },
+      };
+    if (name === 'easyeda_project_commit_transaction')
+      return {
+        transaction: {
+          id: 'tx',
+          state: 'committed',
+          operations: [{ kind: 'delete', state: 'applied' }],
+        },
+      };
     if (name === 'easyeda_project_rollback_transaction')
       return {
         transaction: {
@@ -120,6 +140,68 @@ describe('interactive private Ground workflow', () => {
       confirmWrite: true,
     });
   });
+  it('publishes a committed Ground deletion only from the verified private copy', async () => {
+    const f = fixture();
+    expect(await f.workflow.call('publish_delete')).toMatchObject({ success: false });
+    await throughDelete(f.workflow);
+    const staged = await f.workflow.call('publish_delete');
+    expect(staged).toMatchObject({
+      success: true,
+      phase: 'staged',
+      mode: 'deletion',
+      deletedId: 'old',
+      save: true,
+      transaction: { state: 'committed' },
+      survivors: f.baseline.survivors,
+    });
+    expect(f.tool).toHaveBeenNthCalledWith(4, 'easyeda_project_validate_transaction', {
+      transactionId: 'tx',
+      expectedOperationCount: 1,
+      requireAppliedOperations: true,
+      requireBridgeConnected: true,
+    });
+    expect(f.tool).toHaveBeenNthCalledWith(5, 'easyeda_project_commit_transaction', {
+      transactionId: 'tx',
+      confirmWrite: true,
+    });
+    expect(f.adapter.invoke).toHaveBeenCalledWith('privateGround.survivors');
+    expect(f.adapter.invoke).toHaveBeenCalledWith('schematic.saveDeleted');
+    expect(await f.workflow.call('rollback')).toMatchObject({ success: false });
+    expect(await f.workflow.call('publish')).toMatchObject({ success: false });
+  });
+
+  it('fails closed if surviving native sheet attributes drift before deletion publication', async () => {
+    const f = fixture();
+    await throughDelete(f.workflow);
+    f.adapter.invoke.mockImplementation(async (method: string) => {
+      if (method === 'privateGround.survivors') {
+        return { sheetId: 'unexpected', attributes: [['new', 'unverified']] };
+      }
+      throw new Error('Unexpected native invocation');
+    });
+    await expect(f.workflow.call('publish_delete')).rejects.toThrow('Surviving');
+    expect(f.tool).toHaveBeenCalledTimes(3);
+    expect(await f.workflow.call('publish_delete')).toMatchObject({
+      success: false,
+      phase: 'poisoned',
+    });
+  });
+
+  it('does not stage a deletion if native save or source confirmation fails', async () => {
+    const f = fixture();
+    await throughDelete(f.workflow);
+    f.adapter.invoke.mockImplementation(async (method: string) => {
+      if (method === 'privateGround.survivors') return structuredClone(f.baseline.survivors);
+      if (method === 'schematic.saveDeleted') return false;
+      throw new Error('Unexpected native method');
+    });
+    await expect(f.workflow.call('publish_delete')).rejects.toThrow('save');
+    expect(await f.workflow.call('publish_delete')).toMatchObject({
+      success: false,
+      phase: 'poisoned',
+    });
+  });
+
   it('poisons on uncertain deletion without retry or publication', async () => {
     const f = fixture();
     await f.workflow.call('preview');

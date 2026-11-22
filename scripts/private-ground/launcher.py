@@ -175,17 +175,46 @@ def main():
         print('Verifying independent cold reopen...', file=sys.stderr)
         cold_dir = run_worker(root, 'cold', staged, editor, activation, node, result_dir / 'result.json')
         cold = json.loads((cold_dir / 'cold.json').read_text())
-        if (cold.get('verified') is not True or cold['snapshot'] != result['after'] or
-                result['transaction'].get('rollback_complete') is not True or result.get('save') is not True):
-            raise RuntimeError('Durable rollback not proven')
+        publication = 'publish'
+        if args.interactive and result.get('mode') == 'deletion':
+            transaction = result.get('transaction')
+            operations = transaction.get('operations') if isinstance(transaction, dict) else None
+            if (cold.get('verified') is not True or cold.get('deleted') is not True or
+                    cold.get('survivors') != result.get('survivors') or
+                    result.get('save') is not True or
+                    not isinstance(result.get('deletedId'), str) or not result.get('deletedId') or
+                    not isinstance(result.get('projectId'), str) or not result.get('projectId') or
+                    not isinstance(result.get('pageId'), str) or not result.get('pageId') or
+                    transaction.get('state') != 'committed' or
+                    not isinstance(operations, list) or len(operations) != 1 or
+                    operations[0].get('kind') != 'delete' or
+                    operations[0].get('state') != 'applied' or
+                    operations[0].get('target_id') != result.get('deletedId')):
+                raise RuntimeError('Durable committed Ground deletion not proven')
+            publication = 'publish_delete'
+        else:
+            if (result.get('mode') is not None or
+                    cold.get('verified') is not True or cold.get('snapshot') != result.get('after') or
+                    result['transaction'].get('rollback_complete') is not True or
+                    result.get('save') is not True):
+                raise RuntimeError('Durable rollback not proven')
         if digest(original) != before_hash or digest(staged) != staged_hash:
             raise RuntimeError('Source or staged file changed; refusing output')
         publish(staged, output)
-        response = {'success': True, 'output': str(output), 'originalUnchanged': True,
-                    'restoredId': result['restoredId'], 'rollbackComplete': True,
-                    'coldReopenVerified': True, 'attributeFingerprint': cold['snapshot']['nativeIsolation']['attributeFingerprint'],
-                    'sha256': staged_hash}
-        print(json.dumps({'action': 'publish', 'result': response} if args.interactive else response), flush=True)
+        if publication == 'publish_delete':
+            response = {
+                'success': True, 'output': str(output), 'originalUnchanged': True,
+                'deletedId': result['deletedId'], 'deleteCommitted': True,
+                'deletedVerified': True, 'rollbackComplete': False,
+                'coldReopenVerified': True, 'sha256': staged_hash,
+            }
+        else:
+            response = {'success': True, 'output': str(output), 'originalUnchanged': True,
+                        'restoredId': result['restoredId'], 'rollbackComplete': True,
+                        'coldReopenVerified': True,
+                        'attributeFingerprint': cold['snapshot']['nativeIsolation']['attributeFingerprint'],
+                        'sha256': staged_hash}
+        print(json.dumps({'action': publication, 'result': response} if args.interactive else response), flush=True)
 
 
 if __name__ == '__main__':

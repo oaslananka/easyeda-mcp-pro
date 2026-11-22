@@ -148,7 +148,23 @@ function createAdapter(sessionId) {
       scope = boundGroundScope(b);
       const profile = scope.groundProfile;
       const snapshot = await verifyBootstrap(invoke, b, profile);
-      return { ...scope, snapshot };
+      const survivors = await invoke('privateGround.survivors');
+      if (!survivors || typeof survivors !== 'object') {
+        throw new Error('Private native surviving sheet state unavailable');
+      }
+      return { ...scope, snapshot, survivors };
+    },
+    bootstrapDeleted: async (expected) => {
+      const proof = await invoke('privateGround.bootstrapDeleted', { expected });
+      if (
+        proof?.deleted !== true ||
+        proof.projectId !== expected.projectId ||
+        proof.pageId !== expected.pageId ||
+        stableHash(proof.survivors) !== stableHash(expected.survivors)
+      ) {
+        throw new Error('Native cold deleted-state proof differs');
+      }
+      return proof;
     },
   };
 }
@@ -245,19 +261,47 @@ async function verifyRollback({ adapter, baseline, bridge, tool, before, transac
   return { before, after, restoredId, transaction, save: true };
 }
 
+async function verifyColdDeletion(adapter, result) {
+  const operation = result?.transaction?.operations?.[0];
+  if (
+    ![
+      result.mode === 'deletion',
+      result.transaction?.state === 'committed',
+      result.transaction?.operations?.length === 1,
+      operation?.kind === 'delete',
+      operation?.state === 'applied',
+      result.save === true,
+      typeof result.deletedId === 'string',
+    ].every(Boolean)
+  ) {
+    throw new Error('Committed native Ground deletion proof missing');
+  }
+  const verified = await adapter.bootstrapDeleted(result);
+  put('/evidence/cold.json', {
+    deleted: true,
+    survivors: verified.survivors,
+    verified: true,
+  });
+}
+
 async function main() {
   const [mode, sessionId] = process.argv.slice(2);
   if (!['transaction', 'interactive', 'cold'].includes(mode) || !sessionId)
     throw new Error('Invalid internal worker request');
   const adapter = createAdapter(sessionId);
-  const baseline = await adapter.bootstrap();
   if (mode === 'cold') {
     const r = json('/expected.json');
+    if (r?.mode === 'deletion') {
+      await verifyColdDeletion(adapter, r);
+      return;
+    }
+    const baseline = await adapter.bootstrap();
     if (stableHash(baseline.snapshot) !== stableHash(r.after) || baseline.markerId !== r.restoredId)
       throw new Error('Cold reopen differs from saved rollback');
     put('/evidence/cold.json', { snapshot: baseline.snapshot, verified: true });
     return;
   }
+  const baseline = await adapter.bootstrap();
   put(
     '/evidence/result.json',
     await transact(adapter, baseline, sessionId, mode === 'interactive'),

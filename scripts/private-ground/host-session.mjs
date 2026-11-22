@@ -30,7 +30,7 @@ export function createGroundSession(startWorker, timeoutMs = 420000) {
       ]);
       if (closed || signal?.aborted)
         return { success: false, error: 'Session cancelled; check the selected output path' };
-      if (action === 'publish' && result.success === true) stop();
+      if ((action === 'publish' || action === 'publish_delete') && result.success === true) stop();
       return result;
     } catch {
       stop();

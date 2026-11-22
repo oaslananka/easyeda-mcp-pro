@@ -365,7 +365,7 @@ over a standalone stdio MCP connection:
 
 Configure this command as a separate local MCP server, not a replacement
 for the ordinary GUI/Cloud server. Project and output paths are fixed at
-launch. The only six exposed tools have the prefix
+launch. The seven exposed tools have the prefix
 `easyeda_private_ground_`:
 
 - `inspect`: read the bound marker or verify its absence.
@@ -373,10 +373,19 @@ launch. The only six exposed tools have the prefix
 - `begin`: start a one-operation transaction after preview.
 - `delete`: delete on the private working copy.
 - `rollback`: restore and verify the native snapshot and fingerprint.
-- `publish`: save the restored copy, shut down its editor, independently
-  cold reopen, and publish a new verified file without clobbering output.
+- `publish`: after rollback, save the restored copy, shut down its editor,
+  independently cold reopen, and publish a new verified file.
+- `publish_delete`: after a verified delete **instead of rollback**,
+  independently compare the surviving native sheet and all sheet attributes
+  against the pre-delete witness, validate and commit the one-operation
+  transaction, save the Ground-free copy, shut down the editor and require
+  a **fresh cold-open confirmation of original marker absence and exact
+  surviving metadata** before publishing to a new file. This produces a
+  _deliberate permanent deletion in the output copy_, not a change to the
+  original input. No rollback is available once the verified deleted copy
+  has been published.
 
-Delete, rollback and publish each require `confirmWrite: true`. The client
+Delete, rollback, publish and publish_delete each require `confirmWrite: true`. The client
 cannot supply another project, primitive, native RPC or transaction ID.
 Calls are serialized and there is no retry after uncertain mutation.
 Disconnect, cancellation or timeout discards unverified work; the original
@@ -384,15 +393,41 @@ is never overwritten. The interactive worker has a bounded 260-second
 operation window, followed by bounded verification for publication. An
 already published, independently verified file may remain if cancellation
 races with its successful publication; inspect the designated output path
-before retrying. Publishing a permanent deletion, general components,
-connected markers, net ports, multi-page projects and ordinary GUI/Cloud
-marker mutation are not supported by this candidate.
+before retrying. General components, connected markers, net ports, multi-page projects and
+ordinary GUI/Cloud marker mutation remain unsupported. Publishing a deleted
+copy is available only for the precisely verified disconnected Ground
+profile under the host-isolated writer and immutable input/output rules.
 
+The two private publication paths have separate MCP schemas and different
+proof requirements. The real native writer is accessible only inside
+the Linux process/filesystem/network sandbox and the original input
+is read-only; no MCP input can supply raw native RPCs, paths or IDs.
 The interactive tool protocol and lifecycle have automated coverage,
-including a real SDK stdio client with a synthetic child protocol. Native
-delete/rollback/save/reopen is established for the standalone check
-command, but end-to-end native acceptance through this new external stdio
-session remains outstanding. The candidate must not be represented as a
+including a real SDK stdio client with a synthetic child protocol.
+A full **independent external MCP SDK stdio client** on an isolated,
+genuinely licensed **EasyEDA Pro V4.1.105** installation has now passed
+`inspect → preview → begin → delete → publish_delete` on a disposable
+single-page, disconnected default Ground: the native editor acknowledged
+the delete and project transaction commit; the working copy was saved,
+its editor closed, and a **fresh separate native cold worker** independently
+confirmed permanent absence of the original marker, no new components or
+wires, and exact surviving native sheet/attribute evidence. Only then did
+the launcher atomically publish a NEW `.eprj2`. The original input remained
+byte-identical with SHA-256
+`80120eb497e538ce482045b1848ef23bfcd1f0b77806bf77a2770e44722cbff9`;
+the published Ground-free output SHA-256 was
+`1c7b3bb96ece36eeadac42abdf8e870b8e5c09e27840ea2f0e079c81d821fba3`.
+Both passed SQLite `integrity_check`. The result explicitly reported
+`deleteCommitted=true`, `deletedVerified=true`,
+`coldReopenVerified=true`, `originalUnchanged=true` and
+`rollbackComplete=false`. No ordinary design, logged-in editor profile
+or Cloud project was modified.
+
+This verifies **one narrowly scoped, offline-copy product outcome**, not
+arbitrary native/connected netport or component recovery, general power
+flags, a shared GUI/Cloud write lease, production dispatcher delete
+permission, multi-project/multi-page editing or Cloud persistence. The
+ordinary public schematic transactional delete allowlist remains unchanged. The candidate must not be represented as a
 verified installed interactive native feature until that acceptance passes.
 
 The Bridge's typed Ground recreation integration is verified through an

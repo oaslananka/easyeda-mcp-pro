@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const supported =
   process.platform === 'linux' && spawnSync('/usr/bin/python3', ['--version']).status === 0;
-const names = ['begin', 'delete', 'inspect', 'preview', 'publish', 'rollback'];
+const names = ['begin', 'delete', 'inspect', 'preview', 'publish', 'publish_delete', 'rollback'];
 const expectedTools = names.map((name) => 'easyeda_private_ground_' + name);
 
 describe.skipIf(!supported)('private Ground real stdio protocol (no native editor)', () => {
@@ -63,6 +63,9 @@ describe.skipIf(!supported)('private Ground real stdio protocol (no native edito
       expect(list.tools.map((tool) => tool.name).sort()).toEqual(expectedTools);
       const deletion = list.tools.find((tool) => tool.name.endsWith('_delete'));
       expect(deletion?.inputSchema.required).toContain('confirmWrite');
+      const publication = list.tools.find((tool) => tool.name.endsWith('_publish_delete'));
+      expect(publication?.inputSchema.required).toContain('confirmWrite');
+      expect(publication?.annotations?.destructiveHint).toBe(true);
       const deleteResult = await client.callTool({
         name: 'easyeda_private_ground_delete',
         arguments: {},
@@ -79,6 +82,86 @@ describe.skipIf(!supported)('private Ground real stdio protocol (no native edito
         { timeout: 5000 },
       );
       expect(second.isError).toBe(true);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('publishes deletion only after an independently verified committed-delete envelope', async () => {
+    const trace = join(root, 'delete-actions.txt');
+    await writeFile(
+      join(root, 'launcher.py'),
+      [
+        'import json,sys,pathlib',
+        "trace=pathlib.Path(__file__).with_name('delete-actions.txt')",
+        'for line in sys.stdin:',
+        "    request=json.loads(line); assert set(request)=={'action'}",
+        "    action=request['action']",
+        "    with trace.open('a') as f: f.write(action+'\\n')",
+        "    result={'success':True,'phase':action}",
+        "    if action=='publish_delete':",
+        "        result.update(coldReopenVerified=True,originalUnchanged=True,deleteCommitted=True,deletedVerified=True,rollbackComplete=False,deletedId='old',sha256='a'*64,output='deleted-copy.eprj2')",
+        "    print(json.dumps({'action':action,'result':result}),flush=True)",
+        "    if action=='publish_delete': break",
+      ].join('\n'),
+    );
+    const client = await connect();
+    try {
+      const missingConfirmation = await client.callTool({
+        name: 'easyeda_private_ground_publish_delete',
+        arguments: {},
+      });
+      expect(missingConfirmation.isError).toBe(true);
+      const result = await client.callTool({
+        name: 'easyeda_private_ground_publish_delete',
+        arguments: { confirmWrite: true },
+      });
+      expect(result.isError, JSON.stringify(result)).toBe(false);
+      expect(result.structuredContent).toMatchObject({
+        success: true,
+        deleteCommitted: true,
+        deletedVerified: true,
+        coldReopenVerified: true,
+        output: 'deleted-copy.eprj2',
+      });
+      const after = await client.callTool({
+        name: 'easyeda_private_ground_inspect',
+        arguments: {},
+      });
+      expect(after.isError).toBe(true);
+      expect(await readFile(trace, 'utf8')).toBe('publish_delete\n');
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('rejects a forged deletion publication success without a committed native delete', async () => {
+    await writeFile(
+      join(root, 'launcher.py'),
+      [
+        'import json,sys',
+        'for line in sys.stdin:',
+        "    action=json.loads(line)['action']",
+        "    assert action=='publish_delete'",
+        "    forged={'success':True,'coldReopenVerified':True,'originalUnchanged':True,'deleteCommitted':False,'deletedVerified':True,'rollbackComplete':False,'deletedId':'old','sha256':'a'*64,'output':'forged.eprj2'}",
+        "    print(json.dumps({'action':action,'result':forged}),flush=True)",
+        '    break',
+      ].join('\n'),
+    );
+    const client = await connect();
+    try {
+      const result = await client.callTool({
+        name: 'easyeda_private_ground_publish_delete',
+        arguments: { confirmWrite: true },
+      });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({ success: false });
+      expect(
+        await client.callTool({
+          name: 'easyeda_private_ground_inspect',
+          arguments: {},
+        }),
+      ).toMatchObject({ isError: true });
     } finally {
       await client.close();
     }
