@@ -195,6 +195,34 @@ the symbol and electrical-looking geometry are the same. This probe was
 direct native CLI on an off-repository disposable copy, **not** product MCP
 transactional production acceptance or authorization to widen deletion.
 
+A second independently isolated **public Source API** experiment tested
+a _different existing descriptor_: a Ground originally created via Source
+APIs, which **already had the full 12 Source properties** (including the
+six empty defaults). For this exact V4.1.105, zero-wire GND subtype,
+one `removeNetFlag` and one `addNetFlag` on an off-repository copy
+resulted in a new primitive ID but retained the **same 53 native attributes**,
+all 12 property keys/values, Ground pin and neighboring port geometry.
+Independent native `SCH_Document.save` and a newly launched headless
+renderer confirmed exact equivalence across _before delete, after recreate,
+and cold reopen_: attribute semantic SHA-256
+`b18848017ed743f5c7c7c8e3dec8a34163688199bd02d8f11d04caf1f2a262bf`;
+normalized Source property SHA-256
+`f9e87c770e7b1d2b713835ec426a91610112bdedf0b0a5c0d13dc2f9f7e1c88a`.
+The original fixture's SHA-256 remained
+`a713970a9c911cf6ec9547379e6dbab53b52259a3e5ef7240cfe4d7b25239518`;
+the separate new saved copy had SHA-256
+`c99866d3d556e7875db12bca90506f59d7261b129073ab3024139925ed663357`.
+Both SQLite files passed integrity checks and both test headless sessions
+were closed. **This positive proof is limited to a pre-existing
+12-property, zero-wire Ground marker**; it does not make the earlier
+6-property Ground lossless, generalize to named ports/components, guarantee
+full electrical connectivity, or provide an editor-wide native writer
+fence. Native source query methods for authoritative nets remain unavailable
+or not implemented in this V4.1.105 runtime. Production
+`RECREATABLE_DELETE_KINDS` therefore remains unchanged, and the
+observed direct CLI copy tests are **not** current-head product MCP
+transactional acceptance.
+
 The isolated Ground evidence format is now version 2. It compares exact
 attribute list/ID/get results across two native reads and includes a
 SHA-256 fingerprint of every verified owned attribute's key, value, position,

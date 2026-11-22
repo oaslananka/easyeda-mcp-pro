@@ -1042,6 +1042,82 @@ describe('TransactionManager', () => {
     );
   });
 
+  it('accepts an exact pre-existing Source 12-property Ground after native ID rotation', async () => {
+    // Genuine disposable V4.1.105 native Source test: a Ground which already
+    // has all 12 Source fields retains all 53 native attributes after one
+    // remove/add, SCH_Document.save and a fresh headless cold reopen.
+    // This models strict compensation fingerprinting, NOT production
+    // permission to delete a marker or an editor-wide writer lease.
+    const initial = {
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'source-ground-original',
+      primitiveKind: 'netflag',
+      componentType: 'netflag',
+      property: {
+        identification: 'Ground',
+        net: 'GND',
+        x: 240,
+        y: 250,
+        rotation: 0,
+        mirror: false,
+        sourceProperties: {
+          Symbol: '17c558f9e954b079',
+          Description: '',
+          'Global Net Name': 'GND',
+          Name: 'GND',
+          Device: 'af20086a8911a85a',
+          'Unique ID': '',
+          Footprint: '',
+          Designator: '',
+          'Reuse Block': '',
+          'Group ID': '',
+          'Channel ID': '',
+          Relevance: '[]',
+        },
+        nativeAttributes: {
+          count: 53,
+          semanticSha256: 'b18848017ed743f5c7c7c8e3dec8a34163688199bd02d8f11d04caf1f2a262bf',
+        },
+        groundPin: { name: 'Pin1', x: 240, y: 250 },
+      },
+    };
+    const manager = new TransactionManager();
+    const transaction = manager.begin({ documentId: 'source-12-property-fixture' });
+    const recreate = vi.fn(async () => ({
+      targetId: 'source-ground-restored',
+      snapshot: { ...structuredClone(initial), primitiveId: 'source-ground-restored' },
+    }));
+
+    await expect(
+      manager.runDelete(transaction.id, initial.primitiveId, {
+        getSnapshot: async () => structuredClone(initial),
+        apply: async () => {
+          throw new Error('Source delete response dropped after native write');
+        },
+        exists: async () => false,
+        recreate,
+      }),
+    ).rejects.toMatchObject({
+      code: 'TRANSACTION_OPERATION_FAILED',
+      details: {
+        compensation: 'restored',
+        restoredTargetId: 'source-ground-restored',
+      },
+    });
+    expect(recreate).toHaveBeenCalledTimes(1);
+    expect(manager.get(transaction.id)).toMatchObject({
+      state: 'active',
+      operations: [
+        expect.objectContaining({
+          kind: 'delete',
+          state: 'cancelled',
+          compensation: 'restored',
+          restoredTargetId: 'source-ground-restored',
+        }),
+      ],
+    });
+  });
+
   it('recreates a deleted primitive when delete verification fails after the write', async () => {
     const manager = new TransactionManager();
     const transaction = manager.begin({ documentId: 'doc-1' });

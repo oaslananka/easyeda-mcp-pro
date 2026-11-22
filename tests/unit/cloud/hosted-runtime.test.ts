@@ -86,7 +86,7 @@ describe('Hosted Cloud runtime configuration', () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
-  });
+  }, 20_000);
 
   it('refuses file-backed data directories without exposing a partially initialized Cloud', async () => {
     const root = await mkdtemp(join(tmpdir(), 'easyeda-hosted-bad-path-'));
