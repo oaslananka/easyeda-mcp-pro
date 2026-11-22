@@ -135,6 +135,112 @@ describe('native Ground immediate compensation readback', () => {
   });
 });
 
+describe('independent drawing primitive compensation readback', () => {
+  const deletedWire = {
+    schemaVersion: 'schematic-primitive-snapshot/v1',
+    primitiveId: 'wire-old',
+    primitiveKind: 'wire',
+    property: { line: [0, 0, 10, 0], net: 'N1', color: null },
+  };
+  const claimedWire = { ...deletedWire, primitiveId: 'wire-restored' };
+
+  it('does not trust a recreation response when fresh native wire net differs', async () => {
+    const actualWire = {
+      ...claimedWire,
+      property: { ...claimedWire.property, net: 'VCC' },
+    };
+    const call = vi.fn(async (method: string) =>
+      method === 'schematic.recreatePrimitiveSnapshot'
+        ? { primitiveId: 'wire-restored', snapshot: claimedWire }
+        : actualWire,
+    );
+    const bridge = { call } as unknown as TransactionBridgeCaller;
+    await expect(recreatePrimitiveSnapshot(bridge, deletedWire)).resolves.toEqual({
+      primitiveId: 'wire-restored',
+      snapshot: actualWire,
+    });
+    expect(call).toHaveBeenLastCalledWith('schematic.getPrimitiveSnapshot', {
+      primitiveId: 'wire-restored',
+    });
+  });
+
+  it('rejects a matching create response when native get returns another primitive ID', async () => {
+    const call = vi.fn(async (method: string) =>
+      method === 'schematic.recreatePrimitiveSnapshot'
+        ? { primitiveId: 'wire-restored', snapshot: claimedWire }
+        : { ...claimedWire, primitiveId: 'unrelated-id' },
+    );
+    await expect(
+      recreatePrimitiveSnapshot({ call } as unknown as TransactionBridgeCaller, deletedWire),
+    ).rejects.toThrow(/identity/i);
+    expect(call).toHaveBeenCalledWith('schematic.getPrimitiveSnapshot', {
+      primitiveId: 'wire-restored',
+    });
+  });
+
+  it.each([
+    { label: 'the native read is missing', native: undefined },
+    {
+      label: 'the native class changed',
+      native: {
+        ...{ schemaVersion: 'schematic-primitive-snapshot/v1', primitiveId: 'wire-restored' },
+        primitiveKind: 'rectangle',
+        property: { line: [0, 0, 10, 0], net: 'N1' },
+      },
+    },
+  ])('refuses restoration when $label', async ({ native }) => {
+    const call = vi.fn(async (method: string) =>
+      method === 'schematic.recreatePrimitiveSnapshot'
+        ? { primitiveId: 'wire-restored', snapshot: claimedWire }
+        : native,
+    );
+    await expect(
+      recreatePrimitiveSnapshot({ call } as unknown as TransactionBridgeCaller, deletedWire),
+    ).rejects.toThrow(/identity|type/i);
+    expect(call).toHaveBeenCalledWith('schematic.getPrimitiveSnapshot', {
+      primitiveId: 'wire-restored',
+    });
+  });
+
+  it('never marks failed-delete compensation restored solely from a claimed create snapshot', async () => {
+    const manager = new TransactionManager();
+    const transaction = manager.begin({ documentId: 'project-1' });
+    const nativeWire = {
+      ...claimedWire,
+      property: { ...claimedWire.property, net: 'changed-after-recreate' },
+    };
+    const bridge = {
+      call: vi.fn(async (method: string) =>
+        method === 'schematic.recreatePrimitiveSnapshot'
+          ? { primitiveId: 'wire-restored', snapshot: claimedWire }
+          : nativeWire,
+      ),
+    } as unknown as TransactionBridgeCaller;
+    let exists = true;
+    await expect(
+      manager.runDelete(transaction.id, deletedWire.primitiveId, {
+        getSnapshot: async () => deletedWire,
+        apply: async () => {
+          exists = false;
+          throw new Error('native response uncertain after successful deletion');
+        },
+        exists: async () => exists,
+        recreate: async (snapshot) => {
+          const recreated = await recreatePrimitiveSnapshot(bridge, snapshot);
+          return { targetId: recreated.primitiveId, snapshot: recreated.snapshot };
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: 'TRANSACTION_OPERATION_FAILED',
+      details: expect.objectContaining({ compensation: 'failed' }),
+    });
+    expect(manager.get(transaction.id)).toMatchObject({
+      state: 'failed',
+      operations: [expect.objectContaining({ state: 'failed', compensation: 'failed' })],
+    });
+  });
+});
+
 describe('native-scoped Ground rollback reconciliation', () => {
   it('does not normalize a forged isolation report bound to another marker', () => {
     const baseline = groundSnapshot('flag-old');

@@ -159,8 +159,14 @@ Immediate delete compensation now obtains an independent explicitly typed
 Ground snapshot after native recreation, rather than trusting the generic
 snapshot returned by create. Missing scope/evidence or incorrect native ID
 cannot pass that readback; the transaction manager still checks the full
-normalized fingerprint. This does not establish an exclusive native writer
-reservation or grant production marker deletion permission.
+normalized fingerprint. The same independent native get-by-ID requirement
+also applies to rollback-backed drawing-primitive recreation: a returned
+create-response snapshot alone cannot confirm compensation if a deletion had
+an uncertain outcome. A missing, wrong-ID or wrong-kind native read refuses
+successful restoration; a changed net or geometry is evaluated against the
+original transaction fingerprint and leaves compensation unresolved. This
+does not establish an exclusive native writer reservation or grant production
+marker deletion permission.
 
 An internal private-file-worker candidate now connects the schematic
 batch transaction preflight to a host-constructed Ground session adapter.

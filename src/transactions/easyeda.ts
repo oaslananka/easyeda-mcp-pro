@@ -107,18 +107,25 @@ export async function recreatePrimitiveSnapshot(
     throw new Error('Recreated primitive did not return an addressable primitive ID');
   }
   const expectedNativeKind = nativeGroundReadKind(snapshot);
-  // A create response is not independent verification of native scope or
-  // isolation. Immediate delete compensation uses the same typed readback
-  // as explicit rollback; never trust an unscoped create-response snapshot.
-  const recreatedSnapshot = expectedNativeKind
-    ? await getPrimitiveSnapshot(bridge, result.primitiveId, expectedNativeKind)
-    : (result.snapshot ?? (await getPrimitiveSnapshot(bridge, result.primitiveId)));
+  // The response from recreate is not evidence that the new primitive is
+  // actually readable. Compensation runs on uncertain writes as well as
+  // explicit rollback: trusting result.snapshot could falsely report a
+  // restored wire/net even when the native sheet holds different data.
+  const recreatedSnapshot = await getPrimitiveSnapshot(
+    bridge,
+    result.primitiveId,
+    expectedNativeKind,
+  );
+  const expected = snapshot as PrimitiveSnapshotResult | null;
   if (
-    expectedNativeKind &&
-    (recreatedSnapshot.primitiveId !== result.primitiveId ||
-      recreatedSnapshot.primitiveKind !== expectedNativeKind ||
-      nativeGroundReadKind(recreatedSnapshot) !== expectedNativeKind)
+    !recreatedSnapshot ||
+    recreatedSnapshot.primitiveId !== result.primitiveId ||
+    (typeof expected?.primitiveKind === 'string' &&
+      recreatedSnapshot.primitiveKind !== expected.primitiveKind)
   ) {
+    throw new Error('Recreated primitive identity or type not verified by independent native read');
+  }
+  if (expectedNativeKind && nativeGroundReadKind(recreatedSnapshot) !== expectedNativeKind) {
     throw new Error('Recreated native Ground identity or scoped evidence is not verified');
   }
   return { primitiveId: result.primitiveId, snapshot: recreatedSnapshot };
