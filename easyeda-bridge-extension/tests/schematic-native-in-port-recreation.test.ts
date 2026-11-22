@@ -72,6 +72,17 @@ describe('private V4 IN net port reconstruction prototype', () => {
           documentType: 1,
         };
       }
+      if (paths.includes('SCH_PrimitiveComponent.get')) return undefined;
+      if (paths.includes('SCH_PrimitiveWire.getAll')) return [];
+      if (paths.includes('SCH_PrimitiveComponent.getAll')) {
+        return [
+          { getState_ComponentType: () => 'sheet' },
+          { getState_ComponentType: () => 'netflag', getState_Net: () => 'GND' },
+        ];
+      }
+      if (paths.includes('SCH_PrimitiveAttribute.getAll'))
+        return Array.from({ length: 38 }, () => ({}));
+      if (paths.includes('SCH_PrimitivePin.getAll')) return [];
       return { primitiveId: 'new-port' };
     });
     const recreateDependencies = {

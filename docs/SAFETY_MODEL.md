@@ -118,30 +118,57 @@ native variants remain unverified. The descriptor is direction/identity
 evidence only, not proof of electrical isolation, attribute equivalence,
 a native writer reservation or supported transactional deletion.
 
-The first **IN netport native reconstruction descriptor** is implemented as
-an explicitly opted-in _private fixture prototype_, not a production
-capability. It uses the EasyEDA Pro V4.1.105 BETA
+The first **IN netport native reconstruction descriptor** remains an
+explicitly opted-in _private fixture prototype_, not a production capability.
+It uses the EasyEDA Pro V4.1.105 BETA
 `SCH_PrimitiveComponent.createNetPort('IN', net, x, y, 0, false)` call
-only with the exact previously observed Netport-IN library/symbol, independent
-native pin-identified direction, unmirrored zero rotation, a matching
-project/page and original primitive ID, and a separate trusted private QA
-profile. The profile is restricted to the earlier zero-wire V4 fixture:
-three components (sheet, Ground, IN port), zero page pins, one embedded
-port pin and 47 native attributes. In that disposable native test,
-all 47 attribute rows were preserved; only the generated sheet
-`@Update Time` value changed when saved. Replacing **only that field's
-value** with a fixed sentinel (retaining the row, key and multiplicity)
-gave the same SHA-256 before deletion, after recreation **and after
-independent native cold reopen**:
-`3901dab9df8ea0694ee7c0b1dad50c139fc1169ccab04a8a09afc046c4adb2b3`.
-All other native attribute names/values still compare exactly.
-This **off-repository historical fixture digest is not a live native
-pre-delete connectivity witness**, and matching an opt-in profile is not
-writer isolation or proof of all-pages netlist equivalence. The production
-dispatcher supplies neither this opt-in nor its private profile; ordinary
-netport transactional deletion remains **denied**. In particular, this
-source-level test of the BETA creation arguments is not new native
-MCP end-to-end acceptance on the present source revision.
+only with the exact reviewed Netport-IN library/symbol, embedded IN pin,
+zero rotation/mirror, project/page ID and a trusted private QA profile.
+
+Two disposable native profiles have now been verified separately:
+
+- **Disconnected:** sheet, Ground and IN port (three components); zero
+  wires/page pins, one embedded port pin and 47 native attributes.
+  Replacing only generated sheet `@Update Time` with a sentinel gives a
+  common SHA-256 **before delete, after native recreation and after cold reopen**:
+  `3901dab9df8ea0694ee7c0b1dad50c139fc1169ccab04a8a09afc046c4adb2b3`.
+- **One physical wire touching the IN pin:** In a separately imported
+  V4.1.105 test-only project, wire `QA_PORT_A` was created with endpoint
+  exactly at the port pin; a successful write initially had an _unverifiable
+  create response_, so the write was **not retried**. Independent native
+  getters confirmed the new wire's exact ID, net and endpoint geometry.
+  Native Save and a new headless-renderer reopen preserved all 49 attributes
+  (47 baseline plus two wire attributes), pin/port properties and the
+  unchanged wire identity/geometry. In a **separate copy**, the actual IN
+  port was deleted, the exact original wire remained, the port was
+  recreated with a newly allocated ID, and Save plus another fresh renderer
+  reopen again preserved wire and pin properties. With **only**
+  sheet `@Update Time` normalized and port/pin IDs treated as
+  recreated identities, all 49 attribute rows matched before-delete,
+  after-rollback and after-cold: SHA-256
+  `45fca1b2e12f2e095ad3855d25a3f8bbe1366a91f3b69a4fdeca9c2a642b0c9d`.
+  The wire/port/pin geometry hashes also matched after normalizing
+  the new port/pin IDs. Both source and result project files passed
+  independent SQLite integrity checks; the source files were unchanged.
+
+The **private-only** helper now requires an exact trusted zero-wire or
+one-wire profile, and independently reads the **current native** deleted-port
+absence, component identities, wire ID/net/line, surviving attribute count,
+free pin count and focused project/page again _before_ forming BETA native
+recreation arguments. Wrong or incomplete evidence fails closed. Those
+checks do **not** establish a global editor writer lease or replace a
+project-wide authoritative netlist: both the legacy native netlist getter and
+the native manufacture netlist file in the connected fixture returned only
+`PROTEL NETLIST 2.0` with no pin connectivity records. Therefore the
+one-wire result proves preserved native port–wire geometry and properties,
+**not** complete electrical netlist equivalence, arbitrary connected
+components or native transactional atomicity.
+
+The production dispatcher supplies **neither** this helper nor its
+private opt-in/profile; netport/netflag/component transactional deletion
+remains **denied**. The connected direct-editor test does **not** establish
+exact-head end-to-end MCP transactional production acceptance, and BETA
+native creation methods are not promoted into the production allowlist.
 
 The isolated Ground evidence format is now version 2. It compares exact
 attribute list/ID/get results across two native reads and includes a
