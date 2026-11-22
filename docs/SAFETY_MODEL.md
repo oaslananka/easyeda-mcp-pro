@@ -118,6 +118,31 @@ native variants remain unverified. The descriptor is direction/identity
 evidence only, not proof of electrical isolation, attribute equivalence,
 a native writer reservation or supported transactional deletion.
 
+The first **IN netport native reconstruction descriptor** is implemented as
+an explicitly opted-in _private fixture prototype_, not a production
+capability. It uses the EasyEDA Pro V4.1.105 BETA
+`SCH_PrimitiveComponent.createNetPort('IN', net, x, y, 0, false)` call
+only with the exact previously observed Netport-IN library/symbol, independent
+native pin-identified direction, unmirrored zero rotation, a matching
+project/page and original primitive ID, and a separate trusted private QA
+profile. The profile is restricted to the earlier zero-wire V4 fixture:
+three components (sheet, Ground, IN port), zero page pins, one embedded
+port pin and 47 native attributes. In that disposable native test,
+all 47 attribute rows were preserved; only the generated sheet
+`@Update Time` value changed when saved. Replacing **only that field's
+value** with a fixed sentinel (retaining the row, key and multiplicity)
+gave the same SHA-256 before deletion, after recreation **and after
+independent native cold reopen**:
+`3901dab9df8ea0694ee7c0b1dad50c139fc1169ccab04a8a09afc046c4adb2b3`.
+All other native attribute names/values still compare exactly.
+This **off-repository historical fixture digest is not a live native
+pre-delete connectivity witness**, and matching an opt-in profile is not
+writer isolation or proof of all-pages netlist equivalence. The production
+dispatcher supplies neither this opt-in nor its private profile; ordinary
+netport transactional deletion remains **denied**. In particular, this
+source-level test of the BETA creation arguments is not new native
+MCP end-to-end acceptance on the present source revision.
+
 The isolated Ground evidence format is now version 2. It compares exact
 attribute list/ID/get results across two native reads and includes a
 SHA-256 fingerprint of every verified owned attribute's key, value, position,
