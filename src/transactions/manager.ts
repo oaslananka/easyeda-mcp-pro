@@ -76,6 +76,32 @@ function clampInteger(
   return value;
 }
 
+/**
+ * Native rollback rotates primitive IDs. Only ignore the ID for property
+ * equivalence after separately verifying the identity of the exact read.
+ * Generic non-primitive snapshots keep their pre-existing hash contract.
+ */
+function matchesCapturedPrimitiveId(
+  captured: unknown,
+  readback: unknown,
+  expectedId: string,
+): boolean {
+  if (captured === null || typeof captured !== 'object' || Array.isArray(captured)) return true;
+  if (!Object.hasOwn(captured, 'primitiveId')) return true;
+  if (
+    readback === null ||
+    typeof readback !== 'object' ||
+    Array.isArray(readback) ||
+    typeof expectedId !== 'string' ||
+    expectedId.length === 0
+  )
+    return false;
+  return (
+    (captured as Record<string, unknown>).primitiveId !== undefined &&
+    (readback as Record<string, unknown>).primitiveId === expectedId
+  );
+}
+
 function cloneTransaction(transaction: TransactionRecord): TransactionRecord {
   return structuredClone(transaction);
 }
@@ -464,12 +490,16 @@ export class TransactionManager {
       if (await hooks.exists()) {
         const current = await hooks.getSnapshot();
         const matches =
+          matchesCapturedPrimitiveId(beforeSnapshot, current, operation.target.id) &&
           stableHash(snapshotForHash(current, 'ignore-primitive-id')) === operation.beforeHash;
         return { compensation: matches ? 'not-needed' : 'failed' };
       }
       const recreated = await hooks.recreate(structuredClone(beforeSnapshot));
       const matches =
+        typeof recreated.targetId === 'string' &&
+        recreated.targetId.length > 0 &&
         recreated.snapshot !== undefined &&
+        matchesCapturedPrimitiveId(beforeSnapshot, recreated.snapshot, recreated.targetId) &&
         stableHash(snapshotForHash(recreated.snapshot, 'ignore-primitive-id')) ===
           operation.beforeHash;
       return {
@@ -499,6 +529,13 @@ export class TransactionManager {
     const transaction = this.mutable(transactionId);
     this.assertActive(transaction);
     const beforeSnapshot = await hooks.getSnapshot();
+    if (!matchesCapturedPrimitiveId(beforeSnapshot, beforeSnapshot, targetId)) {
+      throw new TransactionError(
+        'TRANSACTION_INVALID_STATE',
+        'Native delete snapshot identifies a different primitive than the requested target',
+        { targetId },
+      );
+    }
     const operation = this.reserveOperation(
       transaction,
       'delete',

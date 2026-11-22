@@ -869,6 +869,101 @@ describe('TransactionManager', () => {
     );
   });
 
+  it('refuses to delete when initial schematic snapshot ID belongs to another primitive', async () => {
+    const manager = new TransactionManager();
+    const transaction = manager.begin({ documentId: 'same-page' });
+    const apply = vi.fn(async () => ({ deleted: ['wire-requested'] }));
+
+    await expect(
+      manager.runDelete(transaction.id, 'wire-requested', {
+        getSnapshot: async () => ({
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveId: 'wire-other',
+          primitiveKind: 'wire',
+          property: { line: [0, 0, 10, 0], net: 'GND' },
+        }),
+        apply,
+        exists: async () => true,
+        recreate: async () => {
+          throw new Error('must not restore without mutation');
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'TRANSACTION_INVALID_STATE' });
+    expect(apply).not.toHaveBeenCalled();
+    expect(manager.get(transaction.id).operations).toEqual([]);
+  });
+
+  it('does not mark an uncertain deletion untouched when existence read refers to another ID', async () => {
+    const manager = new TransactionManager();
+    const transaction = manager.begin({ documentId: 'same-page' });
+    const original = {
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'wire-requested',
+      primitiveKind: 'wire',
+      property: { line: [0, 0, 10, 0], net: 'GND' },
+    };
+    let reads = 0;
+    await expect(
+      manager.runDelete(transaction.id, 'wire-requested', {
+        getSnapshot: async () => {
+          reads += 1;
+          return reads === 1 ? original : { ...original, primitiveId: 'wire-other' };
+        },
+        apply: async () => {
+          throw new Error('delete result ambiguous');
+        },
+        exists: async () => true,
+        recreate: async () => {
+          throw new Error('recreate must not happen when existence is unknown');
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: 'TRANSACTION_OPERATION_FAILED',
+      details: expect.objectContaining({ compensation: 'failed' }),
+    });
+    expect(reads).toBe(2);
+    expect(manager.get(transaction.id)).toMatchObject({
+      state: 'failed',
+      rollbackComplete: false,
+      operations: [expect.objectContaining({ state: 'failed', compensation: 'failed' })],
+    });
+    expect(() => manager.begin({ documentId: 'same-page' })).toThrowError(
+      expect.objectContaining({ code: 'TRANSACTION_ACTIVE' }),
+    );
+  });
+
+  it('does not mark compensation restored when recreated snapshot names a different primitive', async () => {
+    const manager = new TransactionManager();
+    const transaction = manager.begin({ documentId: 'same-page' });
+    const original = {
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'wire-requested',
+      primitiveKind: 'wire',
+      property: { line: [0, 0, 10, 0], net: 'GND' },
+    };
+    await expect(
+      manager.runDelete(transaction.id, 'wire-requested', {
+        getSnapshot: async () => original,
+        apply: async () => {
+          throw new Error('delete may have happened');
+        },
+        exists: async () => false,
+        recreate: async () => ({
+          targetId: 'wire-restored',
+          snapshot: { ...original, primitiveId: 'wire-unrelated' },
+        }),
+      }),
+    ).rejects.toMatchObject({
+      code: 'TRANSACTION_OPERATION_FAILED',
+      details: expect.objectContaining({ compensation: 'failed' }),
+    });
+    expect(manager.get(transaction.id)).toMatchObject({
+      state: 'failed',
+      rollbackComplete: false,
+      operations: [expect.objectContaining({ state: 'failed', compensation: 'failed' })],
+    });
+  });
+
   it('recreates a deleted primitive when delete verification fails after the write', async () => {
     const manager = new TransactionManager();
     const transaction = manager.begin({ documentId: 'doc-1' });

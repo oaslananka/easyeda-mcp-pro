@@ -162,7 +162,13 @@ cannot pass that readback; the transaction manager still checks the full
 normalized fingerprint. The same independent native get-by-ID requirement
 also applies to rollback-backed drawing-primitive recreation: a returned
 create-response snapshot alone cannot confirm compensation if a deletion had
-an uncertain outcome. A missing, wrong-ID or wrong-kind native read refuses
+an uncertain outcome. TransactionManager additionally requires an initial
+captured primitive ID to match the requested delete target **before writing**.
+When reconciling an uncertain deletion, it checks the readback's exact
+original ID before declaring no change, and requires a recreated snapshot's
+ID to equal the newly reported native ID before declaring restoration.
+Only after these ID checks may the snapshot fingerprint legitimately ignore
+the original ID change. A missing, wrong-ID or wrong-kind native read refuses
 successful restoration; a changed net or geometry is evaluated against the
 original transaction fingerprint and leaves compensation unresolved. This
 does not establish an exclusive native writer reservation or grant production
