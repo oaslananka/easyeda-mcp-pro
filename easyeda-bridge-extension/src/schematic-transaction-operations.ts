@@ -1,7 +1,23 @@
 import { verifyWireInventoryReadback } from './schematic-wire-inventory.js';
+import {
+  verifiedNativeGroundDescriptor,
+  type PrivateGroundProfile,
+} from './schematic-native-ground-identity.js';
+import { inspectVerifiedNativeInPort } from './schematic-native-in-port-identity.js';
+import {
+  inspectReconstructableNativeGround,
+  parseNativeGroundIsolation,
+  type NativeGroundIsolationEvidence,
+} from './schematic-native-ground-isolation.js';
 import type { ApiRuntime } from './api-runtime.js';
 import { createSchematicSnapshotRecreator } from './schematic-snapshot-recreation.js';
+import {
+  readNativeMarkerContext,
+  parseNativeMarkerContext,
+  sameNativeMarkerContext,
+} from './schematic-marker-scope.js';
 import { isRecord } from './utils.js';
+import { createNativeTransactionalDeleteGuard } from './schematic-native-delete-guard.js';
 
 export type PublicTextAlignMode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
@@ -14,6 +30,10 @@ export interface SchematicPrimitiveSnapshot {
   primitiveKind: SchematicPrimitiveSnapshotKind;
   componentType?: string;
   property: Record<string, unknown>;
+  /** Native-scoped origin required for experimental marker reconstruction. */
+  nativeContext?: { projectId: string; documentId: string; editorVersion: string };
+  /** Read-only evidence for an isolated V4 Ground fixture, NOT delete permission. */
+  nativeIsolation?: NativeGroundIsolationEvidence;
 }
 
 export interface SchematicTransactionDependencies {
@@ -32,6 +52,10 @@ export interface SchematicTransactionDependencies {
   deleteCachedTextAlignMode(primitiveId: string): void;
   /** Native editor version from SYS_Environment, never the untrusted MCP request. */
   getEasyedaVersion?(): string | undefined;
+  /** Unit-fixture-only capability. The actual dispatcher never opts in to marker recreation. */
+  allowExperimentalPowerNetFlagRecreation?(): boolean;
+  /** Internal host-bound profile; ordinary dispatcher never sets this. */
+  privateGroundProfile?: PrivateGroundProfile;
 }
 
 export interface SchematicTransactionOperations {
@@ -47,6 +71,8 @@ export interface SchematicTransactionOperations {
   ): Promise<{ primitiveKind: SchematicPrimitiveSnapshotKind; primitiveIds: string[] }>;
   deletePrimitives(
     primitiveIds: unknown,
+    expectedPrimitiveSnapshot?: unknown,
+    expectedNativeScope?: { projectId: string; documentId: string },
   ): Promise<{ success: boolean; deleted: string[]; notFound: string[] }>;
   recreatePrimitiveSnapshot(
     snapshot: unknown,
@@ -228,6 +254,10 @@ export function createSchematicTransactionOperations(
     callFirst,
     createBridgeError: newBridgeError,
     requirePublicTextAlignMode,
+    getEasyedaVersion: dependencies.getEasyedaVersion,
+    // Unit-fixture-only. The production dispatcher never supplies this flag.
+    allowExperimentalPowerNetFlagRecreation: dependencies.allowExperimentalPowerNetFlagRecreation,
+    privateGroundProfile: dependencies.privateGroundProfile,
   });
 
   // Native Pro 3.2.209 can return matching *stale* getAll/getAllPrimitiveId
@@ -400,12 +430,31 @@ export function createSchematicTransactionOperations(
     componentType: string,
   ): Record<string, unknown> {
     if (componentType === 'netflag' || componentType === 'netport') {
+      const nativeNet = safeGetState(current, 'Net');
+      const ground =
+        componentType === 'netflag'
+          ? verifiedNativeGroundDescriptor(
+              safeGetState(current, 'Component'),
+              dependencies.getEasyedaVersion?.(),
+              nativeNet,
+              dependencies.privateGroundProfile,
+            )
+          : undefined;
       return compactDefinedRecord({
         x: safeGetState(current, 'X'),
         y: safeGetState(current, 'Y'),
         rotation: safeGetState(current, 'Rotation'),
         mirror: safeGetState(current, 'Mirror'),
-        net: safeGetState(current, 'Net'),
+        net: nativeNet,
+        nativeSymbol: ground?.nativeSymbol,
+        // These native getters are not in the public component API contract.
+        // If the live runtime does not expose them, omit the discriminators:
+        // do not guess from a net name, marker appearance or MCP input.
+        identification:
+          componentType === 'netflag'
+            ? (ground?.identification ?? safeGetState(current, 'Identification'))
+            : undefined,
+        direction: componentType === 'netport' ? safeGetState(current, 'Direction') : undefined,
       });
     }
     return compactDefinedRecord({
@@ -618,6 +667,43 @@ export function createSchematicTransactionOperations(
     return null;
   }
 
+  async function attachNativeMarkerEvidence(
+    snapshot: SchematicPrimitiveSnapshot,
+    beforeContext: NonNullable<SchematicPrimitiveSnapshot['nativeContext']>,
+  ): Promise<void> {
+    const primitiveId = snapshot.primitiveId;
+    // Only an independently proven Ground-GND symbol receives the strict
+    // zero-wire/pin and exact native component/attribute inventory check.
+    // A missing reader or a changing page remains readable but earns NO
+    // isolation evidence and NEVER authorizes a production deletion.
+    const isolation =
+      snapshot.primitiveKind === 'netflag' &&
+      snapshot.property.identification === 'Ground' &&
+      snapshot.property.nativeSymbol
+        ? await inspectReconstructableNativeGround({
+            markerId: primitiveId,
+            readFirstPath,
+            readState: safeGetState,
+            extractPrimitiveId,
+            privateGroundProfile: dependencies.privateGroundProfile,
+          })
+        : undefined;
+    const portIdentity =
+      snapshot.primitiveKind === 'netport'
+        ? await inspectVerifiedNativeInPort(
+            { readFirstPath, readState: safeGetState, extractPrimitiveId },
+            primitiveId,
+            snapshot.property,
+          )
+        : undefined;
+    const afterContext = await readNativeMarkerContext(callFirst, dependencies.getEasyedaVersion);
+    if (sameNativeMarkerContext(beforeContext, afterContext)) {
+      snapshot.nativeContext = beforeContext;
+      if (isolation) snapshot.nativeIsolation = isolation;
+      if (portIdentity) Object.assign(snapshot.property, portIdentity);
+    }
+  }
+
   async function getSchematicPrimitiveSnapshot(
     primitiveId: string,
     expectedPrimitiveKind?: SchematicPrimitiveSnapshotKind,
@@ -629,6 +715,15 @@ export function createSchematicTransactionOperations(
         'Provide the primitive ID returned by a schematic read or write operation.',
       );
     }
+
+    // Only an explicitly typed marker query can earn native rollback scope.
+    // Capture focus on BOTH sides of the primitive read to reject tab/project
+    // switches that otherwise could bind a primitive to the wrong page.
+    const markerKindRequested =
+      expectedPrimitiveKind === 'netflag' || expectedPrimitiveKind === 'netport';
+    const beforeContext = markerKindRequested
+      ? await readNativeMarkerContext(callFirst, dependencies.getEasyedaVersion)
+      : undefined;
 
     const snapshot = expectedPrimitiveKind
       ? await readSnapshotByKind(primitiveId, expectedPrimitiveKind)
@@ -646,6 +741,9 @@ export function createSchematicTransactionOperations(
         `Primitive ${primitiveId} was not found in a transaction-safe schematic class`,
         'Use a component, net flag/port, wire, text, rectangle, circle, or polygon primitive ID.',
       );
+    }
+    if (beforeContext && snapshot.primitiveKind === expectedPrimitiveKind) {
+      await attachNativeMarkerEvidence(snapshot, beforeContext);
     }
     return snapshot;
   }
@@ -684,12 +782,50 @@ export function createSchematicTransactionOperations(
         'Pass an unmodified snapshot returned by schematic.getPrimitiveSnapshot.',
       );
     }
+    const nativeContext = parseNativeMarkerContext(input.nativeContext, (message) =>
+      newBridgeError(
+        'INVALID_PARAMS',
+        message,
+        'Use an unmodified native-scoped snapshot from the focused schematic.',
+      ),
+    );
+    const nativeIsolation = parseNativeGroundIsolation(
+      input.nativeIsolation,
+      primitiveId,
+      (message) =>
+        newBridgeError(
+          'INVALID_PARAMS',
+          message,
+          'Obtain the descriptor through a fresh typed native marker snapshot; caller-provided claims are not proof of disconnection.',
+        ),
+      dependencies.privateGroundProfile,
+    );
+    if (
+      nativeIsolation !== undefined &&
+      (primitiveKind !== 'netflag' || input.componentType !== 'netflag' || !nativeContext)
+    ) {
+      throw newBridgeError(
+        'INVALID_PARAMS',
+        'Native Ground isolation is only applicable to a scoped netflag snapshot',
+        'Use an unmodified native-scoped netflag snapshot from the focused project and schematic page.',
+      );
+    }
     return {
       schemaVersion,
       primitiveId,
       primitiveKind: primitiveKind as SchematicPrimitiveSnapshotKind,
       componentType: typeof input.componentType === 'string' ? input.componentType : undefined,
       property: { ...property },
+      ...(nativeContext !== undefined && isRecord(nativeContext)
+        ? {
+            nativeContext: {
+              projectId: nativeContext.projectId as string,
+              documentId: nativeContext.documentId as string,
+              editorVersion: '4.1.105' as const,
+            },
+          }
+        : {}),
+      ...(nativeIsolation === undefined ? {} : { nativeIsolation }),
     };
   }
 
@@ -723,6 +859,86 @@ export function createSchematicTransactionOperations(
     return '';
   }
 
+  async function exactNativeComponentKind(
+    owner: any,
+    id: string,
+    invalid: () => never,
+  ): Promise<string> {
+    let item: unknown;
+    try {
+      item = await owner.get(id);
+    } catch {
+      return invalid();
+    }
+    if (!item || primitiveIdFromValue(item) !== id) return invalid();
+    const kind = readComponentType(item);
+    if (!['sheet', 'component', 'netflag', 'netport'].includes(kind)) return invalid();
+    return kind;
+  }
+
+  /** A native component ID inventory contains sheet, component, netflag and
+   * netport IDs together. Empty/stale getAll() is not proof of a requested kind.
+   * Reconcile each candidate by exact native ID and verified runtime type.
+   */
+  async function typedComponentIdsFromFallback(
+    owner: any,
+    primitiveIds: string[],
+    requestedKind: 'component' | 'netflag' | 'netport',
+  ): Promise<string[]> {
+    const invalid = (): never => {
+      throw newBridgeError(
+        'NATIVE_INVENTORY_UNVERIFIED',
+        'Native component ID inventory cannot be classified by exact primitive kind',
+        'Inspect the focused schematic; retry only after native inventories settle.',
+      );
+    };
+    if (primitiveIds.length === 0) return [];
+    if (typeof owner.get !== 'function' || new Set(primitiveIds).size !== primitiveIds.length)
+      invalid();
+
+    const matched: string[] = [];
+    for (const id of primitiveIds) {
+      if ((await exactNativeComponentKind(owner, id, invalid)) === requestedKind) matched.push(id);
+    }
+    return matched;
+  }
+
+  function verifiedTypedIdList(raw: unknown): string[] {
+    if (!Array.isArray(raw) || raw.some((id) => typeof id !== 'string' || id.length === 0)) {
+      throw newBridgeError(
+        'NATIVE_INVENTORY_UNVERIFIED',
+        'Native component ID inventory has malformed entries',
+        'Inspect the focused schematic; wait for a complete native ID inventory.',
+      );
+    }
+    return [...raw].sort((a, b) => a.localeCompare(b));
+  }
+
+  async function verifiedFallbackIds(
+    owner: any,
+    kind: SchematicPrimitiveSnapshotKind,
+  ): Promise<string[] | undefined> {
+    if (typeof owner.getAllPrimitiveId !== 'function') return undefined;
+    let raw: unknown;
+    try {
+      raw = await owner.getAllPrimitiveId();
+    } catch (error) {
+      logRecoverableError('failed to list ' + kind + ' primitive IDs', error);
+      return undefined;
+    }
+    if (kind === 'component' || kind === 'netflag' || kind === 'netport') {
+      return typedComponentIdsFromFallback(owner, verifiedTypedIdList(raw), kind);
+    }
+    const primitiveIds = Array.isArray(raw)
+      ? raw
+          .filter(
+            (value: unknown): value is string => typeof value === 'string' && value.length > 0,
+          )
+          .sort((a: string, b: string) => a.localeCompare(b))
+      : [];
+    return Array.from(new Set(primitiveIds));
+  }
+
   async function listSchematicPrimitiveIds(
     kindInput: unknown,
   ): Promise<{ primitiveKind: SchematicPrimitiveSnapshotKind; primitiveIds: string[] }> {
@@ -744,24 +960,15 @@ export function createSchematicTransactionOperations(
       }
     }
 
-    if (values.length === 0 && typeof primitiveClass.getAllPrimitiveId === 'function') {
-      try {
-        const primitiveIds = ((await primitiveClass.getAllPrimitiveId()) || [])
-          .filter(
-            (value: unknown): value is string => typeof value === 'string' && value.length > 0,
-          )
-          .sort((a: string, b: string) => a.localeCompare(b));
-        return { primitiveKind, primitiveIds: Array.from(new Set(primitiveIds)) };
-      } catch (error) {
-        logRecoverableError(`failed to list ${primitiveKind} primitive IDs`, error);
-      }
+    if (values.length === 0) {
+      const fallback = await verifiedFallbackIds(primitiveClass, primitiveKind);
+      if (fallback !== undefined) return { primitiveKind, primitiveIds: fallback };
     }
 
     const primitiveIds = values
       .filter((value) => {
         if (primitiveKind === 'component') {
-          const componentType = readComponentType(value);
-          return componentType !== 'netflag' && componentType !== 'netport';
+          return readComponentType(value) === 'component';
         }
         if (primitiveKind === 'netflag' || primitiveKind === 'netport') {
           return readComponentType(value) === primitiveKind;
@@ -831,14 +1038,63 @@ export function createSchematicTransactionOperations(
     }
   }
 
-  async function deleteSchematicPrimitives(
-    primitiveIdsInput: unknown,
-  ): Promise<{ success: boolean; deleted: string[]; notFound: string[] }> {
-    const primitiveIds = Array.isArray(primitiveIdsInput)
-      ? primitiveIdsInput.filter(
-          (value): value is string => typeof value === 'string' && value.length > 0,
-        )
-      : [];
+  /** The native Component class also owns net flags, ports, and sheet symbols.
+   * Inspect the entire standalone request before any primitive is removed.
+   */
+  async function refuseUnsafeStandaloneComponentDeletion(primitiveIds: string[]): Promise<void> {
+    const owner = readFirstPath<any>(COMPONENT_CLASS_PATHS);
+    if (!owner || primitiveIds.length === 0) return;
+    const unsafe = (primitiveId: string, reason: string): never => {
+      throw newBridgeError(
+        'UNSUPPORTED_RUNTIME',
+        'Standalone delete refused for ' + primitiveId + ': ' + reason,
+        'Use a verified rollback-capable workflow; net flags, ports, sheets, and unknown component kinds cannot be deleted standalone.',
+      );
+    };
+
+    if (typeof owner.get !== 'function') {
+      if (typeof owner.getAllPrimitiveId === 'function') {
+        let knownIds: unknown;
+        try {
+          knownIds = await owner.getAllPrimitiveId();
+        } catch {
+          unsafe('component inventory', 'native component type inventory is unavailable');
+        }
+        if (!Array.isArray(knownIds)) {
+          return unsafe('component inventory', 'native component type inventory is invalid');
+        }
+        for (const id of primitiveIds) {
+          if (knownIds.includes(id)) unsafe(id, 'native component type cannot be confirmed');
+        }
+      }
+      return;
+    }
+
+    for (const id of primitiveIds) {
+      let component: unknown;
+      try {
+        component = await owner.get(id);
+      } catch {
+        unsafe(id, 'native component type read failed');
+      }
+      if (!component) continue;
+      if (extractPrimitiveId(component) !== id) {
+        unsafe(id, 'native component identity is missing or inconsistent');
+      }
+      const type = readComponentType(component);
+      if (type !== 'component') {
+        unsafe(
+          id,
+          type ? 'unsupported native component type ' + type : 'native component type is missing',
+        );
+      }
+    }
+  }
+
+  /** Plan a single ownership read, rechecking native component type before any batch mutation. */
+  async function resolveStandaloneDeletionOwner(
+    primitiveId: string,
+  ): Promise<{ primitiveId: string; owner?: any; kind?: SchematicPrimitiveSnapshotKind }> {
     const kinds: SchematicPrimitiveSnapshotKind[] = [
       'component',
       'wire',
@@ -847,35 +1103,84 @@ export function createSchematicTransactionOperations(
       'circle',
       'polygon',
     ];
+    for (const kind of kinds) {
+      const primitiveClass = readFirstPath<any>(schematicPrimitiveClassPaths(kind));
+      if (!primitiveClass || typeof primitiveClass.delete !== 'function') continue;
+      if (!(await primitiveExistsInClass(primitiveClass, primitiveId))) continue;
+      if (kind === 'component') {
+        const current = await primitiveClass.get?.(primitiveId);
+        if (
+          !current ||
+          extractPrimitiveId(current) !== primitiveId ||
+          readComponentType(current) !== 'component'
+        ) {
+          throw newBridgeError(
+            'UNSUPPORTED_RUNTIME',
+            'Native component type or identity changed during standalone delete preflight',
+            'Inspect the current schematic and retry only after confirming the intended ordinary component.',
+          );
+        }
+      }
+      return { primitiveId, owner: primitiveClass, kind };
+    }
+    return { primitiveId };
+  }
+
+  async function deleteSchematicPrimitives(
+    primitiveIdsInput: unknown,
+    expectedPrimitiveSnapshot?: unknown,
+    expectedNativeScope?: { projectId: string; documentId: string },
+  ): Promise<{ success: boolean; deleted: string[]; notFound: string[] }> {
+    const primitiveIds = Array.isArray(primitiveIdsInput)
+      ? primitiveIdsInput.filter(
+          (value): value is string => typeof value === 'string' && value.length > 0,
+        )
+      : [];
     const deleted: string[] = [];
     const notFound: string[] = [];
 
+    const nativeGuard = createNativeTransactionalDeleteGuard(
+      primitiveIds,
+      expectedPrimitiveSnapshot,
+      expectedNativeScope,
+      {
+        parseSnapshot: parseSchematicPrimitiveSnapshot,
+        getSnapshot: getSchematicPrimitiveSnapshot,
+        callFirst,
+        createBridgeError: newBridgeError,
+      },
+    );
+    if (new Set(primitiveIds).size !== primitiveIds.length) {
+      throw newBridgeError(
+        'INVALID_PARAMS',
+        'Standalone delete requires unique primitive IDs',
+        'Provide each exact native primitive ID at most once per request.',
+      );
+    }
+
+    await refuseUnsafeStandaloneComponentDeletion(primitiveIds);
     await refuseUnpersistedTextDeletion(primitiveIds);
 
+    // Resolve every target before the first write. A native component can
+    // change type after the initial preflight, so recheck the exact kind and
+    // identity when ownership is resolved. Never partially delete a mixed
+    // wire/marker batch due to a stale component lookup.
+    const planned = [];
     for (const primitiveId of primitiveIds) {
-      let owner: any;
-      let deletedText = false;
-      for (const kind of kinds) {
-        const primitiveClass = readFirstPath<any>(schematicPrimitiveClassPaths(kind));
-        if (!primitiveClass || typeof primitiveClass.delete !== 'function') continue;
-        if (await primitiveExistsInClass(primitiveClass, primitiveId)) {
-          if (kind === 'text') {
-            await deleteAcceptedV4Text(primitiveClass, primitiveId);
-            dependencies.deleteCachedTextAlignMode(primitiveId);
-            deleted.push(primitiveId);
-            deletedText = true;
-            break;
-          }
-          owner = primitiveClass;
-          break;
-        }
-      }
-      if (deletedText) continue;
+      planned.push(await resolveStandaloneDeletionOwner(primitiveId));
+    }
+
+    for (const { primitiveId, owner, kind } of planned) {
       if (!owner) {
         notFound.push(primitiveId);
         continue;
       }
-      await owner.delete([primitiveId]);
+      if (nativeGuard) await nativeGuard.assertBeforeDelete(primitiveId, kind);
+      if (kind === 'text') {
+        await deleteAcceptedV4Text(owner, primitiveId);
+      } else {
+        await owner.delete([primitiveId]);
+      }
       dependencies.deleteCachedTextAlignMode(primitiveId);
       deleted.push(primitiveId);
     }

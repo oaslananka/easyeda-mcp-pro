@@ -3361,7 +3361,11 @@ describe('createDispatcher', () => {
           delete: nativeDelete,
         },
         SCH_PrimitiveComponent: {
-          get: vi.fn(async () => fakeComponent({ X: 100, Y: 100 })),
+          get: vi.fn(async (id: string) =>
+            id === 'cmp'
+              ? fakeComponent({ PrimitiveId: id, ComponentType: 'component', X: 100, Y: 100 })
+              : undefined,
+          ),
           getAllPinsByPrimitiveId: vi.fn(async () => [{ x: 100, y: 100 }]),
           modify: componentModify,
         },
@@ -3398,7 +3402,14 @@ describe('createDispatcher', () => {
       makeToolkit({
         SCH_PrimitiveComponent: {
           get: vi.fn(async (id: string) =>
-            ['to-delete', 'other'].includes(id) ? fakeComponent({ X: 100, Y: 100 }) : undefined,
+            ['to-delete', 'other'].includes(id)
+              ? fakeComponent({
+                  PrimitiveId: id,
+                  ComponentType: 'component',
+                  X: 100,
+                  Y: 100,
+                })
+              : undefined,
           ),
           delete: deleted,
           modify,

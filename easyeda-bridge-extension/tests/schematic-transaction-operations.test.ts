@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createSchematicTransactionOperations } from '../src/schematic-transaction-operations.js';
+import { defaultGroundAttributeFields } from './fixtures/native-ground-default-attributes.js';
 
 function bridgeError(code: string, message: string, suggestion: string, data?: unknown): Error {
   return Object.assign(new Error(message), { code, suggestion, data });
@@ -84,6 +85,163 @@ function createSubject(
   return { operations, callFirst, logRecoverableError, textAlignCache };
 }
 
+describe('untrusted native Ground reconstruction descriptor', () => {
+  const scope = { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' };
+  const property = {
+    identification: 'Ground',
+    net: 'GND',
+    nativeSymbol: {
+      name: 'Ground-GND',
+      libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+      uuid: 'af20086a8911a85a',
+    },
+    x: 240,
+    y: 250,
+    rotation: 0,
+    mirror: false,
+  };
+  const evidence = {
+    kind: 'verified-disconnected-ground/v2',
+    markerId: 'flag-1',
+    componentCount: 2,
+    wireCount: 0,
+    pagePinCount: 0,
+    embeddedPinCount: 1,
+    attributeCount: 38,
+    attributeFingerprint: 'a'.repeat(64),
+  };
+
+  it.each([
+    ['different native marker ID', { ...evidence, markerId: 'other' }],
+    ['wire in connected graph', { ...evidence, wireCount: 1 }],
+    ['invalid inventory size', { ...evidence, attributeCount: 300 }],
+    ['unknown evidence capability', { ...evidence, writePermission: true }],
+  ])('rejects %s before native snapshot recreation', async (_, nativeIsolation) => {
+    const { operations, callFirst } = createSubject();
+    await expect(
+      operations.recreatePrimitiveSnapshot({
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'flag-1',
+        primitiveKind: 'netflag',
+        componentType: 'netflag',
+        property,
+        nativeContext: scope,
+        nativeIsolation,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
+  it('keeps production reconstruction disabled despite a complete caller-provided Ground witness', async () => {
+    const { operations, callFirst } = createSubject({}, { getEasyedaVersion: () => '4.1.105' });
+    await expect(
+      operations.recreatePrimitiveSnapshot({
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'flag-1',
+        primitiveKind: 'netflag',
+        componentType: 'netflag',
+        property,
+        nativeContext: scope,
+        nativeIsolation: evidence,
+        allowExperimentalPowerNetFlagRecreation: true,
+      }),
+    ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
+  it('recreates a typed isolated Ground only in an explicitly opted-in unit fixture', async () => {
+    let created = false;
+    const ground = {
+      getState_PrimitiveId: () => 'flag-new',
+      getState_ComponentType: () => 'netflag',
+      getState_Net: () => 'GND',
+      getState_Name: () => 'GND',
+      getState_Component: () => property.nativeSymbol,
+      getState_X: () => 240,
+      getState_Y: () => 250,
+      getState_Rotation: () => 0,
+      getState_Mirror: () => false,
+    };
+    const nativeClass = {
+      getAll: vi.fn(async () => (created ? [ground] : [])),
+      getAllPrimitiveId: vi.fn(async () => (created ? ['flag-new'] : [])),
+      get: vi.fn(async (id: string) => (created && id === 'flag-new' ? ground : undefined)),
+    };
+    const { operations, callFirst } = createSubject(
+      { SCH_PrimitiveComponent: nativeClass },
+      {
+        getEasyedaVersion: () => '4.1.105',
+        allowExperimentalPowerNetFlagRecreation: () => true,
+      },
+    );
+    callFirst.mockImplementation(async (paths: string[]) => {
+      if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-1' };
+      if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo')) {
+        return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+      }
+      if (paths.includes('SCH_PrimitiveComponent.createNetFlag')) {
+        created = true;
+        return { primitiveId: 'flag-new' };
+      }
+      throw new Error('Unexpected native method');
+    });
+
+    const restored = await operations.recreatePrimitiveSnapshot({
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'flag-1',
+      primitiveKind: 'netflag',
+      componentType: 'netflag',
+      property,
+      nativeContext: scope,
+      nativeIsolation: evidence,
+    });
+
+    expect(restored).toMatchObject({
+      primitiveId: 'flag-new',
+      snapshot: {
+        primitiveId: 'flag-new',
+        primitiveKind: 'netflag',
+        componentType: 'netflag',
+        property: { net: 'GND', identification: 'Ground' },
+      },
+    });
+    expect(callFirst).toHaveBeenCalledWith(
+      ['SCH_PrimitiveComponent.createNetFlag', 'sch_PrimitiveComponent.createNetFlag'],
+      'Ground',
+      'GND',
+      240,
+      250,
+      0,
+      false,
+    );
+    expect(nativeClass.get).toHaveBeenCalledWith('flag-new');
+  });
+
+  it('rejects unscoped isolation and isolation attached to a netport', async () => {
+    const { operations, callFirst } = createSubject();
+    const snapshot = {
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'flag-1',
+      primitiveKind: 'netflag',
+      componentType: 'netflag',
+      property,
+      nativeIsolation: evidence,
+    };
+    await expect(operations.recreatePrimitiveSnapshot(snapshot)).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+    });
+    await expect(
+      operations.recreatePrimitiveSnapshot({
+        ...snapshot,
+        primitiveKind: 'netport',
+        componentType: 'netport',
+        nativeContext: scope,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+});
+
 describe('schematic transaction operations', () => {
   it('captures a scalar-safe component snapshot', async () => {
     const component = {
@@ -104,6 +262,495 @@ describe('schematic transaction operations', () => {
       primitiveKind: 'component',
       property: { x: 10, y: 20, designator: 'U1', otherProperty: { value: 'MCU' } },
     });
+  });
+
+  it.each([
+    { kind: 'netflag', identity: 'Identification', value: 'Ground' },
+    { kind: 'netport', identity: 'Direction', value: 'IN' },
+  ] as const)(
+    'captures the native $kind creation identity for typed rollback preflight',
+    async ({ kind, identity, value }) => {
+      const component = {
+        getState_PrimitiveId: () => 'marker-1',
+        getState_ComponentType: () => kind,
+        getState_X: () => 11,
+        getState_Y: () => 22,
+        getState_Rotation: () => 90,
+        getState_Mirror: () => false,
+        getState_Net: () => 'GND',
+        ['getState_' + identity]: () => value,
+      };
+      const { operations } = createSubject({
+        SCH_PrimitiveComponent: { get: vi.fn().mockResolvedValue(component) },
+      });
+      await expect(operations.getPrimitiveSnapshot('marker-1')).resolves.toMatchObject({
+        primitiveKind: kind,
+        componentType: kind,
+        property: {
+          x: 11,
+          y: 22,
+          rotation: 90,
+          mirror: false,
+          net: 'GND',
+          [identity.charAt(0).toLowerCase() + identity.slice(1)]: value,
+        },
+      });
+    },
+  );
+
+  it.each([
+    ['netflag', 'identification'],
+    ['netport', 'direction'],
+  ] as const)(
+    'does not invent an undocumented native %s creation discriminator when the getter is absent',
+    async (kind, missing) => {
+      const { operations } = createSubject({
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_PrimitiveId: () => 'marker-1',
+            getState_ComponentType: () => kind,
+            getState_X: () => 20,
+            getState_Y: () => 30,
+            getState_Rotation: () => 0,
+            getState_Mirror: () => false,
+            getState_Net: () => 'SIGNAL',
+          }),
+        },
+      });
+      const result = await operations.getPrimitiveSnapshot('marker-1');
+      expect(result.primitiveKind).toBe(kind);
+      expect(result.property).toMatchObject({ net: 'SIGNAL', x: 20, y: 30 });
+      expect(result.property).not.toHaveProperty(missing);
+    },
+  );
+
+  it('derives the Ground discriminator only from the exact native V4 Ground-GND symbol', async () => {
+    const component = {
+      getState_PrimitiveId: () => 'flag-1',
+      getState_ComponentType: () => 'netflag',
+      getState_Component: () => ({
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+        uuid: 'af20086a8911a85a',
+        name: 'Ground-GND',
+      }),
+      getState_Name: () => 'GND',
+      getState_Net: () => 'GND',
+      getState_X: () => 240,
+      getState_Y: () => 250,
+      getState_Rotation: () => 0,
+      getState_Mirror: () => false,
+    };
+    const { operations } = createSubject(
+      { SCH_PrimitiveComponent: { get: vi.fn().mockResolvedValue(component) } },
+      { getEasyedaVersion: () => '4.1.105' },
+    );
+    await expect(operations.getPrimitiveSnapshot('flag-1', 'netflag')).resolves.toMatchObject({
+      primitiveKind: 'netflag',
+      componentType: 'netflag',
+      property: {
+        identification: 'Ground',
+        net: 'GND',
+        x: 240,
+        y: 250,
+        rotation: 0,
+        mirror: false,
+        nativeSymbol: {
+          libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+          uuid: 'af20086a8911a85a',
+          name: 'Ground-GND',
+        },
+      },
+    });
+  });
+
+  it.each([
+    {
+      name: 'lookalike label',
+      symbol: { name: 'Ground-GND', libraryUuid: 'other', uuid: 'af20086a8911a85a' },
+    },
+    {
+      name: 'different symbol UUID',
+      symbol: {
+        name: 'Ground-GND',
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+        uuid: 'other',
+      },
+    },
+    {
+      name: 'different display name',
+      symbol: {
+        name: 'Other-GND',
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+        uuid: 'af20086a8911a85a',
+      },
+    },
+    { name: 'incomplete symbol identity', symbol: { name: 'Ground-GND' } },
+  ])('does not authorize unidentified native $name as a Ground flag', async ({ symbol }) => {
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_ComponentType: () => 'netflag',
+            getState_Component: () => symbol,
+            getState_Net: () => 'GND',
+            getState_Name: () => 'GND',
+          }),
+        },
+      },
+      { getEasyedaVersion: () => '4.1.105' },
+    );
+    const read = await operations.getPrimitiveSnapshot('flag-1', 'netflag');
+    expect(read.property).not.toHaveProperty('identification');
+    expect(read.property).not.toHaveProperty('nativeSymbol');
+  });
+
+  describe('verified native V4 IN netport identity', () => {
+    function portFixture(
+      options: {
+        symbol?: Record<string, unknown>;
+        version?: string;
+        directPinType?: string;
+        pinId?: string;
+        runtimeDirection?: string;
+        net?: string;
+        name?: string;
+        rotation?: number;
+        mirror?: boolean;
+        focusSwitch?: boolean;
+        staleComponent?: boolean;
+        omitPinReader?: boolean;
+      } = {},
+    ) {
+      const fields = (values: Record<string, unknown>) =>
+        Object.fromEntries(
+          Object.entries(values).map(([key, value]) => ['getState_' + key, () => value]),
+        );
+      const symbol = options.symbol ?? {
+        libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+        uuid: '21c0c70348655df0',
+        name: 'Netport-IN',
+      };
+      const pin = fields({
+        PrimitiveId: 'port-1-e11',
+        PinName: 'IN',
+        PinNumber: '1',
+        pinType: 'IN',
+        X: 650,
+        Y: 350,
+        Rotation: 0,
+        NoConnected: false,
+      });
+      const direct = {
+        ...pin,
+        ...fields({
+          PrimitiveId: options.pinId ?? 'port-1-e11',
+          pinType: options.directPinType ?? 'IN',
+        }),
+      };
+      const port = {
+        ...fields({
+          PrimitiveId: 'port-1',
+          ComponentType: 'netport',
+          Component: symbol,
+          Net: options.net ?? 'QA_PORT_A',
+          Name: options.name ?? 'QA_PORT_A',
+          X: 650,
+          Y: 350,
+          Rotation: options.rotation ?? 0,
+          Mirror: options.mirror ?? false,
+          Direction: options.runtimeDirection,
+        }),
+        getAllPins: vi.fn(async () => [pin]),
+      };
+      const get = vi.fn(async () => port);
+      if (options.staleComponent) {
+        get
+          .mockImplementationOnce(async () => port)
+          .mockImplementation(async () => ({
+            ...port,
+            ...fields({ PrimitiveId: 'wrong-id' }),
+          }));
+      }
+      let focusedReads = 0;
+      const pinGet = vi.fn(async () => direct);
+      const subject = createSubject(
+        {
+          SCH_PrimitiveComponent: { get },
+          ...(options.omitPinReader ? {} : { SCH_PrimitivePin: { get: pinGet } }),
+        },
+        {
+          getEasyedaVersion: () => options.version ?? '4.1.105',
+          callFirst: vi.fn(async (paths: string[]) => {
+            if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'p1' };
+            if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo')) {
+              focusedReads += 1;
+              return {
+                uuid: options.focusSwitch && focusedReads > 1 ? 'page2' : 'page1',
+                parentProjectUuid: 'p1',
+                documentType: 1,
+              };
+            }
+            return undefined;
+          }) as any,
+        },
+      );
+      return { ...subject, symbol, pinGet };
+    }
+
+    it('captures exact symbol and IN direction using independently read embedded native pins', async () => {
+      const { operations, symbol, pinGet } = portFixture();
+      const snapshot = await operations.getPrimitiveSnapshot('port-1', 'netport');
+      expect(snapshot).toMatchObject({
+        primitiveKind: 'netport',
+        property: { direction: 'IN', nativeSymbol: symbol, net: 'QA_PORT_A' },
+        nativeContext: { projectId: 'p1', documentId: 'page1', editorVersion: '4.1.105' },
+      });
+      expect(pinGet).toHaveBeenCalledWith('port-1-e11');
+      // Direction provenance is not a rollback authorization or an isolation witness.
+      expect(snapshot).not.toHaveProperty('nativeIsolation');
+    });
+
+    it.each([
+      ['lookalike name', { symbol: { name: 'Netport-IN' } }],
+      [
+        'wrong library',
+        { symbol: { name: 'Netport-IN', libraryUuid: 'other', uuid: '21c0c70348655df0' } },
+      ],
+      ['different editor', { version: '4.1.106' }],
+      ['conflicting native direction', { runtimeDirection: 'OUT' }],
+      ['wrong direct pin type', { directPinType: 'OUT' }],
+      ['wrong direct pin identity', { pinId: 'other-e11' }],
+      ['different name', { name: 'OTHER' }],
+      ['wrong rotation', { rotation: 90 }],
+      ['mirrored', { mirror: true }],
+      ['page switched during read', { focusSwitch: true }],
+      ['stale component ID', { staleComponent: true }],
+      ['no independent pin reader', { omitPinReader: true }],
+    ] as const)('does not grant verified IN identity for %s', async (_, options) => {
+      const { operations } = portFixture(options);
+      const snapshot = await operations.getPrimitiveSnapshot('port-1', 'netport');
+      expect(snapshot.property).not.toHaveProperty('nativeSymbol');
+      expect(snapshot).not.toHaveProperty('nativeIsolation');
+      if (options !== undefined && !('runtimeDirection' in options)) {
+        expect(snapshot.property).not.toHaveProperty('direction');
+      }
+    });
+
+    it('never infers the native marker identity from an untyped read', async () => {
+      const { operations, pinGet } = portFixture();
+      const snapshot = await operations.getPrimitiveSnapshot('port-1');
+      expect(snapshot.property).not.toHaveProperty('nativeSymbol');
+      expect(snapshot.property).not.toHaveProperty('direction');
+      expect(pinGet).not.toHaveBeenCalled();
+    });
+  });
+
+  it('binds a marker snapshot only to a verified native schematic project and document', async () => {
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_PrimitiveId: () => 'flag-1',
+            getState_ComponentType: () => 'netflag',
+            getState_Identification: () => 'Power',
+            getState_Net: () => 'VCC',
+            getState_X: () => 40,
+            getState_Y: () => 50,
+            getState_Rotation: () => 0,
+            getState_Mirror: () => false,
+          }),
+        },
+      },
+      {
+        getEasyedaVersion: () => '4.1.105',
+        callFirst: vi.fn(async (paths: string[]) => {
+          if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-1' };
+          if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo'))
+            return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+          return undefined;
+        }) as any,
+      },
+    );
+    await expect(operations.getPrimitiveSnapshot('flag-1', 'netflag')).resolves.toMatchObject({
+      primitiveKind: 'netflag',
+      property: { identification: 'Power', net: 'VCC' },
+      nativeContext: {
+        projectId: 'project-1',
+        documentId: 'page-1',
+        editorVersion: '4.1.105',
+      },
+    });
+  });
+
+  it('attaches read-only isolation evidence only after complete native inventories and stable focus', async () => {
+    const attrDefaults = {
+      PrimitiveType: 'Attribute',
+      Key: 'Description',
+      X: null,
+      Y: 0,
+      Rotation: null,
+      Color: null,
+      FontName: null,
+      FontSize: null,
+      Bold: null,
+      Italic: null,
+      UnderLine: null,
+      AlignMode: null,
+      FillColor: null,
+      KeyVisible: null,
+      ValueVisible: null,
+    };
+    const primitive = (fields: Record<string, unknown>) =>
+      Object.fromEntries(
+        Object.entries('ParentPrimitiveId' in fields ? { ...attrDefaults, ...fields } : fields).map(
+          ([key, value]) => ['getState_' + key, () => value],
+        ),
+      );
+    const sheet = primitive({ PrimitiveId: 'sheet-1', ComponentType: 'sheet' });
+    const pin = primitive({
+      PrimitiveId: 'flag-1-e15',
+      PinName: 'Pin1',
+      PinNumber: '1',
+      pinType: 'IN',
+      X: 240,
+      Y: 250,
+      Rotation: 90,
+      NoConnected: false,
+    });
+    const flag = {
+      ...primitive({
+        PrimitiveId: 'flag-1',
+        ComponentType: 'netflag',
+        Name: 'GND',
+        Net: 'GND',
+        X: 240,
+        Y: 250,
+        Rotation: 0,
+        Mirror: false,
+        Component: {
+          name: 'Ground-GND',
+          libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+          uuid: 'af20086a8911a85a',
+        },
+      }),
+      getAllPins: vi.fn(async () => [pin]),
+    };
+    const attribute = primitive({
+      PrimitiveId: 'a-1',
+      ParentPrimitiveId: 'sheet-1',
+      Value: 'title',
+    });
+    const pinAttrs = defaultGroundAttributeFields('flag-1').map(primitive);
+    const owner = (values: unknown[]) => ({
+      getAll: vi.fn(async () => values),
+      getAllPrimitiveId: vi.fn(async () => values.map((v) => readState(v, 'PrimitiveId'))),
+      get: vi.fn(async (id: string) => values.find((v) => readState(v, 'PrimitiveId') === id)),
+    });
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveWire: owner([]),
+        SCH_PrimitivePin: {
+          ...owner([]),
+          get: vi.fn(async (id: string) => (id === 'flag-1-e15' ? pin : undefined)),
+        },
+        SCH_PrimitiveComponent: owner([sheet, flag]),
+        SCH_PrimitiveAttribute: owner([attribute, ...pinAttrs]),
+      },
+      {
+        getEasyedaVersion: () => '4.1.105',
+        callFirst: vi.fn(async (paths: string[]) =>
+          paths.includes('DMT_Project.getCurrentProjectInfo')
+            ? { uuid: 'project-1' }
+            : { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 },
+        ),
+      },
+    );
+    const result = await operations.getPrimitiveSnapshot('flag-1', 'netflag');
+    expect(result).toMatchObject({
+      nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+      nativeIsolation: {
+        kind: 'verified-disconnected-ground/v2',
+        markerId: 'flag-1',
+        componentCount: 2,
+        pagePinCount: 0,
+        embeddedPinCount: 1,
+        wireCount: 0,
+        attributeCount: 10,
+      },
+    });
+    expect(result.primitiveKind).toBe('netflag');
+  });
+
+  it('does not turn a generic marker read into a rollback-authorized native snapshot', async () => {
+    const callFirst = vi.fn(async (paths: string[]) => {
+      if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-a' };
+      if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo')) {
+        return { uuid: 'page-a', parentProjectUuid: 'project-a', documentType: 1 };
+      }
+      return undefined;
+    });
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_PrimitiveId: () => 'flag-a',
+            getState_ComponentType: () => 'netflag',
+            getState_Identification: () => 'Ground',
+            getState_Net: () => 'GND',
+          }),
+        },
+      },
+      { getEasyedaVersion: () => '4.1.105', callFirst },
+    );
+    const read = await operations.getPrimitiveSnapshot('flag-a');
+    expect(read).toMatchObject({
+      primitiveId: 'flag-a',
+      primitiveKind: 'netflag',
+      property: { identification: 'Ground', net: 'GND' },
+    });
+    expect(read).not.toHaveProperty('nativeContext');
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
+  it('does not bind a typed marker snapshot when the focused native page changes during the read', async () => {
+    let projectCall = 0;
+    let documentCall = 0;
+    const callFirst = vi.fn(async (paths: string[]) => {
+      if (paths.includes('DMT_Project.getCurrentProjectInfo')) {
+        return { uuid: ++projectCall === 1 ? 'project-a' : 'project-b' };
+      }
+      if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo')) {
+        const page = ++documentCall === 1 ? 'a' : 'b';
+        return {
+          uuid: 'page-' + page,
+          parentProjectUuid: 'project-' + page,
+          documentType: 1,
+        };
+      }
+      return undefined;
+    });
+    const { operations } = createSubject(
+      {
+        SCH_PrimitiveComponent: {
+          get: vi.fn().mockResolvedValue({
+            getState_PrimitiveId: () => 'flag-a',
+            getState_ComponentType: () => 'netflag',
+            getState_Identification: () => 'Ground',
+            getState_Net: () => 'GND',
+          }),
+        },
+      },
+      { getEasyedaVersion: () => '4.1.105', callFirst },
+    );
+    const read = await operations.getPrimitiveSnapshot('flag-a', 'netflag');
+    expect(read).toMatchObject({
+      primitiveId: 'flag-a',
+      primitiveKind: 'netflag',
+      property: { identification: 'Ground', net: 'GND' },
+    });
+    expect(read).not.toHaveProperty('nativeContext');
+    expect(projectCall).toBe(2);
+    expect(documentCall).toBe(2);
   });
 
   it('rejects malformed restore input before mutation', async () => {
@@ -131,12 +778,383 @@ describe('schematic transaction operations', () => {
     });
   });
 
+  it.each(['netflag', 'netport', 'sheet'] as const)(
+    'rejects standalone deletion of native %s in a mixed batch before touching any wire',
+    async (kind) => {
+      const componentDelete = vi.fn().mockResolvedValue(true);
+      const wireDelete = vi.fn().mockResolvedValue(true);
+      const { operations } = createSubject({
+        SCH_PrimitiveComponent: {
+          get: vi.fn(async (id: string) =>
+            id === 'marker-1' ? { primitiveId: id, getState_ComponentType: () => kind } : undefined,
+          ),
+          delete: componentDelete,
+        },
+        SCH_PrimitiveWire: {
+          get: vi.fn(async (id: string) => (id === 'wire-1' ? { primitiveId: id } : undefined)),
+          delete: wireDelete,
+        },
+      });
+
+      await expect(operations.deletePrimitives(['wire-1', 'marker-1'])).rejects.toMatchObject({
+        code: 'UNSUPPORTED_RUNTIME',
+      });
+      expect(wireDelete).not.toHaveBeenCalled();
+      expect(componentDelete).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a component whose native type is unavailable instead of guessing it is safe to delete', async () => {
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({ primitiveId: 'untyped-1' }),
+        delete: componentDelete,
+      },
+    });
+    await expect(operations.deletePrimitives(['untyped-1'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
+    });
+    expect(componentDelete).not.toHaveBeenCalled();
+  });
+
+  it('refuses a stale native component lookup before deleting any primitive', async () => {
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn().mockResolvedValue({
+          primitiveId: 'different-native-id',
+          getState_ComponentType: () => 'component',
+        }),
+        delete: componentDelete,
+      },
+    });
+    await expect(operations.deletePrimitives(['requested-id'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
+    });
+    expect(componentDelete).not.toHaveBeenCalled();
+  });
+
+  it('refuses component deletion when only a native ID inventory is readable', async () => {
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        getAllPrimitiveId: vi.fn().mockResolvedValue(['marker-id-only']),
+        delete: componentDelete,
+      },
+    });
+    await expect(operations.deletePrimitives(['marker-id-only'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
+    });
+    expect(componentDelete).not.toHaveBeenCalled();
+  });
+
+  it('rejects a component changed to a net flag after initial type preflight before deleting an earlier wire', async () => {
+    let markerReads = 0;
+    const wireDelete = vi.fn().mockResolvedValue(true);
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn(async (id: string) => {
+          if (id !== 'marker-1') return undefined;
+          markerReads += 1;
+          return {
+            primitiveId: id,
+            getState_ComponentType: () => (markerReads === 1 ? 'component' : 'netflag'),
+          };
+        }),
+        delete: componentDelete,
+      },
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) => (id === 'wire-1' ? { primitiveId: id } : undefined)),
+        delete: wireDelete,
+      },
+    });
+    await expect(operations.deletePrimitives(['wire-1', 'marker-1'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
+    });
+    expect(wireDelete).not.toHaveBeenCalled();
+    expect(componentDelete).not.toHaveBeenCalled();
+  });
+
+  it('rejects an initially missing component if it appears as a net flag during batch resolution', async () => {
+    let markerReads = 0;
+    const wireDelete = vi.fn().mockResolvedValue(true);
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn(async (id: string) => {
+          if (id !== 'marker-1') return undefined;
+          markerReads += 1;
+          return markerReads === 1
+            ? undefined
+            : { primitiveId: id, getState_ComponentType: () => 'netflag' };
+        }),
+        delete: componentDelete,
+      },
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) => (id === 'wire-1' ? { primitiveId: id } : undefined)),
+        delete: wireDelete,
+      },
+    });
+    await expect(operations.deletePrimitives(['wire-1', 'marker-1'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
+    });
+    expect(wireDelete).not.toHaveBeenCalled();
+    expect(componentDelete).not.toHaveBeenCalled();
+  });
+
+  it('refuses a transactional wire whose native net changed after server snapshot verification', async () => {
+    let nativeNet = 'N1';
+    const nativeDelete = vi.fn().mockResolvedValue(true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) =>
+          id === 'wire-1'
+            ? {
+                primitiveId: 'wire-1',
+                getState_Line: () => [0, 0, 10, 0],
+                getState_Net: () => nativeNet,
+              }
+            : undefined,
+        ),
+        delete: nativeDelete,
+      },
+    });
+    const expected = await operations.getPrimitiveSnapshot('wire-1');
+    expect(expected.property.net).toBe('N1');
+    nativeNet = 'N2';
+    callFirst.mockImplementation(async (paths: string[]) => {
+      if (paths[0] === 'DMT_Project.getCurrentProjectInfo') return { uuid: 'project-1' };
+      if (paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo') {
+        return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+      }
+      throw new Error('Unexpected native getter');
+    });
+
+    await expect(
+      operations.deletePrimitives(['wire-1'], expected, {
+        projectId: 'project-1',
+        documentId: 'page-1',
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_DELETE_PRECONDITION_CHANGED' });
+    expect(nativeDelete).not.toHaveBeenCalled();
+  });
+
+  it('refuses a scoped transactional delete when the native project/page differs at final pre-write boundary', async () => {
+    const nativeDelete = vi.fn().mockResolvedValue(true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) =>
+          id === 'wire-1'
+            ? {
+                primitiveId: 'wire-1',
+                getState_Line: () => [0, 0, 10, 0],
+                getState_Net: () => 'N1',
+              }
+            : undefined,
+        ),
+        delete: nativeDelete,
+      },
+    });
+    const expected = await operations.getPrimitiveSnapshot('wire-1');
+    callFirst.mockImplementation(async (paths: string[]) => {
+      if (paths[0] === 'DMT_Project.getCurrentProjectInfo') return { uuid: 'project-1' };
+      if (paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo') {
+        return { uuid: 'different-page', parentProjectUuid: 'project-1', documentType: 1 };
+      }
+      throw new Error('Unexpected native getter');
+    });
+    await expect(
+      operations.deletePrimitives(['wire-1'], expected, {
+        projectId: 'project-1',
+        documentId: 'page-1',
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_DELETE_PRECONDITION_CHANGED' });
+    expect(nativeDelete).not.toHaveBeenCalled();
+  });
+
+  it('deletes only when a transactional native witness and project/page match exactly', async () => {
+    const nativeDelete = vi.fn().mockResolvedValue(true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) =>
+          id === 'wire-1'
+            ? {
+                primitiveId: 'wire-1',
+                getState_Line: () => [0, 0, 10, 0],
+                getState_Net: () => 'N1',
+              }
+            : undefined,
+        ),
+        delete: nativeDelete,
+      },
+    });
+    callFirst.mockImplementation(async (paths: string[]) => {
+      if (paths[0] === 'DMT_Project.getCurrentProjectInfo') return { uuid: 'project-1' };
+      if (paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo') {
+        return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+      }
+      throw new Error('Unexpected native getter');
+    });
+    const expected = await operations.getPrimitiveSnapshot('wire-1');
+    // JSON transport can reorder keys without changing primitive semantics.
+    const reordered = {
+      property: { net: 'N1', line: [0, 0, 10, 0] },
+      primitiveKind: expected.primitiveKind,
+      primitiveId: expected.primitiveId,
+      schemaVersion: expected.schemaVersion,
+    };
+    await expect(
+      operations.deletePrimitives(['wire-1'], reordered, {
+        projectId: 'project-1',
+        documentId: 'page-1',
+      }),
+    ).resolves.toMatchObject({ deleted: ['wire-1'], notFound: [] });
+    expect(nativeDelete).toHaveBeenCalledExactlyOnceWith(['wire-1']);
+    expect(callFirst).toHaveBeenCalledWith(['DMT_SelectControl.getCurrentDocumentInfo']);
+  });
+
+  it('refuses a focused-page switch during the native snapshot read even with matching wire properties', async () => {
+    let focusedPageReads = 0;
+    const nativeDelete = vi.fn().mockResolvedValue(true);
+    const { operations, callFirst } = createSubject({
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) =>
+          id === 'wire-1'
+            ? {
+                primitiveId: 'wire-1',
+                getState_Line: () => [0, 0, 10, 0],
+                getState_Net: () => 'N1',
+              }
+            : undefined,
+        ),
+        delete: nativeDelete,
+      },
+    });
+    const expected = await operations.getPrimitiveSnapshot('wire-1');
+    callFirst.mockImplementation(async (paths: string[]) => {
+      if (paths[0] === 'DMT_Project.getCurrentProjectInfo') return { uuid: 'project-1' };
+      if (paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo') {
+        focusedPageReads += 1;
+        return {
+          uuid: focusedPageReads === 1 ? 'page-1' : 'page-2',
+          parentProjectUuid: 'project-1',
+          documentType: 1,
+        };
+      }
+      throw new Error('Unexpected native getter');
+    });
+    await expect(
+      operations.deletePrimitives(['wire-1'], expected, {
+        projectId: 'project-1',
+        documentId: 'page-1',
+      }),
+    ).rejects.toMatchObject({ code: 'NATIVE_DELETE_PRECONDITION_CHANGED' });
+    expect(focusedPageReads).toBeGreaterThanOrEqual(2);
+    expect(nativeDelete).not.toHaveBeenCalled();
+  });
+
+  it('refuses caller-claimed netflag witnesses without enabling marker deletion', async () => {
+    const componentDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        get: vi.fn(async (id: string) =>
+          id === 'flag-1'
+            ? {
+                primitiveId: 'flag-1',
+                getState_ComponentType: () => 'netflag',
+              }
+            : undefined,
+        ),
+        delete: componentDelete,
+      },
+    });
+    await expect(
+      operations.deletePrimitives(
+        ['flag-1'],
+        {
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveId: 'flag-1',
+          primitiveKind: 'netflag',
+          componentType: 'netflag',
+          property: { net: 'GND', identification: 'Ground' },
+        },
+        { projectId: 'project-1', documentId: 'page-1' },
+      ),
+    ).rejects.toMatchObject({
+      code: 'NATIVE_DELETE_PRECONDITION_CHANGED',
+    });
+    expect(componentDelete).not.toHaveBeenCalled();
+  });
+
+  it('does not delete even a matching wire with missing native page scope', async () => {
+    const nativeDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) =>
+          id === 'wire-1'
+            ? {
+                primitiveId: 'wire-1',
+                getState_Line: () => [0, 0, 10, 0],
+                getState_Net: () => 'N1',
+              }
+            : undefined,
+        ),
+        delete: nativeDelete,
+      },
+    });
+    const expected = await operations.getPrimitiveSnapshot('wire-1');
+    await expect(operations.deletePrimitives(['wire-1'], expected)).rejects.toMatchObject({
+      code: 'NATIVE_DELETE_PRECONDITION_CHANGED',
+    });
+    expect(nativeDelete).not.toHaveBeenCalled();
+  });
+
+  it('does not turn a validated drawing witness into a multi-target delete', async () => {
+    const nativeDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveWire: { delete: nativeDelete },
+    });
+    await expect(
+      operations.deletePrimitives(
+        ['wire-1', 'wire-2'],
+        {
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveKind: 'wire',
+          primitiveId: 'wire-1',
+          property: { net: 'N1', line: [0, 0, 10, 0] },
+        },
+        { projectId: 'project-1', documentId: 'page-1' },
+      ),
+    ).rejects.toMatchObject({ code: 'NATIVE_DELETE_PRECONDITION_CHANGED' });
+    expect(nativeDelete).not.toHaveBeenCalled();
+  });
+
+  it('rejects repeated standalone IDs without deleting a primitive twice', async () => {
+    const wireDelete = vi.fn().mockResolvedValue(true);
+    const { operations } = createSubject({
+      SCH_PrimitiveWire: {
+        get: vi.fn(async (id: string) => (id === 'wire-1' ? { primitiveId: id } : undefined)),
+        delete: wireDelete,
+      },
+    });
+    await expect(operations.deletePrimitives(['wire-1', 'wire-1'])).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+    });
+    expect(wireDelete).not.toHaveBeenCalled();
+  });
+
   it('routes deletion to the owning class and reports missing IDs', async () => {
     const componentDelete = vi.fn().mockResolvedValue(true);
     const wireDelete = vi.fn().mockResolvedValue(true);
     const { operations } = createSubject({
       SCH_PrimitiveComponent: {
-        get: vi.fn(async (id) => (id === 'cmp-1' ? { primitiveId: id } : undefined)),
+        get: vi.fn(async (id) =>
+          id === 'cmp-1'
+            ? { primitiveId: id, getState_ComponentType: () => 'component' }
+            : undefined,
+        ),
         delete: componentDelete,
       },
       SCH_PrimitiveWire: {
@@ -634,6 +1652,7 @@ describe('schematic transaction operations', () => {
   it('filters component, net-flag, and net-port inventories by runtime type', async () => {
     const values = [
       { primitiveId: 'component-1', getState_ComponentType: () => 'component' },
+      { primitiveId: 'sheet-1', getState_ComponentType: () => 'sheet' },
       { primitiveId: 'flag-1', getState_ComponentType: () => 'netflag' },
       { primitiveId: 'port-1', getState_ComponentType: () => 'netport' },
     ];
@@ -650,6 +1669,93 @@ describe('schematic transaction operations', () => {
       primitiveIds: ['port-1'],
     });
     expect(getAll).toHaveBeenCalledWith(undefined, true);
+  });
+
+  it('classifies component ID fallback by exact native kind rather than treating every ID as the requested marker kind', async () => {
+    const kinds: Record<string, string> = {
+      'sheet-1': 'sheet',
+      'cmp-1': 'component',
+      'flag-1': 'netflag',
+      'port-1': 'netport',
+    };
+    const get = vi.fn(async (id: string) =>
+      kinds[id]
+        ? { getState_PrimitiveId: () => id, getState_ComponentType: () => kinds[id] }
+        : undefined,
+    );
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        getAll: vi.fn().mockResolvedValue([]),
+        getAllPrimitiveId: vi.fn().mockResolvedValue(Object.keys(kinds)),
+        get,
+      },
+    });
+    for (const [requested, expected] of [
+      ['component', ['cmp-1']],
+      ['netflag', ['flag-1']],
+      ['netport', ['port-1']],
+    ] as const) {
+      await expect(operations.listPrimitiveIds(requested)).resolves.toEqual({
+        primitiveKind: requested,
+        primitiveIds: expected,
+      });
+    }
+    expect(get).toHaveBeenCalledWith('sheet-1');
+    expect(get).toHaveBeenCalledWith('flag-1');
+    expect(get).toHaveBeenCalledWith('port-1');
+  });
+
+  it('fails closed when a component fallback lacks typed native get(id)', async () => {
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        getAll: vi.fn().mockResolvedValue([]),
+        getAllPrimitiveId: vi.fn().mockResolvedValue(['flag-1']),
+      },
+    });
+    await expect(operations.listPrimitiveIds('netport')).rejects.toMatchObject({
+      code: 'NATIVE_INVENTORY_UNVERIFIED',
+    });
+  });
+
+  it.each([
+    ['stale exact ID', undefined],
+    [
+      'wrong exact ID',
+      { getState_PrimitiveId: () => 'other', getState_ComponentType: () => 'netflag' },
+    ],
+    ['missing native kind', { getState_PrimitiveId: () => 'flag-1' }],
+  ])('rejects ambiguous typed fallback: %s', async (_, item) => {
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        getAll: vi.fn().mockResolvedValue([]),
+        getAllPrimitiveId: vi.fn().mockResolvedValue(['flag-1']),
+        get: vi.fn().mockResolvedValue(item),
+      },
+    });
+    await expect(operations.listPrimitiveIds('netflag')).rejects.toMatchObject({
+      code: 'NATIVE_INVENTORY_UNVERIFIED',
+    });
+  });
+
+  it.each([
+    ['null native inventory', null],
+    ['non-array native inventory', { id: 'flag-1' }],
+    ['mixed scalar primitive IDs', ['flag-1', 42]],
+    ['duplicate primitive IDs', ['flag-1', 'flag-1']],
+  ])('refuses unverified component fallback: %s', async (_, ids) => {
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        getAll: vi.fn().mockResolvedValue([]),
+        getAllPrimitiveId: vi.fn().mockResolvedValue(ids),
+        get: vi.fn(async () => ({
+          getState_PrimitiveId: () => 'flag-1',
+          getState_ComponentType: () => 'netflag',
+        })),
+      },
+    });
+    await expect(operations.listPrimitiveIds('netflag')).rejects.toMatchObject({
+      code: 'NATIVE_INVENTORY_UNVERIFIED',
+    });
   });
 
   it('accepts scalar PrimitiveId fallback values but rejects objects', async () => {
@@ -696,7 +1802,7 @@ describe('schematic transaction operations', () => {
     expect(remove).toHaveBeenCalledWith(['rect-1']);
   });
 
-  it('treats ownership probe failures and missing probe APIs as not found', async () => {
+  it('refuses a deletion when native component ownership is unreadable', async () => {
     const { operations } = createSubject({
       SCH_PrimitiveComponent: {
         get: vi.fn().mockRejectedValue(new Error('get failed')),
@@ -709,10 +1815,8 @@ describe('schematic transaction operations', () => {
       SCH_PrimitiveText: { delete: vi.fn() },
     });
 
-    await expect(operations.deletePrimitives(['missing'])).resolves.toEqual({
-      success: false,
-      deleted: [],
-      notFound: ['missing'],
+    await expect(operations.deletePrimitives(['missing'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
     });
   });
   it('recreates text, rectangle, circle, and polygon snapshots with exact explicit arguments', async () => {

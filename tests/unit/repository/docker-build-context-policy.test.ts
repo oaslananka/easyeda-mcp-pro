@@ -31,6 +31,19 @@ describe('Docker build-context policy', () => {
       '!scripts/clean.mjs',
       '!scripts/sync-versions.mjs',
       '!scripts/extension-metadata-policy.mjs',
+      '!scripts/build-mcp-apps.mjs',
+      '!scripts/build-private-ground-worker.mjs',
+      '!scripts/private-ground/',
+      'scripts/private-ground/**',
+      '!scripts/private-ground/archive-evidence.py',
+      '!scripts/private-ground/launcher.py',
+      '!scripts/private-ground/native-rpc.txt',
+      '!scripts/private-ground/proxy.py',
+      '!scripts/private-ground/worker.mjs',
+      '!scripts/private-ground/interactive.mjs',
+      '!scripts/private-ground/host.mjs',
+      '!scripts/private-ground/host-session.mjs',
+      '!scripts/private-ground/worker.py',
       'scripts/**',
       '!src/**',
       'easyeda-bridge-extension/**',
@@ -77,6 +90,7 @@ describe('Docker build-context policy', () => {
     }
 
     expect(patterns).not.toContain('!scripts/**');
+    expect(patterns).not.toContain('!scripts/private-ground/**');
     expect(patterns).not.toContain('!easyeda-bridge-extension/**');
     expect(patterns.at(-1)).toBe('!.env.example');
   });

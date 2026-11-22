@@ -25,3 +25,5 @@ const out = resolve(root, 'dist/apps/project-review.html');
 await mkdir(resolve(root, 'dist/apps'), { recursive: true });
 await writeFile(out, bundle, 'utf8');
 console.log('[mcp-apps] built offline read-only App HTML, ' + Buffer.byteLength(bundle) + ' bytes');
+
+await import('./build-private-ground-worker.mjs');

@@ -1,6 +1,8 @@
 import { type TransactionManager } from './manager.js';
 import { type RollbackResult, type TransactionOperation } from './model.js';
 import { snapshotForHash, stableHash } from './stable.js';
+import { assertFocusedSchematicScope, nativeSchematicTarget } from './schematic-scope.js';
+import type { NativeSchematicScope } from './model.js';
 
 export interface TransactionBridgeCaller {
   call: <TParams, TResult>(
@@ -59,11 +61,24 @@ export async function primitiveExists(
 export async function deletePrimitiveExact(
   bridge: TransactionBridgeCaller,
   primitiveId: string,
+  nativeScope?: NativeSchematicScope,
+  expectedSnapshot?: PrimitiveSnapshotResult,
 ): Promise<unknown> {
-  const result = await bridge.call<{ primitiveIds: string[] }, DeletePrimitiveResult>(
-    'schematic.deletePrimitive',
-    { primitiveIds: [primitiveId] },
-  );
+  const result = await bridge.call<
+    {
+      primitiveIds: string[];
+      expectedProjectUuid?: string;
+      expectedSchematicPageUuid?: string;
+      expectedPrimitiveSnapshot?: PrimitiveSnapshotResult;
+    },
+    DeletePrimitiveResult
+  >('schematic.deletePrimitive', {
+    primitiveIds: [primitiveId],
+    ...(nativeScope ? nativeSchematicTarget(nativeScope) : {}),
+    ...(nativeScope && expectedSnapshot
+      ? { expectedPrimitiveSnapshot: structuredClone(expectedSnapshot) }
+      : {}),
+  });
   if (
     result &&
     typeof result === 'object' &&
@@ -79,16 +94,40 @@ export async function deletePrimitiveExact(
 export async function recreatePrimitiveSnapshot(
   bridge: TransactionBridgeCaller,
   snapshot: unknown,
+  nativeScope?: NativeSchematicScope,
 ): Promise<{ primitiveId: string; snapshot: PrimitiveSnapshotResult }> {
   const result = await bridge.call<
-    { snapshot: unknown },
+    { snapshot: unknown; expectedProjectUuid?: string; expectedSchematicPageUuid?: string },
     { primitiveId?: unknown; snapshot?: PrimitiveSnapshotResult }
-  >('schematic.recreatePrimitiveSnapshot', { snapshot });
+  >('schematic.recreatePrimitiveSnapshot', {
+    snapshot,
+    ...(nativeScope ? nativeSchematicTarget(nativeScope) : {}),
+  });
   if (typeof result?.primitiveId !== 'string' || !result.primitiveId) {
     throw new Error('Recreated primitive did not return an addressable primitive ID');
   }
-  const recreatedSnapshot =
-    result.snapshot ?? (await getPrimitiveSnapshot(bridge, result.primitiveId));
+  const expectedNativeKind = nativeGroundReadKind(snapshot);
+  // The response from recreate is not evidence that the new primitive is
+  // actually readable. Compensation runs on uncertain writes as well as
+  // explicit rollback: trusting result.snapshot could falsely report a
+  // restored wire/net even when the native sheet holds different data.
+  const recreatedSnapshot = await getPrimitiveSnapshot(
+    bridge,
+    result.primitiveId,
+    expectedNativeKind,
+  );
+  const expected = snapshot as PrimitiveSnapshotResult | null;
+  if (
+    !recreatedSnapshot ||
+    recreatedSnapshot.primitiveId !== result.primitiveId ||
+    (typeof expected?.primitiveKind === 'string' &&
+      recreatedSnapshot.primitiveKind !== expected.primitiveKind)
+  ) {
+    throw new Error('Recreated primitive identity or type not verified by independent native read');
+  }
+  if (expectedNativeKind && nativeGroundReadKind(recreatedSnapshot) !== expectedNativeKind) {
+    throw new Error('Recreated native Ground identity or scoped evidence is not verified');
+  }
   return { primitiveId: result.primitiveId, snapshot: recreatedSnapshot };
 }
 
@@ -209,6 +248,42 @@ function requireBeforeSnapshot(operation: Readonly<TransactionOperation>): unkno
   return operation.beforeSnapshot;
 }
 
+/**
+ * Read-only native Ground evidence is meaningful only when the restored
+ * primitive is independently queried in the same scoped native kind.
+ * Nothing here grants permission to delete markers in production.
+ */
+function nativeGroundReadKind(beforeSnapshot: unknown): 'netflag' | undefined {
+  if (!beforeSnapshot || typeof beforeSnapshot !== 'object') {
+    return undefined;
+  }
+  if (Array.isArray(beforeSnapshot)) return undefined;
+  const record = beforeSnapshot as Record<string, unknown>;
+  const isolation = record.nativeIsolation;
+  if (
+    record.primitiveKind !== 'netflag' ||
+    !record.nativeContext ||
+    !isolation ||
+    typeof isolation !== 'object' ||
+    Array.isArray(isolation)
+  ) {
+    return undefined;
+  }
+  return (isolation as Record<string, unknown>).kind === 'verified-disconnected-ground/v2'
+    ? 'netflag'
+    : undefined;
+}
+
+function verifiedRollbackExactId(
+  snapshot: PrimitiveSnapshotResult | PinNoConnectSnapshot,
+  requestedId: string,
+  pinSnapshot: PinNoConnectSnapshot | undefined,
+): boolean {
+  // Pin snapshots are verified through their independent native pin ID.
+  if (pinSnapshot) return true;
+  return 'primitiveId' in snapshot && snapshot.primitiveId === requestedId;
+}
+
 export async function rollbackEasyedaTransaction(
   manager: TransactionManager,
   transactionId: string,
@@ -236,10 +311,29 @@ export async function rollbackEasyedaTransaction(
           return;
         }
         case 'delete': {
+          // A failed compensation may have created a replacement despite a
+          // timeout or an unsuccessful readback. A second create is non-
+          // idempotent and can duplicate real schematic connectivity.
+          // Leave the failed transaction locked for native inspection rather
+          // than automatically replaying an ambiguous write.
+          if (operation.state === 'failed' && operation.compensation === 'failed') {
+            throw new Error(
+              'Native delete outcome and prior compensation are unresolved; ' +
+                'inspect the schematic and cold-reopen before any manual recovery',
+            );
+          }
+          const scope = operation.nativeSchematicScope;
+          if (scope) {
+            await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
+          }
           const recreated = await recreatePrimitiveSnapshot(
             bridge,
             requireBeforeSnapshot(operation),
+            scope,
           );
+          if (scope) {
+            await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
+          }
           return { restoredTargetId: recreated.primitiveId };
         }
       }
@@ -250,9 +344,22 @@ export async function rollbackEasyedaTransaction(
       }
       const beforeSnapshot = requireBeforeSnapshot(operation);
       const pinSnapshot = asPinNoConnectSnapshot(beforeSnapshot);
+      // A native-scoped Ground deletion must be verified through a fresh,
+      // explicitly typed bridge read instead of a generic snapshot.
+      const expectedNativeKind =
+        operation.kind === 'delete' ? nativeGroundReadKind(beforeSnapshot) : undefined;
+      const scope = operation.nativeSchematicScope;
+      if (scope) await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
       const snapshot = pinSnapshot
         ? await readPinNoConnectSnapshot(bridge, pinSnapshot)
-        : await getPrimitiveSnapshot(bridge, restoreResult.restoredTargetId ?? operation.target.id);
+        : await getPrimitiveSnapshot(
+            bridge,
+            restoreResult.restoredTargetId ?? operation.target.id,
+            expectedNativeKind,
+          );
+      if (scope) await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
+      const requestedId = restoreResult.restoredTargetId ?? operation.target.id;
+      if (!verifiedRollbackExactId(snapshot, requestedId, pinSnapshot)) return false;
       if (!operation.beforeHash) return false;
       return (
         stableHash(snapshotForHash(snapshot, operation.snapshotHashMode)) === operation.beforeHash

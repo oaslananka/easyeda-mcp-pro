@@ -5,6 +5,23 @@ import type {
   SchematicPrimitiveSnapshotKind,
 } from '../src/schematic-transaction-operations.js';
 
+const nativeGround = {
+  name: 'Ground-GND',
+  libraryUuid: '0819f05c4eef4c71ace90d822a990e87',
+  uuid: 'af20086a8911a85a',
+};
+
+const nativeGroundIsolation = {
+  kind: 'verified-disconnected-ground/v2' as const,
+  markerId: 'netflag-old',
+  componentCount: 2 as const,
+  wireCount: 0 as const,
+  pagePinCount: 0 as const,
+  embeddedPinCount: 1 as const,
+  attributeCount: 38,
+  attributeFingerprint: 'a'.repeat(64),
+};
+
 function snapshot(
   primitiveKind: SchematicPrimitiveSnapshotKind,
   property: Record<string, unknown>,
@@ -114,6 +131,298 @@ describe('createSchematicSnapshotRecreator', () => {
       0,
     );
   });
+
+  it('does not expose beta net flag reconstruction without explicit fixture capability', async () => {
+    const callFirst = vi.fn();
+    const recreator = createSchematicSnapshotRecreator({
+      callFirst,
+      createBridgeError: vi.fn((code, message) => Object.assign(new Error(message), { code })),
+      requirePublicTextAlignMode: vi.fn((value) => value as 1),
+      getEasyedaVersion: () => '4.1.105',
+    });
+    await expect(
+      recreator.create({
+        ...snapshot('netflag', {
+          identification: 'Ground',
+          net: 'GND',
+          x: 1,
+          y: 2,
+          rotation: 0,
+          mirror: false,
+        }),
+        componentType: 'netflag',
+        nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+      }),
+    ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unverified or missing native symbol descriptor even when Ground is claimed', async () => {
+    const callFirst = vi.fn();
+    const recreator = createSchematicSnapshotRecreator({
+      callFirst,
+      createBridgeError: vi.fn((code, message) => Object.assign(new Error(message), { code })),
+      requirePublicTextAlignMode: vi.fn((value) => value as 1),
+      getEasyedaVersion: () => '4.1.105',
+      allowExperimentalPowerNetFlagRecreation: () => true,
+    });
+    await expect(
+      recreator.create({
+        ...snapshot('netflag', {
+          identification: 'Ground',
+          net: 'GND',
+          x: 240,
+          y: 250,
+          rotation: 0,
+          mirror: false,
+        }),
+        componentType: 'netflag',
+        nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+      }),
+    ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
+    expect(callFirst).not.toHaveBeenCalledWith(
+      ['SCH_PrimitiveComponent.createNetFlag', 'sch_PrimitiveComponent.createNetFlag'],
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it.each([
+    ['missing evidence', undefined],
+    ['wrong marker ID', { ...nativeGroundIsolation, markerId: 'another-marker' }],
+    ['wrong evidence kind', { ...nativeGroundIsolation, kind: 'unverified' }],
+    ['connected wire', { ...nativeGroundIsolation, wireCount: 1 }],
+    ['extra component', { ...nativeGroundIsolation, componentCount: 3 }],
+    ['page pin', { ...nativeGroundIsolation, pagePinCount: 1 }],
+    ['missing embedded pin', { ...nativeGroundIsolation, embeddedPinCount: 0 }],
+    ['empty attributes', { ...nativeGroundIsolation, attributeCount: 0 }],
+    ['noninteger attributes', { ...nativeGroundIsolation, attributeCount: 0.5 }],
+  ])('refuses fixture Ground recreation for %s before any native create', async (_, evidence) => {
+    const callFirst = vi.fn(async (paths: string[]) => {
+      if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-1' };
+      if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo'))
+        return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+      return { primitiveId: 'created' };
+    });
+    const recreator = createSchematicSnapshotRecreator({
+      callFirst,
+      createBridgeError: vi.fn((code, message) => Object.assign(new Error(message), { code })),
+      requirePublicTextAlignMode: vi.fn((value) => value as 1),
+      getEasyedaVersion: () => '4.1.105',
+      allowExperimentalPowerNetFlagRecreation: () => true,
+    });
+    await expect(
+      recreator.create({
+        ...snapshot('netflag', {
+          identification: 'Ground',
+          net: 'GND',
+          nativeSymbol: nativeGround,
+          x: 10,
+          y: 20,
+          rotation: 0,
+          mirror: false,
+        }),
+        componentType: 'netflag',
+        nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+        nativeIsolation: evidence as SchematicPrimitiveSnapshot['nativeIsolation'],
+      }),
+    ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
+    expect(callFirst).not.toHaveBeenCalledWith(
+      ['SCH_PrimitiveComponent.createNetFlag', 'sch_PrimitiveComponent.createNetFlag'],
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it.each([
+    ['rotated', { rotation: 90 }],
+    ['mirrored', { mirror: true }],
+    ['fractional x', { x: 10.25 }],
+    ['nonfinite y', { y: Number.POSITIVE_INFINITY }],
+  ])('refuses unverified %s Ground pose even with a fixture witness', async (_, change) => {
+    const callFirst = vi.fn();
+    const recreator = createSchematicSnapshotRecreator({
+      callFirst,
+      createBridgeError: vi.fn((code, message) => Object.assign(new Error(message), { code })),
+      requirePublicTextAlignMode: vi.fn((value) => value as 1),
+      getEasyedaVersion: () => '4.1.105',
+      allowExperimentalPowerNetFlagRecreation: () => true,
+    });
+    await expect(
+      recreator.create({
+        ...snapshot('netflag', {
+          identification: 'Ground',
+          net: 'GND',
+          nativeSymbol: nativeGround,
+          x: 10,
+          y: 20,
+          rotation: 0,
+          mirror: false,
+          ...change,
+        }),
+        componentType: 'netflag',
+        nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+        nativeIsolation: nativeGroundIsolation,
+      }),
+    ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
+  it('recreates an exact native power net flag with all typed arguments', async () => {
+    const callFirst = vi.fn(async (paths: string[]) => {
+      if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: 'project-1' };
+      if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo'))
+        return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+      return { primitiveId: 'flag-new' };
+    });
+    const recreator = createSchematicSnapshotRecreator({
+      callFirst,
+      createBridgeError: vi.fn((code, message) => Object.assign(new Error(message), { code })),
+      requirePublicTextAlignMode: vi.fn((value) => value as 1),
+      getEasyedaVersion: () => '4.1.105',
+      allowExperimentalPowerNetFlagRecreation: () => true,
+    });
+    await recreator.create({
+      ...snapshot('netflag', {
+        identification: 'Ground',
+        net: 'GND',
+        nativeSymbol: nativeGround,
+        x: 10,
+        y: 20,
+        rotation: 0,
+        mirror: false,
+      }),
+      componentType: 'netflag',
+      nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+      nativeIsolation: nativeGroundIsolation,
+    });
+    expect(callFirst).toHaveBeenCalledWith(
+      ['SCH_PrimitiveComponent.createNetFlag', 'sch_PrimitiveComponent.createNetFlag'],
+      'Ground',
+      'GND',
+      10,
+      20,
+      0,
+      false,
+    );
+  });
+
+  it.each([
+    {
+      label: 'missing native scope',
+      nativeContext: undefined,
+      activeProject: 'project-1',
+      activePage: 'page-1',
+    },
+    {
+      label: 'wrong focused project',
+      nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+      activeProject: 'other',
+      activePage: 'page-1',
+    },
+    {
+      label: 'wrong focused page',
+      nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '4.1.105' },
+      activeProject: 'project-1',
+      activePage: 'other',
+    },
+    {
+      label: 'wrong editor version',
+      nativeContext: { projectId: 'project-1', documentId: 'page-1', editorVersion: '3.2.209' },
+      activeProject: 'project-1',
+      activePage: 'page-1',
+    },
+  ])(
+    'refuses net flag recreation for $label before native create',
+    async ({ nativeContext, activeProject, activePage }) => {
+      const callFirst = vi.fn(async (paths: string[]) => {
+        if (paths.includes('DMT_Project.getCurrentProjectInfo')) return { uuid: activeProject };
+        if (paths.includes('DMT_SelectControl.getCurrentDocumentInfo'))
+          return { uuid: activePage, parentProjectUuid: activeProject, documentType: 1 };
+        return { primitiveId: 'created' };
+      });
+      const recreator = createSchematicSnapshotRecreator({
+        callFirst,
+        createBridgeError: vi.fn((code, message) => Object.assign(new Error(message), { code })),
+        requirePublicTextAlignMode: vi.fn((value) => value as 1),
+        getEasyedaVersion: () => '4.1.105',
+        allowExperimentalPowerNetFlagRecreation: () => true,
+      });
+      await expect(
+        recreator.create({
+          ...snapshot('netflag', {
+            identification: 'Ground',
+            net: 'GND',
+            nativeSymbol: nativeGround,
+            x: 10,
+            y: 20,
+            rotation: 0,
+            mirror: false,
+          }),
+          componentType: 'netflag',
+          nativeContext,
+          nativeIsolation: nativeGroundIsolation,
+        }),
+      ).rejects.toMatchObject({ code: 'UNSUPPORTED_RUNTIME' });
+      expect(callFirst).not.toHaveBeenCalledWith(
+        ['SCH_PrimitiveComponent.createNetFlag', 'sch_PrimitiveComponent.createNetFlag'],
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+      );
+    },
+  );
+
+  it.each([
+    { kind: 'netflag', property: { net: 'GND', x: 1, y: 2, rotation: 0, mirror: false } },
+    {
+      kind: 'netflag',
+      property: { identification: 'Ground', net: '', x: 1, y: 2, rotation: 0, mirror: false },
+    },
+    {
+      kind: 'netflag',
+      property: { identification: 'NotPower', net: 'GND', x: 1, y: 2, rotation: 0, mirror: false },
+    },
+    {
+      kind: 'netflag',
+      property: { identification: 'Ground', net: 'GND', x: 1, y: 2, rotation: 0 },
+    },
+    {
+      kind: 'netport',
+      property: { direction: 'SIDEWAYS', net: 'N1', x: 1, y: 2, rotation: 0, mirror: false },
+    },
+    {
+      kind: 'component',
+      property: { identification: 'Ground', net: 'GND', x: 1, y: 2, rotation: 0, mirror: false },
+    },
+  ] as const)(
+    'rejects invalid or untyped $kind marker restoration before native mutation',
+    async ({ kind, property }) => {
+      const callFirst = vi.fn();
+      const recreator = createSchematicSnapshotRecreator({
+        callFirst,
+        createBridgeError: vi.fn((code, message) => Object.assign(new Error(message), { code })),
+        requirePublicTextAlignMode: vi.fn((value) => value as 1),
+      });
+      await expect(
+        recreator.create({ ...snapshot(kind, property), componentType: kind }),
+      ).rejects.toMatchObject({
+        code: 'UNSUPPORTED_RUNTIME',
+      });
+      expect(callFirst).not.toHaveBeenCalled();
+    },
+  );
 
   it('fails closed for incomplete snapshot fields and unsupported creation kinds', async () => {
     const createBridgeError = vi.fn((code, message) => Object.assign(new Error(message), { code }));

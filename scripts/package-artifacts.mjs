@@ -19,10 +19,22 @@ export const REQUIRED_PACKAGE_FILE_ENTRIES = [
 
 const FORBIDDEN_PACKED_PREFIXES = ['package/dist/router/'];
 
+export const PRIVATE_GROUND_ARTIFACTS = [
+  'dist/private-ground/launcher.py',
+  'dist/private-ground/worker.py',
+  'dist/private-ground/proxy.py',
+  'dist/private-ground/archive-evidence.py',
+  'dist/private-ground/native-rpc.txt',
+  'dist/private-ground/native-transaction.js',
+  'dist/private-ground/worker.cjs',
+  'dist/private-ground/host.cjs',
+];
+
 const REQUIRED_PACKED_FILES = [
   'package/package.json',
   'package/dist/index.js',
   'package/dist/apps/project-review.html',
+  ...PRIVATE_GROUND_ARTIFACTS.map((path) => 'package/' + path),
   'package/easyeda-bridge-extension.eext',
   'package/easyeda-bridge-extension.checksums.json',
   'package/README.md',
@@ -248,6 +260,7 @@ async function verifyRequiredArtifacts(root, errors) {
     await requireNonEmptyFile(root, entry, errors);
   }
   await requireNonEmptyFile(root, 'dist/index.js', errors);
+  for (const entry of PRIVATE_GROUND_ARTIFACTS) await requireNonEmptyFile(root, entry, errors);
 }
 
 function verifyPackageDeclaration(packageJson, errors) {

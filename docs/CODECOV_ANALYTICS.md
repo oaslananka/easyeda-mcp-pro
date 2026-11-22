@@ -106,6 +106,147 @@ new ratchets are **234,935 / 391,213 / 313,115 bytes**. Each changed
 artifact retains a five-byte margin; the dispatcher limit is unchanged.
 These limits remain enforced by CI and do not authorize unrelated growth.
 
+On 2026-11-21, PR #1110 closed a native standalone schematic-delete
+fail-open path: before any mutation, the extension now requires exact native
+component ID and type readback and refuses flags, ports, sheet frames,
+ambiguous inventory, and stale ID results. The deterministic Node.js 24.22.3
+build changed from **247,010 to 247,802 bytes** for the packaged extension
+(+792 bytes), **422,452 to 424,261 bytes** for index.js (+1,809),
+and **336,523 to 338,332 bytes** for dispatcher.js (+1,809).
+The reviewed byte ratchets are **247,807 / 424,266 / 338,337 bytes**
+(respectively, exactly measured output + five bytes each). The separate
+extension-integrity job, its byte limits, and source/package integrity checks
+remain mandatory and fail closed. This is a narrow safety overhead review,
+not broad permission for extension growth or native marker deletion.
+
+The 2026-11-21 follow-up to PR #1110 further restricts fixture-only native V4
+Ground reconstruction: even with a scoped native document and opt-in capability,
+a snapshot missing an exact marker-matched isolation descriptor or reporting
+wires, free pins, additional components, missing embedded pins or invalid
+attribute counts cannot call the native create API. This does not authenticate
+caller-supplied evidence or authorize production marker deletion. The
+reproducible extension package measured **248,069 bytes** (previous
+**247,802**, +267), index.js **424,827** (previous **424,261**, +566) and
+dispatcher.js **338,898** (previous **338,332**, +566). The reviewed budget
+ratchets remain output plus five bytes: **248,074 / 424,832 / 338,903**.
+All size and integrity checks remain mandatory.
+
+The 2026-11-21 continuation of PR #1110 adds a second native component
+type/identity check during the **full-batch ownership resolution**, before
+any standalone schematic delete is executed. This refuses stale component
+lookups that change from an ordinary component into a marker between reads,
+and prevents duplicate IDs from causing repeated deletes. The reproducible
+build changed from **248,069 to 248,379 bytes** for the packaged extension
+(+310 bytes), **424,827 to 425,642 bytes** for index.js (+815), and
+**338,898 to 339,713 bytes** for dispatcher.js (+815).
+The reviewed byte ratchets are **248,384 / 425,647 / 339,718 bytes**
+(output plus five bytes each); the integrity/size checks remain enforced.
+This is a bounded in-process preflight, not a cross-process native editor
+writer fence or permission to delete markers in production.
+
+The 2026-11-21 #1102 native marker acceptance follow-up ensures a typed
+Ground rollback descriptor is not silently discarded when the bridge parses
+a snapshot for recreation. The new strict parser retains a cloned descriptor
+only when its exact marker ID, isolated native topology counts, field set
+and scoped netflag shape agree; malformed, extra or cross-kind fields are
+rejected before any native API call. This is NOT authenticated provenance
+or production permission to delete markers. The separate disposable V4.1.105
+Ground and IN netport direct-native delete/recreate/save/full-cold-reopen
+round trips preserved symbol identity, net, position, pin and nonvolatile
+attributes, with only sheet Update Time refreshed; these were not integrated
+MCP transactional rollback tests. The reproducible extension package grew
+from 248,379 to 249,222 bytes (+843), loader from 425,642 to
+427,709 bytes (+2,067), dispatcher from 339,713 to 341,779 bytes
+(+2,066). The enforced byte ratchets remain measured plus five bytes:
+249,227 / 427,714 / 341,784. No size check is disabled.
+
+A further 2026-11-21 #1102 regression test now traverses the full Bridge
+snapshot input parsing and fixture-only Ground recreation path using a
+verified-shaped scoped isolation witness. It failed before the optional
+unit-fixture capability was forwarded to the recreator, then passed. A
+separate negative test ensures an untrusted caller cannot enable this
+capability: the production dispatcher supplies no such opt-in and remains
+fail-closed even with a complete caller-provided witness. This is a unit
+test, not authorization to delete native markers or proof of an integrated
+native marker rollback. The exact reproducible extension archive changed
+from **249,222 to 249,343 bytes** (+121), loader from **427,709 to
+427,890 bytes** (+181), and dispatcher from **341,779 to 341,960 bytes**
+(+181). Enforced byte limits are the measured sizes plus five:
+**249,348 / 427,895 / 341,965 bytes**. CI integrity/size checks remain
+enabled.
+
+The 2026-11-21 #1102 follow-up fixes mixed native component-ID fallback
+classification in the Bridge. When the native component getAll collection is
+empty/stale, untyped getAllPrimitiveId IDs can include sheet, component,
+netflag and netport objects. The Bridge now requires an exact native get(id)
+and verified ComponentType for each fallback ID before returning the requested
+kind. Missing/mismatched IDs, ambiguous kinds, duplicate IDs and malformed
+collections fail closed. The ordinary-component list also excludes sheet
+objects. Nine red-to-green regression cases cover mixed lists and negative
+native identity evidence; this does not authorize production marker deletion.
+The reproducible archive changed from **249,343 to 250,192 bytes** (+849);
+loader **427,890 to 429,710 bytes** (+1,820); dispatcher **341,960 to
+343,780 bytes** (+1,820). Strict output-plus-five byte ratchets:
+**250,197 / 429,715 / 343,785**. Integrity and size checks remain enabled.
+
+The #1102 typed IN netport snapshot follow-up derives the direction only
+from the independently observed V4.1.105 native Netport-IN library/symbol,
+exact component identity, verified unmirrored zero-rotation pose and
+matching embedded plus independently read native pin. The marker scope is
+checked before and after these reads. The red-to-green typed snapshot test
+and thirteen negative/compatibility cases cover missing native pin evidence,
+unknown symbols, scope changes and unsupported poses. This derives a
+read-only identity descriptor, not native isolation or rollback permission.
+The reproducible archive changed from **250,192 to 251,372 bytes** (+1,180),
+loader **429,710 to 432,854 bytes** (+3,144), dispatcher **343,780 to
+346,923 bytes** (+3,143). Strict output-plus-five byte limits remain
+**251,377 / 432,859 / 346,928**. Integrity checks remain enabled.
+
+The #1102 Ground evidence version 2 adds exact native attribute
+list/get validation and SHA-256 semantic fingerprinting to detect content,
+style, geometry or visibility changes even when attribute counts agree.
+Only regenerated IDs, generated sheet update metadata and the narrowly
+observed unset Relevance visibility representation are normalized.
+An isolated real V4.1.105 native CLI fixture exercised the source
+TransactionManager and Bridge snapshot/recreation code; it initially
+detected a genuine representation mismatch and then verified a fresh
+rollback with matching fingerprint. This is not production MCP marker
+permission or cross-process native writer acceptance. The archive grew
+from **251,372 to 253,219 bytes** (+1,847), loader **432,854 to 436,206
+bytes** (+3,352), dispatcher **346,923 to 350,275 bytes** (+3,352).
+Enforced byte budgets remain actual plus five: **253,224 / 436,211 /
+350,280**. No check is disabled.
+
+The #1102 default Ground profile and immediate compensation follow-up
+checks exact marker/pin attribute multiplicity, relative position, content,
+style and visibility before a typed native snapshot earns the existing
+v2 witness. Native V4.1.105 three-position creation tests and an actual
+source-dispatcher probe demonstrate the default/customized distinction;
+production marker deletion remains denied. Experimental reconstruction
+also rejects unverified orientation/pose, and the server requests a fresh
+typed snapshot during delete compensation. The archive grew from
+**253,219 to 254,205 bytes** (+986), loader **436,206 to 438,442 bytes**
+(+2,236), dispatcher **350,275 to 352,511 bytes** (+2,236). Enforced
+actual-plus-five budgets are **254,210 / 438,447 / 352,516**; integrity
+checks remain enabled.
+
+The 2026-11-22 #1102 pre-delete native transaction guard adds an independently
+re-read, exact-snapshot comparison at the EasyEDA Bridge deletion boundary.
+Before an ordinary rollback-backed drawing-primitive delete, the extension
+revalidates the focused project and schematic page, primitive kind/ID, net and
+all captured properties, refusing changed or unverifiable inputs. The
+source-built PR head `32715c0683159059c7dd6d9303dec4aaa7f9c8d0`
+deterministically measured a packaged `.eext` of **256,998 bytes** (previous
+measured **254,791**, increase **2,207**), `index.js` **444,920 bytes**
+(previous **440,062**, increase **4,858**), and `dispatcher.js`
+**358,977 bytes** (previous **354,131**, increase **4,846**). The reviewed
+strict byte ratchets are these measured sizes plus **five bytes**:
+**257,003 / 444,925 / 358,982 bytes**, respectively. No size checker,
+CI integrity gate, extension hard ceiling, or security approval is disabled.
+The guard is **not** an editor-wide writer lock and does not enable ordinary
+transactional netflag/netport/component deletion or claim new live runtime
+acceptance.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:

@@ -9,6 +9,17 @@ function primitiveNotFound(id: string): Error {
   return Object.assign(new Error(`Primitive ${id} not found`), { code: 'PRIMITIVE_NOT_FOUND' });
 }
 
+function verifiedSchematicFocus(method: string, params: { path?: string }): unknown {
+  if (method !== 'api.read') return undefined;
+  if (params.path === 'DMT_Project.getCurrentProjectInfo') {
+    return { result: { uuid: 'project-1' } };
+  }
+  if (params.path === 'DMT_SelectControl.getCurrentDocumentInfo') {
+    return { result: { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 } };
+  }
+  throw new Error('Unexpected native identity reader ' + String(params.path));
+}
+
 describe('easyeda_schematic_batch_write', () => {
   let registry: ToolRegistry;
   let context: ToolContext;
@@ -574,6 +585,7 @@ describe('easyeda_schematic_batch_write', () => {
       ],
     ]);
     bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'api.read') return verifiedSchematicFocus(method, params);
       if (method === 'schematic.getPrimitiveSnapshot') {
         const snapshot = snapshots.get(params.primitiveId);
         if (!snapshot) throw primitiveNotFound(params.primitiveId);
@@ -611,6 +623,17 @@ describe('easyeda_schematic_batch_write', () => {
       confirmWrite: true,
     });
 
+    expect(bridgeCall).toHaveBeenCalledWith('schematic.deletePrimitive', {
+      primitiveIds: ['wire-old'],
+      expectedProjectUuid: 'project-1',
+      expectedSchematicPageUuid: 'page-1',
+      expectedPrimitiveSnapshot: {
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'wire-old',
+        primitiveKind: 'wire',
+        property: { line: [0, 0, 10, 0], net: 'N1' },
+      },
+    });
     expect(snapshots.has('wire-old')).toBe(false);
     expect(snapshots.has('wire-restored')).toBe(true);
     expect(result).toMatchObject({
@@ -623,6 +646,287 @@ describe('easyeda_schematic_batch_write', () => {
       ],
     });
   });
+
+  it.each([
+    ['primitive subtype', { primitiveKind: 'netflag', property: { net: 'GND' } }],
+    ['net property', { primitiveKind: 'wire', property: { line: [0, 0, 10, 0], net: 'N2' } }],
+  ] as const)(
+    'refuses deletion when the %s changes between batch preflight and transaction snapshot',
+    async (_reason, changed) => {
+      const before = {
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'wire-1',
+        primitiveKind: 'wire',
+        property: { line: [0, 0, 10, 0], net: 'N1' },
+      };
+      let snapshotReads = 0;
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'api.read') return verifiedSchematicFocus(method, params);
+        if (method === 'schematic.getPrimitiveSnapshot') {
+          expect(params.primitiveId).toBe('wire-1');
+          snapshotReads += 1;
+          return structuredClone(snapshotReads === 1 ? before : { ...before, ...changed });
+        }
+        if (method === 'schematic.deletePrimitive') {
+          return { deleted: params.primitiveIds, notFound: [] };
+        }
+        throw new Error(`Unexpected bridge method ${method}`);
+      });
+
+      const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+        projectId: 'project-1',
+        operations: [{ operationId: 'delete-wire', action: 'delete', primitiveId: 'wire-1' }],
+        atomic: true,
+        dryRun: false,
+        confirmWrite: true,
+      });
+      expect(snapshotReads).toBeGreaterThanOrEqual(2);
+      expect(result).toMatchObject({
+        success: false,
+        committed: false,
+        error_code: 'TRANSACTION_INVALID_STATE',
+      });
+      expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+    },
+  );
+
+  it.each([
+    ['wrong active project', 'other-project', 'project-1', 1],
+    ['wrong parent project', 'project-1', 'other-project', 1],
+    ['wrong focused document type', 'project-1', 'project-1', 3],
+  ] as const)(
+    'refuses a transactional wire delete in the %s before native mutation',
+    async (_reason, activeProject, parentProject, documentType) => {
+      const snapshot = {
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'wire-1',
+        primitiveKind: 'wire',
+        property: { line: [0, 0, 10, 0], net: 'N1' },
+      };
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'api.read' && params.path === 'DMT_Project.getCurrentProjectInfo')
+          return { result: { uuid: activeProject } };
+        if (method === 'api.read' && params.path === 'DMT_SelectControl.getCurrentDocumentInfo')
+          return { result: { uuid: 'page-1', parentProjectUuid: parentProject, documentType } };
+        if (method === 'schematic.getPrimitiveSnapshot') return structuredClone(snapshot);
+        if (method === 'schematic.deletePrimitive')
+          return { deleted: params.primitiveIds, notFound: [] };
+        throw new Error(`Unexpected bridge method ${method}`);
+      });
+      const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+        projectId: 'project-1',
+        operations: [{ operationId: 'delete-wire', action: 'delete', primitiveId: 'wire-1' }],
+        atomic: true,
+        dryRun: false,
+        confirmWrite: true,
+      });
+      expect(result).toMatchObject({
+        success: false,
+        committed: false,
+        error_code: 'TRANSACTION_INVALID_STATE',
+      });
+      expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+    },
+  );
+
+  it('refuses a page switch after preflight and before the native delete boundary', async () => {
+    const snapshot = {
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'wire-1',
+      primitiveKind: 'wire',
+      property: { line: [0, 0, 10, 0], net: 'N1' },
+    };
+    let pageReads = 0;
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'api.read' && params.path === 'DMT_Project.getCurrentProjectInfo')
+        return { result: { uuid: 'project-1' } };
+      if (method === 'api.read' && params.path === 'DMT_SelectControl.getCurrentDocumentInfo') {
+        pageReads++;
+        return {
+          result: {
+            uuid: pageReads > 4 ? 'page-2' : 'page-1',
+            parentProjectUuid: 'project-1',
+            documentType: 1,
+          },
+        };
+      }
+      if (method === 'schematic.getPrimitiveSnapshot') return structuredClone(snapshot);
+      if (method === 'schematic.deletePrimitive') return { deleted: ['wire-1'], notFound: [] };
+      throw new Error(`Unexpected native bridge method ${method}`);
+    });
+
+    const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+      projectId: 'project-1',
+      operations: [{ operationId: 'delete-wire', action: 'delete', primitiveId: 'wire-1' }],
+      atomic: true,
+      dryRun: false,
+      confirmWrite: true,
+    });
+    expect(pageReads).toBeGreaterThan(4);
+    expect(result).toMatchObject({
+      success: false,
+      committed: false,
+      error_code: 'TRANSACTION_OPERATION_FAILED',
+    });
+    // The transaction is reserved by this point. Since focus changed, the
+    // manager conservatively reports an unresolved compensation rather than
+    // claiming a safe rollback against the wrong page.
+    expect(result?.transaction_state).toBe('failed');
+    expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+  });
+
+  it('refuses a batch delete when native project/page readers are absent', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'schematic.getPrimitiveSnapshot') {
+        return {
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveId: 'wire-1',
+          primitiveKind: 'wire',
+          property: { line: [0, 0, 10, 0], net: 'N1' },
+        };
+      }
+      throw new Error('Native scope reader unavailable');
+    });
+    const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+      projectId: 'project-1',
+      operations: [{ operationId: 'delete-wire', action: 'delete', primitiveId: 'wire-1' }],
+      atomic: true,
+      dryRun: false,
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      committed: false,
+      error_code: 'TRANSACTION_INVALID_STATE',
+    });
+    expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+  });
+
+  it('rejects a native snapshot mutated while binding the focused schematic page', async () => {
+    const shared = {
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'wire-1',
+      primitiveKind: 'wire',
+      property: { line: [0, 0, 10, 0], net: 'N1' },
+    };
+    let snapshotReads = 0;
+    let documentReads = 0;
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'api.read' && params.path === 'DMT_Project.getCurrentProjectInfo')
+        return { result: { uuid: 'project-1' } };
+      if (method === 'api.read' && params.path === 'DMT_SelectControl.getCurrentDocumentInfo') {
+        documentReads++;
+        if (documentReads === 2) shared.property.net = 'N2';
+        return { result: { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 } };
+      }
+      if (method === 'schematic.getPrimitiveSnapshot') {
+        snapshotReads++;
+        return shared;
+      }
+      if (method === 'schematic.deletePrimitive')
+        return { deleted: params.primitiveIds, notFound: [] };
+      throw new Error('Unexpected native bridge method ' + method);
+    });
+
+    const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+      projectId: 'project-1',
+      operations: [{ operationId: 'delete-wire', action: 'delete', primitiveId: 'wire-1' }],
+      atomic: true,
+      dryRun: false,
+      confirmWrite: true,
+    });
+    expect(snapshotReads).toBeGreaterThanOrEqual(2);
+    expect(documentReads).toBeGreaterThanOrEqual(2);
+    expect(result).toMatchObject({
+      success: false,
+      committed: false,
+      error_code: 'TRANSACTION_INVALID_STATE',
+    });
+    expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+  });
+
+  it('keeps an immutable preflight witness when the bridge reuses its snapshot object', async () => {
+    const shared = {
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'wire-1',
+      primitiveKind: 'wire',
+      property: { line: [0, 0, 10, 0], net: 'N1' },
+    };
+    let reads = 0;
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'api.read') return verifiedSchematicFocus(method, params);
+      if (method === 'schematic.getPrimitiveSnapshot') {
+        reads++;
+        if (reads === 2) shared.property.net = 'N2';
+        return shared;
+      }
+      if (method === 'schematic.deletePrimitive') {
+        return { deleted: params.primitiveIds, notFound: [] };
+      }
+      throw new Error(`Unexpected bridge method ${method}`);
+    });
+
+    const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+      projectId: 'project-1',
+      operations: [{ operationId: 'delete-wire', action: 'delete', primitiveId: 'wire-1' }],
+      atomic: true,
+      dryRun: false,
+      confirmWrite: true,
+    });
+    expect(reads).toBeGreaterThanOrEqual(2);
+    expect(result).toMatchObject({
+      success: false,
+      committed: false,
+      error_code: 'TRANSACTION_INVALID_STATE',
+    });
+    expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+  });
+
+  it('rejects duplicate delete targets before any native mutation', async () => {
+    await expect(
+      registry.get('easyeda_schematic_batch_write')?.handler(context, {
+        projectId: 'project-1',
+        operations: [
+          { operationId: 'first-delete', action: 'delete', primitiveId: 'wire-1' },
+          { operationId: 'duplicate-delete', action: 'delete', primitiveId: 'wire-1' },
+        ],
+        atomic: true,
+        dryRun: false,
+        confirmWrite: true,
+      }),
+    ).rejects.toThrow(/only once per atomic batch/);
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['netflag', { identification: 'Ground', net: 'GND', x: 1, y: 2, rotation: 0, mirror: false }],
+    ['netport', { direction: 'IN', net: 'N1', x: 1, y: 2, rotation: 0, mirror: false }],
+  ] as const)(
+    'keeps unaccepted beta $kind deletion disabled even with a complete descriptor',
+    async (kind, property) => {
+      bridgeCall.mockResolvedValue({
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'marker-1',
+        primitiveKind: kind,
+        componentType: kind,
+        property,
+      });
+      const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+        projectId: 'project-1',
+        operations: [{ operationId: 'delete-marker', action: 'delete', primitiveId: 'marker-1' }],
+        atomic: true,
+        dryRun: false,
+        confirmWrite: true,
+      });
+      expect(result).toMatchObject({
+        success: false,
+        error_code: 'TRANSACTION_INVALID_STATE',
+        committed: false,
+        rolled_back: false,
+      });
+      expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+    },
+  );
 
   it('rejects unsupported component delete before issuing a write', async () => {
     bridgeCall.mockResolvedValue({
@@ -696,6 +1000,94 @@ describe('easyeda_schematic_batch_write', () => {
       committed: false,
       rolled_back: false,
     });
+  });
+
+  it('never reports a successful batch when its caller transaction expired during a native write', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-21T12:00:00.000Z'));
+    try {
+      const manager = resetGlobalTransactionManagerForTests();
+      const transaction = manager.begin({ documentId: 'project-1', ttlMs: 60_000 });
+      const wireSnapshot = {
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'wire-expired',
+        primitiveKind: 'wire',
+        property: { line: [0, 0, 10, 0], net: 'N1' },
+      };
+      const existing = new Map<string, typeof wireSnapshot>();
+      let beginNativeWrite!: () => void;
+      let finishNativeWrite!: () => void;
+      const started = new Promise<void>((resolve) => {
+        beginNativeWrite = resolve;
+      });
+      const release = new Promise<void>((resolve) => {
+        finishNativeWrite = resolve;
+      });
+
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'schematic.listPrimitiveIds') {
+          return { primitiveKind: params.primitiveKind, primitiveIds: [...existing.keys()] };
+        }
+        if (method === 'schematic.addWire') {
+          beginNativeWrite();
+          await release;
+          existing.set('wire-expired', structuredClone(wireSnapshot));
+          return { primitiveId: 'wire-expired' };
+        }
+        if (method === 'schematic.getPrimitiveSnapshot') {
+          const value = existing.get(params.primitiveId);
+          if (!value) throw primitiveNotFound(params.primitiveId);
+          return structuredClone(value);
+        }
+        if (method === 'schematic.deletePrimitive') {
+          existing.delete(params.primitiveIds[0]);
+          return { deleted: params.primitiveIds, notFound: [] };
+        }
+        throw new Error('Unexpected bridge method ' + method);
+      });
+
+      const pending = registry.get('easyeda_schematic_batch_write')?.handler(context, {
+        projectId: 'project-1',
+        transactionId: transaction.id,
+        operations: [
+          {
+            operationId: 'create-expiring-wire',
+            action: 'create',
+            primitiveKind: 'wire',
+            points: [
+              { x: 0, y: 0 },
+              { x: 10, y: 0 },
+            ],
+            netName: 'N1',
+          },
+        ],
+        atomic: true,
+        dryRun: false,
+        confirmWrite: true,
+      });
+      await started;
+      vi.advanceTimersByTime(60_001);
+      expect(manager.get(transaction.id)).toMatchObject({
+        state: 'failed',
+        rollbackComplete: false,
+      });
+      expect(() => manager.begin({ documentId: 'project-1' })).toThrowError(
+        expect.objectContaining({ code: 'TRANSACTION_ACTIVE' }),
+      );
+      finishNativeWrite();
+      const result = await pending;
+      expect(result).toMatchObject({
+        success: false,
+        transaction_state: 'rolled-back',
+        rolled_back: true,
+        committed: false,
+        error_code: 'TRANSACTION_INVALID_STATE',
+      });
+      expect(existing.size).toBe(0);
+      expect(manager.begin({ documentId: 'project-1' }).state).toBe('active');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('does not roll back a caller transaction that belongs to another project', async () => {

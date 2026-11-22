@@ -139,9 +139,17 @@ export function createDispatcherDomainRouter(
       dependencies.readOnlyOperations.getDeviceSubParts(params),
     'schematic.deletePrimitive': async (params) => {
       const token = dependencies.schematicTransactionOperations.beginNativeWireMutation();
-      const result = await dependencies.schematicTransactionOperations.deletePrimitives(
-        params.primitiveIds,
-      );
+      const result =
+        params.expectedPrimitiveSnapshot === undefined
+          ? await dependencies.schematicTransactionOperations.deletePrimitives(params.primitiveIds)
+          : await dependencies.schematicTransactionOperations.deletePrimitives(
+              params.primitiveIds,
+              params.expectedPrimitiveSnapshot,
+              {
+                projectId: params.expectedProjectUuid as string,
+                documentId: params.expectedSchematicPageUuid as string,
+              },
+            );
       dependencies.schematicTransactionOperations.finishNativeWireMutation(
         token,
         'delete',

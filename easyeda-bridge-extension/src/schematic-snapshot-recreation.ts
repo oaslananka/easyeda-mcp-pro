@@ -1,4 +1,6 @@
+import type { PrivateGroundProfile } from './schematic-native-ground-identity.js';
 import type { ApiRuntime } from './api-runtime.js';
+import { recreateVerifiedPowerNetFlag } from './schematic-net-flag-recreation.js';
 import type {
   PublicTextAlignMode,
   SchematicPrimitiveSnapshot,
@@ -9,6 +11,11 @@ export interface SchematicSnapshotRecreationDependencies {
   callFirst: ApiRuntime['callFirst'];
   createBridgeError(code: string, message: string, suggestion: string, data?: unknown): Error;
   requirePublicTextAlignMode(value: unknown, field?: string): PublicTextAlignMode;
+  /** Exact editor version, resolved from native SYS_Environment. */
+  getEasyedaVersion?(): string | undefined;
+  /** Fixture-only opt-in. Production must not expose BETA marker rollback without live proof. */
+  allowExperimentalPowerNetFlagRecreation?(): boolean;
+  privateGroundProfile?: PrivateGroundProfile;
 }
 
 export interface SchematicSnapshotRecreator {
@@ -114,8 +121,9 @@ export function createSchematicSnapshotRecreator(
           property.lineWidth ?? 1,
           property.lineType ?? 0,
         );
-      case 'component':
       case 'netflag':
+        return recreateVerifiedPowerNetFlag(dependencies, snapshot, requiredNumber);
+      case 'component':
       case 'netport':
         throw createBridgeError(
           'UNSUPPORTED_RUNTIME',

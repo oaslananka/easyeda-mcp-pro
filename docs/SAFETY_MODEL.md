@@ -48,6 +48,441 @@ The previous 3.2.209 native regression, the 4.1.105 direct-vendor API tests
 and the new source-built MCP path are separately tracked in
 [issue #1060](https://github.com/oaslananka/easyeda-mcp-pro/issues/1060).
 
+### Native schematic marker deletion: standalone fail-closed preflight
+
+For ordinary atomic schematic batches, the existing drawing-primitive
+delete allowlist also uses a deep-copied initial snapshot witness.
+Immediately before each transactional delete, the server re-reads
+the exact primitive ID and refuses a changed kind, net or property
+without issuing the native delete. This reduces preflight-to-delete
+drift, but it is **not** an exclusive editor-wide writer lock and
+does not enable netflag, netport or component transactional deletion.
+The ordinary drawing-primitive batch delete now additionally reads the exact
+active native project and focused schematic page through the audited read-only
+identity APIs. It refuses missing or mismatched identities and a changed focused
+page, retaining a project/page witness on each delete transaction operation.
+Both native delete and later rollback reconstruction pass explicit expected
+project/page identifiers to the existing extension-side target guard. A focus
+change during a reserved delete can still yield an unresolved/failed transaction,
+which must be inspected rather than reported as successful rollback. This is
+not a global native writer lock, and cannot prove connected-component safety.
+
+For scoped transactional drawing deletes, the server now also sends its
+deep-copied expected native primitive snapshot across the bridge. At the
+extension's **final pre-delete boundary**, the native runtime rechecks exact
+focused project/page and re-reads the primitive's ID, kind, net and all
+normalized properties, comparing the full JSON witness independently of
+object key order. A missing scope, changed identity, changed properties,
+unreadable snapshot or multi-target request fails closed before deletion.
+Unscoped standalone legacy deletion is not promoted to rollback-safe, and
+this last-moment check still cannot rule out a concurrent editor write after
+the read. It is not a native writer lease, nor does it authorize netflag,
+netport or component transactional deletion.
+
+The native schematic Component class also contains net flags, hierarchical
+net ports and sheet-frame primitives. A generic UUID-only standalone delete
+must not infer that every object owned by that class is an ordinary component.
+The extension now checks **every requested ID before any deletion**: only a
+component whose exact ID and native type can both be read as component may
+use the standalone component path. Explicit netflag, netport, sheet,
+unknown types, missing identities, failed native reads, and ID-only component
+inventories are refused without deleting earlier primitives in a mixed batch.
+
+Experimental V4 Ground reconstruction now also refuses a missing or
+inconsistent read-only native isolation descriptor (exact marker ID,
+two-component/zero-wire/zero-page-pin topology, one embedded pin and bounded
+attribute count) **before** the native create API is called. A descriptor
+carried in a caller-supplied snapshot is not independently trusted proof of
+disconnection, so the fixture-only flag and the production delete prohibition
+remain necessary. Runtime scope checks and cold-reopen verification are
+additional gates, not substitutes for native writer coordination.
+
+The V4.1.105 disposable QA also confirmed native direct Ground-GND and
+IN netport delete/recreate workflows, followed by native sch_Document.save(),
+complete editor termination and independent cold reopen. Each recovered the
+expected symbol/library, net name, orientation, embedded pin and all
+nonvolatile attributes. The only observed attribute difference after save
+was the sheet's generated @Update Time. These tests do NOT establish
+the end-to-end MCP transactional DELETE/ROLLBACK path or general connected
+schematic safety. The netport native Direction getter was absent; its
+IN direction was independently identified through the exact native
+Netport-IN symbol and pin, not guessed from the net name.
+
+Typed read-only V4.1.105 IN netport snapshots now attach the observed
+native Netport-IN library and symbol identity only when the exact component
+ID, native net/name, finite position, unmirrored zero rotation, embedded
+pin identity and independent native pin read agree. A conflicting direction
+getter, different editor version, wrong symbol/pin, stale component or
+changed focused project/page cannot earn the derived descriptor. Other
+native variants remain unverified. The descriptor is direction/identity
+evidence only, not proof of electrical isolation, attribute equivalence,
+a native writer reservation or supported transactional deletion.
+
+The first **IN netport native reconstruction descriptor** remains an
+explicitly opted-in _private fixture prototype_, not a production capability.
+It uses the EasyEDA Pro V4.1.105 BETA
+`SCH_PrimitiveComponent.createNetPort('IN', net, x, y, 0, false)` call
+only with the exact reviewed Netport-IN library/symbol, embedded IN pin,
+zero rotation/mirror, project/page ID and a trusted private QA profile.
+
+Two disposable native profiles have now been verified separately:
+
+- **Disconnected:** sheet, Ground and IN port (three components); zero
+  wires/page pins, one embedded port pin and 47 native attributes.
+  Replacing only generated sheet `@Update Time` with a sentinel gives a
+  common SHA-256 **before delete, after native recreation and after cold reopen**:
+  `3901dab9df8ea0694ee7c0b1dad50c139fc1169ccab04a8a09afc046c4adb2b3`.
+- **One physical wire touching the IN pin:** In a separately imported
+  V4.1.105 test-only project, wire `QA_PORT_A` was created with endpoint
+  exactly at the port pin; a successful write initially had an _unverifiable
+  create response_, so the write was **not retried**. Independent native
+  getters confirmed the new wire's exact ID, net and endpoint geometry.
+  Native Save and a new headless-renderer reopen preserved all 49 attributes
+  (47 baseline plus two wire attributes), pin/port properties and the
+  unchanged wire identity/geometry. In a **separate copy**, the actual IN
+  port was deleted, the exact original wire remained, the port was
+  recreated with a newly allocated ID, and Save plus another fresh renderer
+  reopen again preserved wire and pin properties. With **only**
+  sheet `@Update Time` normalized and port/pin IDs treated as
+  recreated identities, all 49 attribute rows matched before-delete,
+  after-rollback and after-cold: SHA-256
+  `45fca1b2e12f2e095ad3855d25a3f8bbe1366a91f3b69a4fdeca9c2a642b0c9d`.
+  The wire/port/pin geometry hashes also matched after normalizing
+  the new port/pin IDs. Both source and result project files passed
+  independent SQLite integrity checks; the source files were unchanged.
+
+The **private-only** helper now requires an exact trusted zero-wire or
+one-wire profile, and independently reads the **current native** deleted-port
+absence, component identities, wire ID/net/line, surviving attribute count,
+free pin count and focused project/page again _before_ forming BETA native
+recreation arguments. Wrong or incomplete evidence fails closed. Those
+checks do **not** establish a global editor writer lease or replace a
+project-wide authoritative netlist: both the legacy native netlist getter and
+the native manufacture netlist file in the connected fixture returned only
+`PROTEL NETLIST 2.0` with no pin connectivity records. Therefore the
+one-wire result proves preserved native port–wire geometry and properties,
+**not** complete electrical netlist equivalence, arbitrary connected
+components or native transactional atomicity.
+
+The production dispatcher supplies **neither** this helper nor its
+private opt-in/profile; netport/netflag/component transactional deletion
+remains **denied**. The connected direct-editor test does **not** establish
+exact-head end-to-end MCP transactional production acceptance, and BETA
+native creation methods are not promoted into the production allowlist.
+
+An additional genuine **disposable V4.1.105 public Source API** probe
+tested the potential production alternative to BETA native Ground creation:
+`SCH_SourcePrimitiveComponent.removeNetFlag` removed the original isolated
+GND marker; independent `SCH_SourcePrimitiveComponent.get` and native
+component getters confirmed its absence. A single
+`SCH_SourcePrimitiveComponent.addNetFlag` call then recreated the same
+Ground symbol, net, position, rotation and native embedded pin with a new
+ID; original six Source properties retained their values. **However**, it
+also generated six additional empty native attributes (`Unique ID`,
+`Footprint`, `Designator`, `Reuse Block`, `Group ID`, `Channel ID`):
+the schematic attribute inventory grew from 47 to **53**. The difference
+persisted after real `SCH_Document.save` and an independent fresh-renderer
+cold reopen. The original native source file stayed byte-identical, both
+files passed SQLite integrity checks, and the test-only renderer was closed.
+The public `SCH_SourcePrimitiveComponent.update` method only **updates
+provided property keys incrementally**; the public
+`SCH_PrimitiveAttribute.delete` method explicitly documents that it
+**does not delete attributes** and returns `false`. Consequently this
+public source route does **not** currently qualify as exact attribute
+restoration either. Empty new keys are **not silently ignored**: a
+transactional fingerprint containing them must remain unresolved, even when
+the symbol and electrical-looking geometry are the same. This probe was
+direct native CLI on an off-repository disposable copy, **not** product MCP
+transactional production acceptance or authorization to widen deletion.
+
+A second independently isolated **public Source API** experiment tested
+a _different existing descriptor_: a Ground originally created via Source
+APIs, which **already had the full 12 Source properties** (including the
+six empty defaults). For this exact V4.1.105, zero-wire GND subtype,
+one `removeNetFlag` and one `addNetFlag` on an off-repository copy
+resulted in a new primitive ID but retained the **same 53 native attributes**,
+all 12 property keys/values, Ground pin and neighboring port geometry.
+Independent native `SCH_Document.save` and a newly launched headless
+renderer confirmed exact equivalence across _before delete, after recreate,
+and cold reopen_: attribute semantic SHA-256
+`b18848017ed743f5c7c7c8e3dec8a34163688199bd02d8f11d04caf1f2a262bf`;
+normalized Source property SHA-256
+`f9e87c770e7b1d2b713835ec426a91610112bdedf0b0a5c0d13dc2f9f7e1c88a`.
+The original fixture's SHA-256 remained
+`a713970a9c911cf6ec9547379e6dbab53b52259a3e5ef7240cfe4d7b25239518`;
+the separate new saved copy had SHA-256
+`c99866d3d556e7875db12bca90506f59d7261b129073ab3024139925ed663357`.
+Both SQLite files passed integrity checks and both test headless sessions
+were closed. **This positive proof is limited to a pre-existing
+12-property, zero-wire Ground marker**; it does not make the earlier
+6-property Ground lossless, generalize to named ports/components, guarantee
+full electrical connectivity, or provide an editor-wide native writer
+fence. Native source query methods for authoritative nets remain unavailable
+or not implemented in this V4.1.105 runtime. Production
+`RECREATABLE_DELETE_KINDS` therefore remains unchanged, and the
+observed direct CLI copy tests are **not** current-head product MCP
+transactional acceptance.
+
+The isolated Ground evidence format is now version 2. It compares exact
+attribute list/ID/get results across two native reads and includes a
+SHA-256 fingerprint of every verified owned attribute's key, value, position,
+rotation, color, font, alignment, text style, fill and visibility. The
+fingerprint retains the surviving sheet identity and multiplicity; regenerated
+marker/pin/attribute IDs do not change the semantic digest. Only native
+sheet update date/time metadata and the unset (undefined versus null)
+visibility fields of empty marker Relevance metadata are normalized.
+Actual true/false visibility and other content or style changes are not
+equivalent. Raw repeated reads still compare exact unnormalized state.
+
+A disposable V4.1.105 acceptance harness using the repository's actual
+TransactionManager and source-built Bridge snapshot/recreation operations
+through the native CLI demonstrated a real Ground delete and verified
+rollback with a new ID and matching full attribute fingerprint. The initial
+run deliberately failed rollback verification on the observed unset metadata
+representation change; a fresh copy passed after the narrow normalization.
+An altered pre-delete fingerprint was refused before mutation in the
+fixture harness. The native Save was acknowledged. This is **not** acceptance
+of a production MCP dispatcher marker-delete method or native writer fence;
+fixture-only deletion/recreation remains opt-in, and the production
+transactional delete allowlist is unchanged.
+
+The typed native Ground snapshot now attaches isolation evidence only when
+all nine owned marker/pin attributes match the verified default creation
+profile, including relative geometry and the complete attribute style and
+visibility state. Real V4.1.105 native creation at three distinct integer
+positions established the relative profile; hidden native metadata retains
+its null/zero coordinates. Extra, missing, duplicate or customized attributes
+are readable but cannot earn the reconstruction witness. Mirrored, rotated or
+noninteger poses are refused by the experimental recreation helper too.
+An isolated native CLI probe exercised the actual source dispatcher: an
+unchanged default Ground earned a witness, a deliberately customized
+Description did not, and standalone delete was refused without mutating that
+marker. These unsaved test edits were discarded; the backup and test file
+hashes remained unchanged. The probe is not an installed MCP mutation test.
+
+Immediate delete compensation now obtains an independent explicitly typed
+Ground snapshot after native recreation, rather than trusting the generic
+snapshot returned by create. Missing scope/evidence or incorrect native ID
+cannot pass that readback; the transaction manager still checks the full
+normalized fingerprint. The same independent native get-by-ID requirement
+also applies to rollback-backed drawing-primitive recreation: a returned
+create-response snapshot alone cannot confirm compensation if a deletion had
+an uncertain outcome. TransactionManager additionally requires an initial
+captured primitive ID to match the requested delete target **before writing**.
+When reconciling an uncertain deletion, it checks the readback's exact
+original ID before declaring no change, and requires a recreated snapshot's
+ID to equal the newly reported native ID before declaring restoration.
+Only after these ID checks may the snapshot fingerprint legitimately ignore
+the original ID change. An automatically compensated delete whose previous
+native recreation/readback failed is **not safe to replay** through the
+public rollback tool: the first native create may already have placed an
+unverified duplicate. Such failed deletions remain unresolved and retain
+their document lock; re-inspect the real native project and perform explicit
+manual recovery instead of issuing a second non-idempotent create. Ordinary
+successfully applied deletes may still be rolled back through independent
+native readback. This check does not establish connected-net topology
+preservation or an editor-wide native writer reservation. A missing, wrong-ID or wrong-kind native read refuses
+successful restoration; a changed net or geometry is evaluated against the
+original transaction fingerprint and leaves compensation unresolved. This
+does not establish an exclusive native writer reservation or grant production
+marker deletion permission.
+
+An internal private-file-worker candidate now connects the schematic
+batch transaction preflight to a host-constructed Ground session adapter.
+It accepts only one verified target in an isolated session; ordinary
+BridgeManager, CDP and remote-relay paths cannot opt in through request
+data. It checks exact session ownership before and after native calls,
+rechecks the full snapshot before deletion, and prohibits retries after
+ambiguous native mutation or incomplete reconstruction. Isolation is a
+launcher prerequisite, not something inferred from a headless flag or
+a caller-supplied descriptor.
+
+A Linux acceptance harness ran the actual MCP SDK registry and transaction
+tools with an isolated native editor, private display/network/process
+namespace and disposable in-memory project copy. Duplicate session
+preflight and missing confirmWrite were refused; a dry run made no
+mutation. An actual MCP Ground delete succeeded, but rollback failed:
+a newly created marker lacked its native library identity in the fresh
+offline profile. No file was exported and the original was unchanged.
+The project export identified the cause: the native snapshot contains
+project-local device and symbol copies, not the system-library record IDs.
+The private adapter now binds the actual project-local device and symbol
+IDs to their source associations from the native device archive, and
+independently resolves the exact system Ground device and its associated
+symbol. Both native archives must match the reviewed fingerprint of all
+17 semantic symbol records, including geometry and pin attributes, during
+preflight and immediately before mutation. A readable project copy, matching name, or
+unrelated system record cannot authorize deletion. The offline system
+library does not contain the matching source IDs. The project library
+export preserved the associations, but the tested project and private
+personal import APIs did not restore source availability.
+
+A subsequent isolated half-offline fixture retained independent network,
+process, display and filesystem namespaces and used a bounded HTTPS relay
+to the verified vendor library endpoints. The actual SDK MCP client and
+registry performed Ground delete, verified native absence, and explicit
+rollback with a newly allocated ID and matching v2 attribute fingerprint
+(38 attributes, one embedded pin, no wires or free pins). Native Save
+acknowledged the restored state. This is real MCP/native source-adapter
+acceptance, not a shipped launcher, installed extension capability, or
+general native writer lock. The production GUI/Cloud allowlist remains
+unchanged. The native document-source beta API is not used for production
+rollback.
+
+The explicit Linux-only acceptance command is:
+
+    easyeda-mcp-pro private-ground-check --project input.eprj2 --output verified.eprj2 \
+      --editor /path/to/easyeda-pro --activation /path/to/existing-activation.txt \
+      --confirm-write --allow-library-network
+
+This runs a real MCP delete/rollback round-trip against a disposable copy
+of the narrowly supported V4.1.105 single-page default Ground profile
+(one marker, zero wires/free pins, either no frame or one default sheet).
+Project-local device and symbol IDs are discovered from native readback
+and verified against the exact system source and geometry, not a fixed
+project-ID list. Custom marker properties remain unsupported. It
+does not expose a general interactive worker or extend ordinary marker
+mutation permission. It needs a non-root Linux account with functional
+user namespaces, bubblewrap, Xvfb, socat, Python 3, and a legitimate locally
+activated EasyEDA Pro 4.1.105 installation. The output must not exist.
+The worker uses a separate network namespace and a bounded CONNECT relay
+to pro.easyeda.com and image-pro.easyeda.com; the relay restricts destinations, not individual
+encrypted requests. No existing editor profile or login is reused.
+The native editor receives the selected local offline activation through a
+read-only mount; the HTTPS relay does not inspect encrypted vendor traffic.
+If the precise device, topology, native state or persistence cannot be
+verified, it produces no output. The original is never overwritten.
+The command publishes only after a fresh isolated native cold reopen and
+matching snapshot, with a no-clobber output operation. This is a narrow
+acceptance/diagnostic workflow, not a claim of general component rollback.
+
+For the same limited fixture, a user who wants to **remove** the isolated
+default Ground from a **new copy**, rather than test rollback, can run:
+
+    easyeda-mcp-pro private-ground-check --project input.eprj2 --output ground-free.eprj2 \
+      --editor /path/to/easyeda-pro --activation /path/to/existing-activation.txt \
+      --confirm-write --allow-library-network --publish-delete
+
+This explicit one-shot choice drives the same fixed preview → begin → delete →
+validated commit → native Save → independent cold reopen as the private
+interactive MCP workflow. The output must be a previously nonexistent path;
+the input stays untouched. On any failed safety/readback gate it publishes
+nothing. It is **not** a general component or connected-netport delete
+capability and it does not modify an ordinary live GUI or Cloud design.
+
+The bounded interactive candidate uses the same isolated file workflow
+over a standalone stdio MCP connection:
+
+    easyeda-mcp-pro private-ground-session --project input.eprj2 --output verified.eprj2 \
+      --editor /path/to/easyeda-pro --activation /path/to/existing-activation.txt \
+      --confirm-write --allow-library-network
+
+Configure this command as a separate local MCP server, not a replacement
+for the ordinary GUI/Cloud server. Project and output paths are fixed at
+launch. The seven exposed tools have the prefix
+`easyeda_private_ground_`:
+
+- `inspect`: read the bound marker or verify its absence.
+- `preview`: preview the single supported deletion without mutation.
+- `begin`: start a one-operation transaction after preview.
+- `delete`: delete on the private working copy.
+- `rollback`: restore and verify the native snapshot and fingerprint.
+- `publish`: after rollback, save the restored copy, shut down its editor,
+  independently cold reopen, and publish a new verified file.
+- `publish_delete`: after a verified delete **instead of rollback**,
+  independently compare the surviving native sheet and all sheet attributes
+  against the pre-delete witness, validate and commit the one-operation
+  transaction, save the Ground-free copy, shut down the editor and require
+  a **fresh cold-open confirmation of original marker absence and exact
+  surviving metadata** before publishing to a new file. This produces a
+  _deliberate permanent deletion in the output copy_, not a change to the
+  original input. No rollback is available once the verified deleted copy
+  has been published.
+
+Delete, rollback, publish and publish_delete each require `confirmWrite: true`. The client
+cannot supply another project, primitive, native RPC or transaction ID.
+Calls are serialized and there is no retry after uncertain mutation.
+Disconnect, cancellation or timeout discards unverified work; the original
+is never overwritten. The interactive worker has a bounded 260-second
+operation window, followed by bounded verification for publication. An
+already published, independently verified file may remain if cancellation
+races with its successful publication; inspect the designated output path
+before retrying. General components, connected markers, net ports, multi-page projects and
+ordinary GUI/Cloud marker mutation remain unsupported. Publishing a deleted
+copy is available only for the precisely verified disconnected Ground
+profile under the host-isolated writer and immutable input/output rules.
+
+The two private publication paths have separate MCP schemas and different
+proof requirements. The real native writer is accessible only inside
+the Linux process/filesystem/network sandbox and the original input
+is read-only; no MCP input can supply raw native RPCs, paths or IDs.
+The interactive tool protocol and lifecycle have automated coverage,
+including a real SDK stdio client with a synthetic child protocol.
+A full **independent external MCP SDK stdio client** on an isolated,
+genuinely licensed **EasyEDA Pro V4.1.105** installation has now passed
+`inspect → preview → begin → delete → publish_delete` on a disposable
+single-page, disconnected default Ground: the native editor acknowledged
+the delete and project transaction commit; the working copy was saved,
+its editor closed, and a **fresh separate native cold worker** independently
+confirmed permanent absence of the original marker, no new components or
+wires, and exact surviving native sheet/attribute evidence. Only then did
+the launcher atomically publish a NEW `.eprj2`. The original input remained
+byte-identical with SHA-256
+`80120eb497e538ce482045b1848ef23bfcd1f0b77806bf77a2770e44722cbff9`;
+the published Ground-free output SHA-256 was
+`1c7b3bb96ece36eeadac42abdf8e870b8e5c09e27840ea2f0e079c81d821fba3`.
+Both passed SQLite `integrity_check`. The result explicitly reported
+`deleteCommitted=true`, `deletedVerified=true`,
+`coldReopenVerified=true`, `originalUnchanged=true` and
+`rollbackComplete=false`. No ordinary design, logged-in editor profile
+or Cloud project was modified.
+
+This verifies **one narrowly scoped, offline-copy product outcome**, not
+arbitrary native/connected netport or component recovery, general power
+flags, a shared GUI/Cloud write lease, production dispatcher delete
+permission, multi-project/multi-page editing or Cloud persistence. The
+ordinary public schematic transactional delete allowlist remains unchanged. The candidate must not be represented as a
+verified installed interactive native feature until that acceptance passes.
+
+The Bridge's typed Ground recreation integration is verified through an
+explicitly opted-in unit fixture. The actual production dispatcher does
+not provide that capability, and an MCP caller cannot request or grant it.
+Matching an untrusted snapshot's claimed isolation fields is not native
+provenance or permission to perform a real marker delete.
+
+A typed Ground recreation snapshot now parses and retains only a strictly
+bounded isolation descriptor consistent with its primitive ID and native
+project/page context; malformed, unexpected and cross-kind evidence is
+refused. A caller-supplied descriptor remains untrusted data, so no
+production marker deletion is authorized by this parser or the direct
+native round-trip alone.
+
+The schematic component-ID fallback must not convert the native
+getAllPrimitiveId collection into an untyped list of requested net flags,
+net ports or ordinary components. The same native component class includes
+sheet symbols and multiple marker kinds. When getAll is empty or stale,
+the fallback now checks every returned ID with an independent exact native
+get(id) and ComponentType read. Wrong, stale, duplicate or malformed IDs
+and unavailable native type evidence fail closed rather than pretending
+that a different marker was recreated. Sheet primitives are never included
+in the ordinary-component inventory. This is a reconstruction identity
+guard, not a native writer fence or production marker-delete permission.
+
+Before the first write, the extension now resolves the entire deletion batch,
+rechecks exact native component identity and type at ownership resolution,
+and rejects duplicate IDs. If a component changes into a marker or becomes
+unreadable between preflight and ownership resolution, no earlier wire is
+deleted. This is fail-closed preflight, not atomic execution: an external
+native editor writer may still change state after the final read.
+
+This closes a standalone-delete path that otherwise bypassed transactional
+marker rollback restrictions. It does not grant transactional deletion of
+components, flags or ports; the existing production transaction allowlist
+remains unchanged. Native editor concurrency and persisted outcomes still
+require independent verification; an in-process check is not a native
+cross-process writer lock. See
+[issue #1102](https://github.com/oaslananka/easyeda-mcp-pro/issues/1102).
+
 ### Project save: exact native target versus persisted outcome
 
 A successful native `sch_Document.save()` or `pcb_Document.save()`
@@ -179,9 +614,9 @@ never turns a pending marker into an absent fence.
 A real, source-linked Z480 baseline has also been serialized **in memory**
 as a complete project-derived v2 pending marker, without storing it or
 obtaining a host lease. The 32,840-byte rehearsal marker decoded correctly;
-the read-only recovery classifier returned \`candidate-unchanged\`, while
+the read-only recovery classifier returned `candidate-unchanged`, while
 a changed filled-copper signature and the wrong PCB focus both returned
-\`unresolved\`. Every result kept persistenceVerified=false and
+`unresolved`. Every result kept persistenceVerified=false and
 releaseAuthorized=false. This does not validate a post-write cold reopen,
 release any crash-retained lease, or authorize a new native write.
 

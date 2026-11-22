@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { writeChecksumManifest } from '../../../easyeda-bridge-extension/scripts/checksums.mjs';
 import {
   PACKAGE_BUILD_MANIFEST_PATH,
+  PRIVATE_GROUND_ARTIFACTS,
   extractPackedFilePaths,
   REQUIRED_PACKAGE_FILE_ENTRIES,
   removeGeneratedPackageArtifacts,
@@ -89,6 +90,10 @@ async function createFixture() {
   await mkdir(join(root, 'dist'), { recursive: true });
   await writeFile(join(root, 'dist/index.js'), '#!/usr/bin/env node\nconsole.log("built");\n');
   await writeFile(join(root, 'dist/runtime.js'), 'export const runtime = true;\n');
+  for (const artifact of PRIVATE_GROUND_ARTIFACTS) {
+    await mkdir(dirname(join(root, artifact)), { recursive: true });
+    await writeFile(join(root, artifact), 'fixture artifact\n');
+  }
   await mkdir(join(root, 'easyeda-bridge-extension/dist'), { recursive: true });
   await writeFile(
     join(root, 'easyeda-bridge-extension/dist/index.js'),
@@ -119,6 +124,14 @@ describe('package artifact policy', () => {
       ok: true,
       errors: [],
     });
+  });
+
+  it('rejects a package missing the private Ground worker', async () => {
+    const { root } = await createFixture();
+    await rm(join(root, 'dist/private-ground/worker.cjs'));
+    const result = await verifyPackageArtifacts({ root });
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain('missing required artifact: dist/private-ground/worker.cjs');
   });
 
   it('rejects a missing built CLI entry point', async () => {
@@ -307,6 +320,7 @@ describe('package artifact policy', () => {
     const complete = [
       'package/dist/index.js',
       'package/dist/apps/project-review.html',
+      ...PRIVATE_GROUND_ARTIFACTS.map((path) => 'package/' + path),
       'package/easyeda-bridge-extension.eext',
       'package/easyeda-bridge-extension.checksums.json',
       'package/README.md',

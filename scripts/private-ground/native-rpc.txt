@@ -1,0 +1,221 @@
+return await (async()=>{
+__NATIVE_BUNDLE__
+const req=__NATIVE_REQUEST__;
+const path='/workspace/WORKING.eprj2';
+const {projectId,pageId,markerId,groundProfile}=req.scope;
+const SOURCE_DEVICE="2e4e71fea06848c9a86eef0ed6338204", LIBRARY="0819f05c4eef4c71ace90d822a990e87", SOURCE_SYMBOL="1c18ed5a06f64a07bdb5b0cf525b3d9e";
+const expectedComponentCount=groundProfile?.sheetCount+1;
+const expectedAttributeCount=groundProfile?.sheetCount===0?9:38;
+const remainingAttributes=expectedAttributeCount-9;
+const version=()=>eda.sys_Environment.getEditorCurrentVersion();
+const get=(o,k)=>{try{const f=o?.['getState_'+k];return typeof f==='function'?f.call(o):undefined}catch{return undefined}};
+const id=o=>typeof o==='string'?o:(get(o,'PrimitiveId')??o?.primitiveId??'');
+const readFirstPath=paths=>{
+ for(const p of paths){const [first,...rest]=p.split('.');const key=first.replace(/^[A-Z]+(?=_)/,m=>m.toLowerCase());let o=eda[key];for(const k of rest)o=o?.[k];if(o!==undefined)return o}
+};
+const makeError=(code,message)=>Object.assign(new Error(message),{code});
+const callFirst=async(paths,...args)=>{
+ for(const p of paths){const split=p.split('.'),name=split.pop(),parent=readFirstPath([split.join('.')]);if(typeof parent?.[name]==='function')return await parent[name](...args)}
+ throw makeError('METHOD_NOT_FOUND',paths.join(','));
+};
+const scope=async()=>{
+ const p=await eda.dmt_Project.getCurrentProjectInfo(),q=await eda.dmt_SelectControl.getCurrentDocumentInfo();
+ if(version()!=='4.1.105'||p?.uuid!==projectId||q?.uuid!==pageId||q?.parentProjectUuid!==projectId||q?.documentType!==1)throw makeError('SCOPE_MISMATCH','Disposable project/page not focused');
+};
+const ops=NativeTxn.createSchematicTransactionOperations({callFirst, readFirstPath, readState:get, extractPrimitiveId:id,
+ readComponentType:o=>get(o,'ComponentType')??'',readPinPoint:o=>({x:get(o,'X'),y:get(o,'Y'),rotation:get(o,'Rotation')}),
+ createBridgeError:makeError,logRecoverableError:()=>{},asPublicTextAlignMode:v=>typeof v==='number'&&v>=1&&v<=9?v:undefined,
+ requirePublicTextAlignMode:v=>{if(!Number.isInteger(v)||v<1||v>9)throw Error('Bad align');return v},
+ getCachedTextAlignMode:()=>undefined,setCachedTextAlignMode:()=>{},deleteCachedTextAlignMode:()=>{},getEasyedaVersion:version,
+ allowExperimentalPowerNetFlagRecreation:()=>!!groundProfile,privateGroundProfile:groundProfile});
+const compare=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+// All surviving sheet metadata must stay byte-for-byte (except the editor's
+// generated update date/time VALUE) across delete, native Save and fresh
+// cold reopen. This is private-copy evidence, not an editor-global lock.
+const SURVIVOR_FIELDS=['X','Y','Rotation','FontSize','AlignMode','Color','FontName','FillColor',
+                      'Bold','Italic','UnderLine','KeyVisible','ValueVisible'];
+const encodeScalar=value=>{
+ if(value===undefined)return ['absent'];
+ if(value===null||typeof value==='string'||typeof value==='boolean'||
+    (typeof value==='number'&&Number.isFinite(value)))return value;
+ throw makeError('SURVIVOR_UNKNOWN_FIELD','Unknown native sheet metadata field');
+};
+const survivorStateOnce=async()=>{
+ const components=await eda.sch_PrimitiveComponent.getAll();
+ const wires=await eda.sch_PrimitiveWire.getAll(),pins=await eda.sch_PrimitivePin.getAll();
+ const attrs=await eda.sch_PrimitiveAttribute.getAll();
+ if(!Array.isArray(components)||!Array.isArray(wires)||!Array.isArray(pins)||!Array.isArray(attrs)||
+    components.length>2||wires.length!==0||pins.length!==0||attrs.length>47)
+   throw makeError('SURVIVOR_INVENTORY_CHANGED','Private sheet inventory unsupported');
+ const sheets=components.filter(c=>get(c,'ComponentType')==='sheet');
+ const markers=components.filter(c=>get(c,'ComponentType')==='netflag');
+ if(sheets.length>1||markers.length>1||sheets.length+markers.length!==components.length)
+   throw makeError('SURVIVOR_COMPONENT_CHANGED','Unexpected native component');
+ const sheet=sheets[0],sheetId=sheet?id(sheet):null;
+ const nativeSheet=sheet?await eda.sch_PrimitiveComponent.get(sheetId):null;
+ if(sheet&&(id(nativeSheet)!==sheetId||get(nativeSheet,'ComponentType')!=='sheet'))
+   throw makeError('SURVIVOR_SHEET_CHANGED','Native sheet identity unverified');
+ const sheetAttrs=attrs.filter(a=>sheetId!==null&&get(a,'ParentPrimitiveId')===sheetId);
+ if(sheetAttrs.length!==(sheetId===null?0:29)||
+    attrs.length!==sheetAttrs.length+(markers.length?9:0))
+   throw makeError('SURVIVOR_ATTRIBUTES_CHANGED','Native sheet attribute count changed');
+ const rows=[];
+ for(const attr of sheetAttrs){
+   const attributeId=id(attr),direct=await eda.sch_PrimitiveAttribute.get(attributeId);
+   if(!attributeId||!direct||id(direct)!==attributeId||
+      get(direct,'ParentPrimitiveId')!==sheetId||
+      get(attr,'Key')!==get(direct,'Key')||
+      get(attr,'Value')!==get(direct,'Value'))
+     throw makeError('SURVIVOR_ATTRIBUTE_MISMATCH','Native sheet list/get mismatch');
+   const key=get(direct,'Key'),value=get(direct,'Value');
+   if(typeof key!=='string'||key.length===0||key.length>256||
+      typeof value!=='string'||value.length>1024)
+     throw makeError('SURVIVOR_ATTRIBUTE_INVALID','Native sheet metadata malformed');
+   const details=SURVIVOR_FIELDS.map(k=>encodeScalar(get(direct,k)));
+   rows.push([attributeId,key,
+      key==='@Update Date'||key==='@Update Time'?null:value,details]);
+ }
+ rows.sort((a,b)=>String(a[0]).localeCompare(String(b[0])));
+ return {sheetId,attributes:rows,sheet:sheet?{
+    name:encodeScalar(get(nativeSheet,'Name')),x:encodeScalar(get(nativeSheet,'X')),
+    y:encodeScalar(get(nativeSheet,'Y')),rotation:encodeScalar(get(nativeSheet,'Rotation')),
+    mirror:encodeScalar(get(nativeSheet,'Mirror')),net:encodeScalar(get(nativeSheet,'Net')),
+ }:null};
+};
+const survivorState=async()=>{
+ const a=await survivorStateOnce(),b=await survivorStateOnce();
+ if(!compare(a,b))throw makeError('SURVIVOR_DRIFT','Surviving native attributes changed during read');
+ return a;
+};
+const inventory=async()=>{
+ const read=async kind=>{const api=eda['sch_Primitive'+kind],all=await api.getAll(),ids=await api.getAllPrimitiveId();if(!Array.isArray(all)||!Array.isArray(ids)||all.length!==ids.length||new Set(ids).size!==ids.length||!all.every(v=>ids.includes(id(v))))throw makeError('INVENTORY_MISMATCH',kind);return all};
+ const components=await read('Component'),wires=await read('Wire'),pins=await read('Pin'),attrs=await read('Attribute');
+ if(wires.length||pins.length)throw makeError('CONNECTED_PAGE','Page no longer isolated');
+ return {components:components.map(v=>({id:id(v),kind:get(v,'ComponentType')})),attributeCount:attrs.length};
+};
+try {
+ if(req.method==='privateGround.bootstrapDeleted'){
+  const expected=req.params?.expected;
+  if(version()!=='4.1.105'||!await eda.dmt_Project.waitForReady(path,18000))
+    throw Error('Unsupported cold native editor or project');
+  if(!expected||typeof expected.projectId!=='string'||typeof expected.pageId!=='string'||
+     typeof expected.deletedId!=='string'||expected.survivors===null||
+     typeof expected.survivors!=='object')
+    throw makeError('COLD_SCOPE_MISSING','Trusted deletion proof missing');
+  const pages=await eda.dmt_Schematic.getAllSchematicPagesInfo();
+  if(!Array.isArray(pages)||pages.length!==1||pages[0]?.uuid!==expected.pageId)
+    throw makeError('COLD_PAGE_MISMATCH','Native cold page differs');
+  const tab=await eda.dmt_EditorControl.openDocument(expected.pageId);
+  if(!tab||!await eda.dmt_EditorControl.waitForDocumentReady(tab,16000)||
+     !await eda.dmt_EditorControl.activateDocument(tab))
+    throw makeError('COLD_PAGE_UNAVAILABLE','Native cold page unavailable');
+  const p=await eda.dmt_Project.getCurrentProjectInfo(),q=await eda.dmt_SelectControl.getCurrentDocumentInfo();
+  if(p?.uuid!==expected.projectId||q?.uuid!==expected.pageId||
+     q?.parentProjectUuid!==expected.projectId||q?.documentType!==1)
+    throw makeError('COLD_SCOPE_MISMATCH','Native cold project/page identity mismatch');
+  const inv=await inventory();
+  const survivors=await survivorState();
+  if(inv.components.length!==(survivors.sheetId===null?0:1)||
+     inv.components.some(v=>v.kind!=='sheet')||
+     inv.attributeCount!==survivors.attributes.length||
+     !compare(survivors,expected.survivors)||
+     await eda.sch_PrimitiveComponent.get(expected.deletedId))
+    throw makeError('COLD_DELETE_DRIFT','Native deleted project changed after Save');
+  return {result:{deleted:true,survivors,projectId:p.uuid,pageId:q.uuid}};
+ }
+ if(req.method==='bootstrap'){
+  if(version()!=='4.1.105'||!await eda.dmt_Project.waitForReady(path,18000))throw Error('Unsupported editor or project');
+  const pages=await eda.dmt_Schematic.getAllSchematicPagesInfo();
+  if(!Array.isArray(pages)||pages.length!==1||typeof pages[0]?.uuid!=='string')throw Error('Only a single schematic page is supported');
+  const pageId=pages[0].uuid;
+  const tab=await eda.dmt_EditorControl.openDocument(pageId);
+  if(!tab||!await eda.dmt_EditorControl.waitForDocumentReady(tab,16000)||!await eda.dmt_EditorControl.activateDocument(tab))throw Error('Page focus failed');
+  const p=await eda.dmt_Project.getCurrentProjectInfo(),q=await eda.dmt_SelectControl.getCurrentDocumentInfo();
+  if(!p?.uuid||q?.uuid!==pageId||q?.parentProjectUuid!==p.uuid||q?.documentType!==1)throw Error('Project scope not verified');
+  const a=await inventory();
+  const markers=a.components.filter(x=>x.kind==='netflag'),sheets=a.components.filter(x=>x.kind==='sheet');
+  if(markers.length!==1||sheets.length>1||a.components.length!==markers.length+sheets.length||a.attributeCount!==(sheets.length===0?9:38))throw Error('Only the verified default disconnected Ground profile is supported');
+  const markerId=markers[0].id,marker=await eda.sch_PrimitiveComponent.get(markerId),identity=get(marker,'Component');
+  if(id(marker)!==markerId||get(marker,'ComponentType')!=='netflag'||get(marker,'Net')!=='GND'||identity?.name!=='Ground-GND'||identity?.libraryUuid!==LIBRARY||!/^[0-9a-f]{16}$/.test(identity.uuid))throw Error('Not a supported native Ground identity');
+  const attrs=await eda.sch_PrimitiveAttribute.getAll();
+  if(!Array.isArray(attrs))throw Error('Owned library identity missing');
+  const owned=attrs.filter(x=>get(x,'ParentPrimitiveId')===markerId);
+  const d=owned.filter(x=>get(x,'Key')==='Device'),s=owned.filter(x=>get(x,'Key')==='Symbol');
+  if(d.length!==1||s.length!==1||get(d[0],'Value')!==identity.uuid)throw Error('Owned library identity ambiguous');
+  const symbolUuid=get(s[0],'Value');
+  if(!/^[0-9a-f]{16}$/.test(symbolUuid)||symbolUuid===identity.uuid)throw Error('Owned symbol identity invalid');
+  const direct=await eda.sch_PrimitiveAttribute.get(id(s[0]));
+  if(id(direct)!==id(s[0])||get(direct,'ParentPrimitiveId')!==markerId||get(direct,'Key')!=='Symbol'||get(direct,'Value')!==symbolUuid)throw Error('Symbol identity changed');
+  const p2=await eda.dmt_Project.getCurrentProjectInfo(),q2=await eda.dmt_SelectControl.getCurrentDocumentInfo();
+  if(p2?.uuid!==p.uuid||q2?.uuid!==pageId||q2?.parentProjectUuid!==p.uuid||q2?.documentType!==1)throw Error('Project scope changed');
+  return {result:{projectId:p.uuid,pageId,markerId,groundProfile:{deviceUuid:identity.uuid,symbolUuid,sheetCount:sheets.length}}};
+ }
+ await scope();
+ if(req.method==='privateGround.getRecreationDevice'){
+  const f=await eda.sys_FileManager.getDeviceFileByDeviceUuid(groundProfile.deviceUuid,'project','elibz2');
+  const v=await eda.lib_Device.get(SOURCE_DEVICE,LIBRARY);
+  const systemFile=await eda.sys_FileManager.getDeviceFileByDeviceUuid(SOURCE_DEVICE,LIBRARY,'elibz2');
+  await scope();
+  if(!f||f.size<1||f.size>65536||!systemFile||systemFile.size<1||systemFile.size>65536||!v)return {result:null};
+  const encode=async file=>{const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.slice(i,i+8192));return btoa(binary)};
+  return {result:{archive:await encode(f),systemArchive:await encode(systemFile),systemDevice:{uuid:v.uuid,libraryUuid:v.libraryUuid,name:v.name,association:v.association?.symbol}}};
+ }
+ if(req.method==='schematic.getPrimitiveSnapshot'){
+  const snap=await ops.getPrimitiveSnapshot(req.params.primitiveId,'netflag');
+  await scope();return {result:snap};
+ }
+ if(req.method==='inventory')return {result:await inventory()};
+ if(req.method==='privateGround.survivors')return {result:await survivorState()};
+ if(req.method==='privateGround.delete'){
+  if(req.params.primitiveId!==markerId)throw Error('Wrong bound Ground marker');
+  const actual=await ops.getPrimitiveSnapshot(markerId,'netflag');
+  if(actual.nativeIsolation?.kind!=='verified-disconnected-ground/v2'||actual.nativeIsolation.attributeCount!==expectedAttributeCount||actual.nativeIsolation.componentCount!==expectedComponentCount||
+    !compare(actual,req.params.snapshot))throw makeError('PRECONDITION_CHANGED','Native snapshot fingerprint changed before delete');
+  const before=await inventory();
+  if(before.components.length!==expectedComponentCount||before.attributeCount!==expectedAttributeCount||!before.components.some(x=>x.id===markerId&&x.kind==='netflag'))throw Error('Unexpected pre-delete inventory');
+  await scope();
+  // Private file only; the ordinary production dispatcher remains fail-closed.
+  const ack=await eda.sch_PrimitiveComponent.delete([markerId]);
+  await scope();
+  const after=await inventory();
+  const old=await eda.sch_PrimitiveComponent.get(markerId);
+  if(ack!==true||old||after.components.length!==groundProfile.sheetCount||after.components.some(x=>x.kind!=='sheet')||after.attributeCount!==remainingAttributes)throw makeError('DELETE_UNCONFIRMED','Native delete not reconciled');
+  return {result:{deleted:[markerId],notFound:[],inventory:after}};
+ }
+ if(req.method==='schematic.recreatePrimitiveSnapshot'){
+  const before=await inventory();
+  if(before.components.length!==groundProfile.sheetCount||before.components.some(x=>x.kind!=='sheet')||before.attributeCount!==remainingAttributes||req.params.snapshot.primitiveId!==markerId)throw Error('Ground reconstruction precondition failed');
+  const canonical=await eda.lib_Device.get(SOURCE_DEVICE,LIBRARY);
+  const symbol=canonical?.association?.symbol;
+  if(canonical?.uuid!==SOURCE_DEVICE||canonical?.libraryUuid!==LIBRARY||canonical?.name!=='Ground-GND'||symbol?.uuid!==SOURCE_SYMBOL||symbol?.libraryUuid!==LIBRARY||symbol?.type!==18)throw Error('Exact source device unavailable');
+  if(await eda.sch_PrimitiveComponent.setNetFlagComponentUuid_Ground({uuid:SOURCE_DEVICE,libraryUuid:LIBRARY})!==true)throw Error('Native Ground source binding refused');
+  await scope();
+  const created=await ops.recreatePrimitiveSnapshot(req.params.snapshot);
+  await scope();return {result:created};
+ }
+ if(req.method==='schematic.save'){
+  const before=await inventory();if(before.components.length!==expectedComponentCount||before.attributeCount!==expectedAttributeCount)throw Error('Do not save unverified state');
+  return {result:await eda.sch_Document.save()};
+ }
+ if(req.method==='schematic.saveDeleted'){
+  const before=await inventory();
+  const survivors=await survivorState();
+  if(before.components.length!==groundProfile.sheetCount||
+     before.components.some(v=>v.kind!=='sheet')||
+     before.attributeCount!==remainingAttributes||
+     survivors.attributes.length!==remainingAttributes||
+     await eda.sch_PrimitiveComponent.get(markerId))
+    throw makeError('SAVE_DELETE_UNVERIFIED','Native removed marker state not proven');
+  await scope();
+  const ok=await eda.sch_Document.save();
+  await scope();
+  const after=await inventory(),readback=await survivorState();
+  if(ok!==true||after.components.length!==groundProfile.sheetCount||
+     after.attributeCount!==remainingAttributes||!compare(readback,survivors)||
+     await eda.sch_PrimitiveComponent.get(markerId))
+    throw makeError('SAVE_DELETE_DRIFT','Native saved deletion not proven');
+  return {result:true};
+ }
+ throw Error('Unsupported private worker RPC');
+} catch(e){return {error:{code:e?.code??'PRIVATE_GROUND_FAILURE',message:String(e?.message??e)}}}
+})();
