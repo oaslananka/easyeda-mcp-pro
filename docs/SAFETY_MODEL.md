@@ -170,6 +170,31 @@ remains **denied**. The connected direct-editor test does **not** establish
 exact-head end-to-end MCP transactional production acceptance, and BETA
 native creation methods are not promoted into the production allowlist.
 
+An additional genuine **disposable V4.1.105 public Source API** probe
+tested the potential production alternative to BETA native Ground creation:
+`SCH_SourcePrimitiveComponent.removeNetFlag` removed the original isolated
+GND marker; independent `SCH_SourcePrimitiveComponent.get` and native
+component getters confirmed its absence. A single
+`SCH_SourcePrimitiveComponent.addNetFlag` call then recreated the same
+Ground symbol, net, position, rotation and native embedded pin with a new
+ID; original six Source properties retained their values. **However**, it
+also generated six additional empty native attributes (`Unique ID`,
+`Footprint`, `Designator`, `Reuse Block`, `Group ID`, `Channel ID`):
+the schematic attribute inventory grew from 47 to **53**. The difference
+persisted after real `SCH_Document.save` and an independent fresh-renderer
+cold reopen. The original native source file stayed byte-identical, both
+files passed SQLite integrity checks, and the test-only renderer was closed.
+The public `SCH_SourcePrimitiveComponent.update` method only **updates
+provided property keys incrementally**; the public
+`SCH_PrimitiveAttribute.delete` method explicitly documents that it
+**does not delete attributes** and returns `false`. Consequently this
+public source route does **not** currently qualify as exact attribute
+restoration either. Empty new keys are **not silently ignored**: a
+transactional fingerprint containing them must remain unresolved, even when
+the symbol and electrical-looking geometry are the same. This probe was
+direct native CLI on an off-repository disposable copy, **not** product MCP
+transactional production acceptance or authorization to widen deletion.
+
 The isolated Ground evidence format is now version 2. It compares exact
 attribute list/ID/get results across two native reads and includes a
 SHA-256 fingerprint of every verified owned attribute's key, value, position,

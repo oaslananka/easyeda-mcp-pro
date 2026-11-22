@@ -964,6 +964,84 @@ describe('TransactionManager', () => {
     });
   });
 
+  it('refuses Source API Ground recreation that adds even empty native attributes', async () => {
+    // Real disposable EasyEDA V4.1.105 Source API evidence: addNetFlag('Ground')
+    // regenerated the same pin/net/symbol but persisted six extra blank
+    // attributes after native Save and a fresh-renderer cold reopen.
+    const originalAttributes = {
+      Symbol: '17c558f9e954b079',
+      Description: '',
+      'Global Net Name': 'GND',
+      Name: 'GND',
+      Device: 'af20086a8911a85a',
+      Relevance: '[]',
+    };
+    const createdDefaults = {
+      'Unique ID': '',
+      Footprint: '',
+      Designator: '',
+      'Reuse Block': '',
+      'Group ID': '',
+      'Channel ID': '',
+    };
+    const manager = new TransactionManager();
+    const transaction = manager.begin({ documentId: 'source-netflag-fixture' });
+    const before = {
+      schemaVersion: 'schematic-primitive-snapshot/v1',
+      primitiveId: 'ground-original',
+      primitiveKind: 'netflag',
+      componentType: 'netflag',
+      property: {
+        net: 'GND',
+        x: 240,
+        y: 250,
+        rotation: 0,
+        mirror: false,
+        nativeAttributes: originalAttributes,
+      },
+    };
+    const recreate = vi.fn(async () => ({
+      targetId: 'ground-recreated',
+      snapshot: {
+        ...before,
+        primitiveId: 'ground-recreated',
+        property: {
+          ...before.property,
+          nativeAttributes: { ...originalAttributes, ...createdDefaults },
+        },
+      },
+    }));
+
+    await expect(
+      manager.runDelete(transaction.id, before.primitiveId, {
+        getSnapshot: async () => structuredClone(before),
+        apply: async () => {
+          throw new Error('Source delete completed but acknowledgement was uncertain');
+        },
+        exists: async () => false,
+        recreate,
+      }),
+    ).rejects.toMatchObject({
+      code: 'TRANSACTION_OPERATION_FAILED',
+      details: expect.objectContaining({ compensation: 'failed' }),
+    });
+    expect(recreate).toHaveBeenCalledTimes(1);
+    expect(manager.get(transaction.id)).toMatchObject({
+      state: 'failed',
+      rollbackComplete: false,
+      operations: [
+        expect.objectContaining({
+          kind: 'delete',
+          state: 'failed',
+          compensation: 'failed',
+        }),
+      ],
+    });
+    expect(() => manager.begin({ documentId: 'source-netflag-fixture' })).toThrowError(
+      expect.objectContaining({ code: 'TRANSACTION_ACTIVE' }),
+    );
+  });
+
   it('recreates a deleted primitive when delete verification fails after the write', async () => {
     const manager = new TransactionManager();
     const transaction = manager.begin({ documentId: 'doc-1' });
