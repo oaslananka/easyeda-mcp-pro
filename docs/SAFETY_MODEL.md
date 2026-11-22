@@ -57,6 +57,15 @@ the exact primitive ID and refuses a changed kind, net or property
 without issuing the native delete. This reduces preflight-to-delete
 drift, but it is **not** an exclusive editor-wide writer lock and
 does not enable netflag, netport or component transactional deletion.
+The ordinary drawing-primitive batch delete now additionally reads the exact
+active native project and focused schematic page through the audited read-only
+identity APIs. It refuses missing or mismatched identities and a changed focused
+page, retaining a project/page witness on each delete transaction operation.
+Both native delete and later rollback reconstruction pass explicit expected
+project/page identifiers to the existing extension-side target guard. A focus
+change during a reserved delete can still yield an unresolved/failed transaction,
+which must be inspected rather than reported as successful rollback. This is
+not a global native writer lock, and cannot prove connected-component safety.
 
 The native schematic Component class also contains net flags, hierarchical
 net ports and sheet-frame primitives. A generic UUID-only standalone delete

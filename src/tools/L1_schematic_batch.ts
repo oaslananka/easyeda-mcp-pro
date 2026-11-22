@@ -12,6 +12,8 @@ import {
   TransactionError,
 } from '../transactions/index.js';
 import { stableHash } from '../transactions/stable.js';
+import { assertFocusedSchematicScope } from '../transactions/schematic-scope.js';
+import type { NativeSchematicScope } from '../transactions/model.js';
 import { type ToolContext, type ToolDefinition } from './types.js';
 
 const pointSchema = z.object({ x: z.number().finite(), y: z.number().finite() });
@@ -243,6 +245,11 @@ type BatchItemResult = z.infer<typeof batchItemResultSchema>;
 
 const RECREATABLE_DELETE_KINDS = new Set(['wire', 'text', 'rectangle', 'circle', 'polygon']);
 
+interface DeletePreflightWitness {
+  snapshot: Record<string, unknown>;
+  nativeScope?: NativeSchematicScope;
+}
+
 function bridgeCreateRequest(operation: CreateOperation): { method: string; params: object } {
   const { operationId: _operationId, action: _action, primitiveKind: _kind, ...params } = operation;
   switch (operation.primitiveKind) {
@@ -269,7 +276,7 @@ async function preflightDeleteOperations(
   context: ToolContext,
   operations: BatchOperation[],
   projectId: string,
-): Promise<Map<string, Record<string, unknown>>> {
+): Promise<Map<string, DeletePreflightWitness>> {
   // Private file workers are host-constructed, never enabled by request data
   // or the ordinary live/relay bridge. Keep this first increment single-target.
   if (context.bridge instanceof PrivateNativeGroundSession) {
@@ -281,12 +288,15 @@ async function preflightDeleteOperations(
       );
     }
     const snapshot = await context.bridge.preflight(projectId, operation.primitiveId);
-    return new Map([[operation.primitiveId, structuredClone(snapshot)]]);
+    return new Map([[operation.primitiveId, { snapshot: structuredClone(snapshot) }]]);
   }
-  const snapshots = new Map<string, Record<string, unknown>>();
+  const snapshots = new Map<string, DeletePreflightWitness>();
+  let batchDocumentId: string | undefined;
   for (const operation of operations) {
     if (operation.action !== 'delete') continue;
-    const snapshot = await getPrimitiveSnapshot(context.bridge, operation.primitiveId);
+    const snapshot = structuredClone(
+      await getPrimitiveSnapshot(context.bridge, operation.primitiveId),
+    );
     const primitiveKind = snapshot.primitiveKind;
     if (typeof primitiveKind !== 'string' || !RECREATABLE_DELETE_KINDS.has(primitiveKind)) {
       throw new TransactionError(
@@ -299,7 +309,28 @@ async function preflightDeleteOperations(
         },
       );
     }
-    snapshots.set(operation.primitiveId, structuredClone(snapshot));
+    // The primitive class alone does not prove the owning native project
+    // and focused schematic page. Recheck after the primitive read and
+    // retain this page identity for the actual native write and rollback.
+    const scope = await assertFocusedSchematicScope(context.bridge, projectId, batchDocumentId);
+    batchDocumentId = scope.documentId;
+    const scopedSnapshot = structuredClone(
+      await getPrimitiveSnapshot(context.bridge, operation.primitiveId),
+    );
+    if (
+      scopedSnapshot.primitiveId !== operation.primitiveId ||
+      stableHash(scopedSnapshot) !== stableHash(snapshot)
+    ) {
+      throw new TransactionError(
+        'TRANSACTION_INVALID_STATE',
+        'Primitive identity or properties changed while binding its native project/page',
+      );
+    }
+    await assertFocusedSchematicScope(context.bridge, projectId, scope.documentId);
+    snapshots.set(operation.primitiveId, {
+      snapshot: structuredClone(scopedSnapshot),
+      nativeScope: scope,
+    });
   }
   return snapshots;
 }
@@ -466,24 +497,32 @@ async function executeDelete(
   context: ToolContext,
   transactionId: string,
   operation: z.infer<typeof deleteOperationSchema>,
-  preflightSnapshots: ReadonlyMap<string, Record<string, unknown>>,
+  preflightSnapshots: ReadonlyMap<string, DeletePreflightWitness>,
 ) {
-  const expected = preflightSnapshots.get(operation.primitiveId);
-  if (!expected) {
+  const witness = preflightSnapshots.get(operation.primitiveId);
+  if (!witness) {
     throw new TransactionError(
       'TRANSACTION_INVALID_STATE',
       'Delete lacks a verified initial primitive snapshot',
     );
   }
+  const scope = witness.nativeScope;
   return getGlobalTransactionManager().runDelete(transactionId, operation.primitiveId, {
+    ...(scope ? { nativeSchematicScope: scope } : {}),
     getSnapshot: async () => {
+      if (scope) {
+        await assertFocusedSchematicScope(context.bridge, scope.projectId, scope.documentId);
+      }
       const current = await getPrimitiveSnapshot(context.bridge, operation.primitiveId);
+      if (scope) {
+        await assertFocusedSchematicScope(context.bridge, scope.projectId, scope.documentId);
+      }
       // A batch may contain operations before this delete. Never delete a
       // primitive whose kind, net, properties, or identity changed since the
       // initial all-target preflight, even if the original kind was permitted.
       if (
         current.primitiveId !== operation.primitiveId ||
-        stableHash(current) !== stableHash(expected)
+        stableHash(current) !== stableHash(witness.snapshot)
       ) {
         throw new TransactionError(
           'TRANSACTION_INVALID_STATE',
@@ -493,10 +532,30 @@ async function executeDelete(
       }
       return current;
     },
-    apply: async () => deletePrimitiveExact(context.bridge, operation.primitiveId),
-    exists: async () => primitiveExists(context.bridge, operation.primitiveId),
+    apply: async () => {
+      if (scope) {
+        await assertFocusedSchematicScope(context.bridge, scope.projectId, scope.documentId);
+      }
+      return deletePrimitiveExact(context.bridge, operation.primitiveId, scope);
+    },
+    exists: async () => {
+      if (scope) {
+        await assertFocusedSchematicScope(context.bridge, scope.projectId, scope.documentId);
+      }
+      const exists = await primitiveExists(context.bridge, operation.primitiveId);
+      if (scope) {
+        await assertFocusedSchematicScope(context.bridge, scope.projectId, scope.documentId);
+      }
+      return exists;
+    },
     recreate: async (snapshot) => {
-      const recreated = await recreatePrimitiveSnapshot(context.bridge, snapshot);
+      if (scope) {
+        await assertFocusedSchematicScope(context.bridge, scope.projectId, scope.documentId);
+      }
+      const recreated = await recreatePrimitiveSnapshot(context.bridge, snapshot, scope);
+      if (scope) {
+        await assertFocusedSchematicScope(context.bridge, scope.projectId, scope.documentId);
+      }
       return { targetId: recreated.primitiveId, snapshot: recreated.snapshot };
     },
   });
@@ -604,7 +663,7 @@ async function executeBatchOperation(
   transactionId: string,
   projectId: string,
   operation: BatchOperation,
-  preflightSnapshots: ReadonlyMap<string, Record<string, unknown>>,
+  preflightSnapshots: ReadonlyMap<string, DeletePreflightWitness>,
 ): Promise<BatchItemResult> {
   if (operation.action === 'create') {
     const executed = await executeCreate(context, transactionId, operation);

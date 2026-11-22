@@ -507,6 +507,10 @@ export class TransactionManager {
       beforeSnapshot,
     );
 
+    if (hooks.nativeSchematicScope) {
+      operation.nativeSchematicScope = structuredClone(hooks.nativeSchematicScope);
+    }
+
     try {
       const result = await hooks.apply();
       if (await hooks.exists()) {

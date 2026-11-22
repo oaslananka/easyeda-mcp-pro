@@ -14,6 +14,11 @@ export type TransactionOperationState =
 export type TransactionOperationKind = 'create' | 'modify' | 'delete';
 export type TransactionSnapshotHashMode = 'exact' | 'ignore-primitive-id' | 'absence';
 
+export interface NativeSchematicScope {
+  projectId: string;
+  documentId: string;
+}
+
 export interface TransactionTarget {
   type: 'schematic-primitive' | 'pcb-primitive';
   id: string;
@@ -25,6 +30,7 @@ export interface TransactionOperation {
   kind: TransactionOperationKind;
   state: TransactionOperationState;
   target: TransactionTarget;
+  nativeSchematicScope?: NativeSchematicScope;
   beforeSnapshot?: unknown;
   beforeHash?: string;
   afterSnapshot?: unknown;
@@ -114,6 +120,7 @@ export interface TransactionalDeleteRecreateResult {
 }
 
 export interface TransactionalDeleteHooks<TResult = unknown> {
+  nativeSchematicScope?: NativeSchematicScope;
   getSnapshot: () => Promise<unknown>;
   apply: () => Promise<TResult>;
   exists: () => Promise<boolean>;

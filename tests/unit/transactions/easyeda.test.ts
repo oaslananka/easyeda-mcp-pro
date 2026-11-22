@@ -250,6 +250,62 @@ async function exerciseWireRollback(after: ReturnType<typeof wireSnapshot>) {
   return { result: await rollbackEasyedaTransaction(manager, transaction.id, bridge), calls };
 }
 
+describe('scoped schematic deletion rollback', () => {
+  async function scopedDeletedWire(bridgePage: string) {
+    const manager = new TransactionManager();
+    const transaction = manager.begin({ documentId: 'project-1' });
+    const original = wireSnapshot('wire-old', [0, 0, 10, 0], 'N1');
+    const restored = wireSnapshot('wire-new', [0, 0, 10, 0], 'N1');
+    await manager.runDelete(transaction.id, 'wire-old', {
+      nativeSchematicScope: { projectId: 'project-1', documentId: 'page-1' },
+      getSnapshot: async () => original,
+      apply: async () => ({ deleted: ['wire-old'] }),
+      exists: async () => false,
+      recreate: async () => {
+        throw new Error('Rollback is caller-managed in this test');
+      },
+    });
+    const call = vi.fn(async (method: string, params: any) => {
+      if (method === 'api.read') {
+        if (params.path === 'DMT_Project.getCurrentProjectInfo')
+          return { result: { uuid: 'project-1' } };
+        if (params.path === 'DMT_SelectControl.getCurrentDocumentInfo')
+          return { result: { uuid: bridgePage, parentProjectUuid: 'project-1', documentType: 1 } };
+      }
+      if (method === 'schematic.recreatePrimitiveSnapshot')
+        return { primitiveId: 'wire-new', snapshot: restored };
+      if (method === 'schematic.getPrimitiveSnapshot') return restored;
+      throw new Error('Unexpected bridge method ' + method);
+    });
+    return { manager, transaction, call, bridge: { call } as unknown as TransactionBridgeCaller };
+  }
+
+  it('does not recreate a deleted wire in a different focused page', async () => {
+    const { manager, transaction, call, bridge } = await scopedDeletedWire('page-2');
+    await expect(rollbackEasyedaTransaction(manager, transaction.id, bridge)).rejects.toMatchObject(
+      {
+        code: 'TRANSACTION_ROLLBACK_FAILED',
+      },
+    );
+    expect(call).not.toHaveBeenCalledWith('schematic.recreatePrimitiveSnapshot', expect.anything());
+    expect(manager.get(transaction.id)).toMatchObject({
+      state: 'failed',
+      rollbackComplete: false,
+    });
+  });
+
+  it('recreates on the same page with a native-bound project/document target', async () => {
+    const { manager, transaction, call, bridge } = await scopedDeletedWire('page-1');
+    const result = await rollbackEasyedaTransaction(manager, transaction.id, bridge);
+    expect(result.transaction).toMatchObject({ state: 'rolled-back', rollbackComplete: true });
+    expect(call).toHaveBeenCalledWith('schematic.recreatePrimitiveSnapshot', {
+      snapshot: wireSnapshot('wire-old', [0, 0, 10, 0], 'N1'),
+      expectedProjectUuid: 'project-1',
+      expectedSchematicPageUuid: 'page-1',
+    });
+  });
+});
+
 describe('wire orientation after native rollback', () => {
   it('preserves the exact live V4 raw before-hash while comparing endpoint-reversed wires equally', () => {
     const original = wireSnapshot('4d5afa64f162eaa5', [280, 250, 240, 250]);

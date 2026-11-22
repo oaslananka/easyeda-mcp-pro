@@ -1,6 +1,8 @@
 import { type TransactionManager } from './manager.js';
 import { type RollbackResult, type TransactionOperation } from './model.js';
 import { snapshotForHash, stableHash } from './stable.js';
+import { assertFocusedSchematicScope, nativeSchematicTarget } from './schematic-scope.js';
+import type { NativeSchematicScope } from './model.js';
 
 export interface TransactionBridgeCaller {
   call: <TParams, TResult>(
@@ -59,11 +61,15 @@ export async function primitiveExists(
 export async function deletePrimitiveExact(
   bridge: TransactionBridgeCaller,
   primitiveId: string,
+  nativeScope?: NativeSchematicScope,
 ): Promise<unknown> {
-  const result = await bridge.call<{ primitiveIds: string[] }, DeletePrimitiveResult>(
-    'schematic.deletePrimitive',
-    { primitiveIds: [primitiveId] },
-  );
+  const result = await bridge.call<
+    { primitiveIds: string[]; expectedProjectUuid?: string; expectedSchematicPageUuid?: string },
+    DeletePrimitiveResult
+  >('schematic.deletePrimitive', {
+    primitiveIds: [primitiveId],
+    ...(nativeScope ? nativeSchematicTarget(nativeScope) : {}),
+  });
   if (
     result &&
     typeof result === 'object' &&
@@ -79,11 +85,15 @@ export async function deletePrimitiveExact(
 export async function recreatePrimitiveSnapshot(
   bridge: TransactionBridgeCaller,
   snapshot: unknown,
+  nativeScope?: NativeSchematicScope,
 ): Promise<{ primitiveId: string; snapshot: PrimitiveSnapshotResult }> {
   const result = await bridge.call<
-    { snapshot: unknown },
+    { snapshot: unknown; expectedProjectUuid?: string; expectedSchematicPageUuid?: string },
     { primitiveId?: unknown; snapshot?: PrimitiveSnapshotResult }
-  >('schematic.recreatePrimitiveSnapshot', { snapshot });
+  >('schematic.recreatePrimitiveSnapshot', {
+    snapshot,
+    ...(nativeScope ? nativeSchematicTarget(nativeScope) : {}),
+  });
   if (typeof result?.primitiveId !== 'string' || !result.primitiveId) {
     throw new Error('Recreated primitive did not return an addressable primitive ID');
   }
@@ -285,10 +295,18 @@ export async function rollbackEasyedaTransaction(
           return;
         }
         case 'delete': {
+          const scope = operation.nativeSchematicScope;
+          if (scope) {
+            await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
+          }
           const recreated = await recreatePrimitiveSnapshot(
             bridge,
             requireBeforeSnapshot(operation),
+            scope,
           );
+          if (scope) {
+            await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
+          }
           return { restoredTargetId: recreated.primitiveId };
         }
       }
@@ -303,6 +321,8 @@ export async function rollbackEasyedaTransaction(
       // explicitly typed bridge read instead of a generic snapshot.
       const expectedNativeKind =
         operation.kind === 'delete' ? nativeGroundReadKind(beforeSnapshot) : undefined;
+      const scope = operation.nativeSchematicScope;
+      if (scope) await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
       const snapshot = pinSnapshot
         ? await readPinNoConnectSnapshot(bridge, pinSnapshot)
         : await getPrimitiveSnapshot(
@@ -310,6 +330,7 @@ export async function rollbackEasyedaTransaction(
             restoreResult.restoredTargetId ?? operation.target.id,
             expectedNativeKind,
           );
+      if (scope) await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
       const requestedId = restoreResult.restoredTargetId ?? operation.target.id;
       if (!verifiedRollbackExactId(snapshot, requestedId, pinSnapshot)) return false;
       if (!operation.beforeHash) return false;
