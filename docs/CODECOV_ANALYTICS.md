@@ -230,6 +230,23 @@ typed snapshot during delete compensation. The archive grew from
 actual-plus-five budgets are **254,210 / 438,447 / 352,516**; integrity
 checks remain enabled.
 
+The 2026-11-22 #1102 pre-delete native transaction guard adds an independently
+re-read, exact-snapshot comparison at the EasyEDA Bridge deletion boundary.
+Before an ordinary rollback-backed drawing-primitive delete, the extension
+revalidates the focused project and schematic page, primitive kind/ID, net and
+all captured properties, refusing changed or unverifiable inputs. The
+source-built PR head `32715c0683159059c7dd6d9303dec4aaa7f9c8d0`
+deterministically measured a packaged `.eext` of **256,998 bytes** (previous
+measured **254,791**, increase **2,207**), `index.js` **444,920 bytes**
+(previous **440,062**, increase **4,858**), and `dispatcher.js`
+**358,977 bytes** (previous **354,131**, increase **4,846**). The reviewed
+strict byte ratchets are these measured sizes plus **five bytes**:
+**257,003 / 444,925 / 358,982 bytes**, respectively. No size checker,
+CI integrity gate, extension hard ceiling, or security approval is disabled.
+The guard is **not** an editor-wide writer lock and does not enable ordinary
+transactional netflag/netport/component deletion or claim new live runtime
+acceptance.
+
 ## Configuration validation
 
 The non-blocking `coverage-telemetry` job validates `codecov.yml` through Codecov's validator after local tests have passed:
