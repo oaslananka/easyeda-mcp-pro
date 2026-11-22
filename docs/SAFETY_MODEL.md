@@ -168,7 +168,15 @@ When reconciling an uncertain deletion, it checks the readback's exact
 original ID before declaring no change, and requires a recreated snapshot's
 ID to equal the newly reported native ID before declaring restoration.
 Only after these ID checks may the snapshot fingerprint legitimately ignore
-the original ID change. A missing, wrong-ID or wrong-kind native read refuses
+the original ID change. An automatically compensated delete whose previous
+native recreation/readback failed is **not safe to replay** through the
+public rollback tool: the first native create may already have placed an
+unverified duplicate. Such failed deletions remain unresolved and retain
+their document lock; re-inspect the real native project and perform explicit
+manual recovery instead of issuing a second non-idempotent create. Ordinary
+successfully applied deletes may still be rolled back through independent
+native readback. This check does not establish connected-net topology
+preservation or an editor-wide native writer reservation. A missing, wrong-ID or wrong-kind native read refuses
 successful restoration; a changed net or geometry is evaluated against the
 original transaction fingerprint and leaves compensation unresolved. This
 does not establish an exclusive native writer reservation or grant production

@@ -241,6 +241,82 @@ describe('independent drawing primitive compensation readback', () => {
   });
 });
 
+describe('uncertain delete compensation cannot be blindly replayed', () => {
+  it.each(['already returned a recreated ID', 'threw after an uncertain create'])(
+    'never issues a second native recreation when compensation %s',
+    async (uncertainResult) => {
+      const manager = new TransactionManager();
+      const transaction = manager.begin({ documentId: 'project-1' });
+      const before = {
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'wire-old',
+        primitiveKind: 'wire',
+        property: { line: [0, 0, 10, 0], net: 'N1' },
+      };
+      let exists = true;
+      let attempts = 0;
+      await expect(
+        manager.runDelete(transaction.id, before.primitiveId, {
+          getSnapshot: async () => structuredClone(before),
+          apply: async () => {
+            exists = false;
+            throw new Error('delete completed but transport disconnected');
+          },
+          exists: async () => exists,
+          recreate: async () => {
+            attempts += 1;
+            if (uncertainResult === 'threw after an uncertain create') {
+              throw new Error('native create timed out, outcome unknown');
+            }
+            return {
+              targetId: 'wire-ghost',
+              snapshot: {
+                ...before,
+                primitiveId: 'wire-ghost',
+                property: { ...before.property, net: 'VCC' },
+              },
+            };
+          },
+        }),
+      ).rejects.toMatchObject({
+        code: 'TRANSACTION_OPERATION_FAILED',
+        details: expect.objectContaining({ compensation: 'failed' }),
+      });
+      expect(attempts).toBe(1);
+
+      // A second recreation might duplicate the first actual write. The
+      // public rollback tool must refuse before calling the bridge again.
+      const call = vi.fn(async (method: string) => {
+        if (method === 'schematic.recreatePrimitiveSnapshot') {
+          attempts += 1;
+          return {
+            primitiveId: 'wire-duplicate',
+            snapshot: { ...before, primitiveId: 'wire-duplicate' },
+          };
+        }
+        return { ...before, primitiveId: 'wire-duplicate' };
+      });
+      const bridge = { call } as unknown as TransactionBridgeCaller;
+      await expect(
+        rollbackEasyedaTransaction(manager, transaction.id, bridge),
+      ).rejects.toMatchObject({
+        code: 'TRANSACTION_ROLLBACK_FAILED',
+      });
+      expect(attempts).toBe(1);
+      expect(call).not.toHaveBeenCalledWith(
+        'schematic.recreatePrimitiveSnapshot',
+        expect.anything(),
+      );
+      expect(manager.get(transaction.id)).toMatchObject({
+        state: 'failed',
+        rollbackComplete: false,
+        operations: [expect.objectContaining({ compensation: 'failed', state: 'failed' })],
+      });
+      expect(() => manager.begin({ documentId: 'project-1' })).toThrow();
+    },
+  );
+});
+
 describe('native-scoped Ground rollback reconciliation', () => {
   it('does not normalize a forged isolation report bound to another marker', () => {
     const baseline = groundSnapshot('flag-old');

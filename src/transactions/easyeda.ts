@@ -311,6 +311,17 @@ export async function rollbackEasyedaTransaction(
           return;
         }
         case 'delete': {
+          // A failed compensation may have created a replacement despite a
+          // timeout or an unsuccessful readback. A second create is non-
+          // idempotent and can duplicate real schematic connectivity.
+          // Leave the failed transaction locked for native inspection rather
+          // than automatically replaying an ambiguous write.
+          if (operation.state === 'failed' && operation.compensation === 'failed') {
+            throw new Error(
+              'Native delete outcome and prior compensation are unresolved; ' +
+                'inspect the schematic and cold-reopen before any manual recovery',
+            );
+          }
           const scope = operation.nativeSchematicScope;
           if (scope) {
             await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
