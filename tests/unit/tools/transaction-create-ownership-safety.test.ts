@@ -217,4 +217,68 @@ describe('schematic create ownership safety (separate from unsupported typed del
     if (scenario === 'truncated')
       expect(bridgeCall).not.toHaveBeenCalledWith('schematic.placeComponent', expect.anything());
   });
+
+  it.each([
+    { reason: 'exact native library and symbol provenance', changes: {}, reconciled: true },
+    {
+      reason: 'foreign library UUID',
+      changes: { deviceLibraryUuid: 'wrong-lib' },
+      reconciled: false,
+    },
+    {
+      reason: 'name-only foreign device',
+      changes: { deviceName: 'other-name' },
+      reconciled: false,
+    },
+    { reason: 'wrong native symbol', changes: { symbolName: 'other-symbol' }, reconciled: false },
+    {
+      reason: 'wrong native footprint',
+      changes: { footprint: 'other-footprint' },
+      reconciled: false,
+    },
+  ])(
+    'only reconciles project-local component identity with $reason',
+    async ({ changes, reconciled }) => {
+      const originalDevice = {
+        libraryUuid: 'source-library',
+        uuid: 'source-device',
+        name: 'Regulator A',
+        symbolName: 'Regulator Symbol',
+        footprintName: 'SOT-23',
+      };
+      const nativeNewPart = {
+        primitiveId: 'new-placed-id',
+        deviceUuid: 'project-local-device-uuid',
+        deviceLibraryUuid: 'source-library',
+        deviceName: 'Regulator A',
+        symbolName: 'Regulator Symbol',
+        footprint: 'SOT-23',
+        x: 10,
+        y: 20,
+        ...changes,
+      };
+      bridgeCall
+        .mockResolvedValueOnce({ total: 0, items: [] })
+        .mockRejectedValueOnce(new Error('Bridge timed out'))
+        .mockResolvedValueOnce({ total: 1, items: [nativeNewPart] });
+      const place = registry.get('easyeda_schematic_place_component');
+      const result = await place?.handler(context, {
+        deviceItem: originalDevice,
+        x: 10,
+        y: 20,
+        verifyAfterWrite: true,
+        confirmWrite: true,
+      });
+      if (reconciled) {
+        expect(result).toMatchObject({
+          success: true,
+          reconciled: true,
+          component: { primitiveId: 'new-placed-id' },
+        });
+      } else {
+        expect(result).toMatchObject({ success: false, unconfirmed: true });
+      }
+      expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+    },
+  );
 });
