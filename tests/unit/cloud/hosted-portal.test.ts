@@ -278,6 +278,208 @@ describe('Hosted Cloud browser recovery', () => {
     };
   }
 
+  it('rechecks device focus when returning to Cloud without waiting for polling or manual Refresh', async () => {
+    let documentId = 'pcb-a';
+    let selectedDocumentId = documentId;
+    let deviceRequests = 0;
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Owner' } }) };
+      if (url === '/cloud/api/extensions') {
+        deviceRequests += 1;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            sessions: [
+              {
+                sessionId: 'device',
+                connected: true,
+                extensionVersion: '1.17.0',
+                mode: 'hosted',
+                activeProject: { projectId: 'qa-project', documentId, documentType: 'pcb' },
+              },
+            ],
+            selection: {
+              sessionId: 'device',
+              projectId: 'qa-project',
+              documentId: selectedDocumentId,
+            },
+          }),
+        };
+      }
+      if (url === '/cloud/api/clients')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            clients: [{ id: 'client-1', name: 'ChatGPT', scopes: ['easyeda.read'] }],
+          }),
+        };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ total: 0, succeeded: 0, failed: 0, lastCallAt: null }),
+        };
+      throw new Error('Unexpected Cloud request: ' + url);
+    });
+    const copy = result.elements.get('copy-first-question');
+    expect(deviceRequests).toBe(1);
+    expect(copy.disabled).toBe(false);
+    expect(result.elements.get('guided-kicker').textContent).toBe('DESIGN SELECTED');
+
+    // The editor moves to another PCB while this Cloud tab is hidden.
+    result.setHidden(true);
+    documentId = 'pcb-b';
+    await result.visibilityChange();
+    await result.focus();
+    expect(deviceRequests).toBe(1);
+    expect(copy.disabled).toBe(false); // No background polling, status is only rechecked on return.
+
+    result.setHidden(false);
+    await result.visibilityChange();
+    expect(deviceRequests).toBe(2);
+    expect(copy.disabled).toBe(true);
+    expect(result.elements.get('guided-kicker').textContent).toBe('SELECT A DESIGN');
+
+    // Owner selects the newly focused design in the existing connected device.
+    selectedDocumentId = documentId;
+    await result.focus();
+    expect(deviceRequests).toBe(3);
+    expect(copy.disabled).toBe(false);
+    expect(result.elements.get('guided-kicker').textContent).toBe('DESIGN SELECTED');
+
+    result.leave();
+    documentId = 'pcb-c';
+    await result.focus();
+    await result.visibilityChange();
+    expect(deviceRequests).toBe(3);
+  });
+
+  it('ignores older device results that finish after a newer project selection or failed check', async () => {
+    let deviceRequests = 0;
+    let releaseOld: ((value: any) => void) | undefined;
+    const online = (selectionDocumentId: string | null) => ({
+      sessions: [
+        {
+          sessionId: 'device',
+          connected: true,
+          extensionVersion: '1.17.0',
+          mode: 'hosted',
+          activeProject: { projectId: 'qa-project', documentId: 'pcb-b', documentType: 'pcb' },
+        },
+      ],
+      selection:
+        selectionDocumentId === null
+          ? null
+          : { sessionId: 'device', projectId: 'qa-project', documentId: selectionDocumentId },
+    });
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Owner' } }) };
+      if (url === '/cloud/api/extensions') {
+        deviceRequests += 1;
+        if (deviceRequests === 2) {
+          return await new Promise((resolve) => {
+            releaseOld = resolve;
+          });
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => online(deviceRequests === 1 ? 'pcb-b' : null),
+        };
+      }
+      if (url === '/cloud/api/clients')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            clients: [{ id: 'client-1', name: 'ChatGPT', scopes: ['easyeda.read'] }],
+          }),
+        };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ total: 0, succeeded: 0, failed: 0, lastCallAt: null }),
+        };
+      throw new Error('Unexpected Cloud request: ' + url);
+    });
+    const copy = result.elements.get('copy-first-question');
+    expect(copy.disabled).toBe(false);
+    await result.focus(); // The stale request stays in flight.
+    expect(deviceRequests).toBe(2);
+    expect(copy.disabled).toBe(true); // Never advertise readiness during re-verification.
+    await result.elements.get('refresh-extensions').dispatch('click');
+    expect(deviceRequests).toBe(3);
+    expect(copy.disabled).toBe(true);
+    expect(result.elements.get('guided-kicker').textContent).toBe('SELECT A DESIGN');
+    releaseOld?.({ ok: true, status: 200, json: async () => online('pcb-b') });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(copy.disabled).toBe(true);
+    expect(result.elements.get('guided-kicker').textContent).toBe('SELECT A DESIGN');
+  });
+
+  it('does not let an older failed device request invalidate a newly verified selected design', async () => {
+    let requests = 0;
+    let failOld: ((reason: Error) => void) | undefined;
+    const connected = {
+      sessions: [
+        {
+          sessionId: 'device',
+          connected: true,
+          mode: 'hosted',
+          extensionVersion: '1.17.0',
+          activeProject: { projectId: 'qa', documentId: 'pcb-a', documentType: 'pcb' },
+        },
+      ],
+      selection: { sessionId: 'device', projectId: 'qa', documentId: 'pcb-a' },
+    };
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Owner' } }) };
+      if (url === '/cloud/api/extensions') {
+        requests += 1;
+        if (requests === 2)
+          return await new Promise((_resolve, reject) => {
+            failOld = reject;
+          });
+        return { ok: true, status: 200, json: async () => connected };
+      }
+      if (url === '/cloud/api/clients')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            clients: [{ id: 'chatgpt', name: 'ChatGPT', scopes: ['easyeda.read'] }],
+          }),
+        };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ total: 0, succeeded: 0, failed: 0, lastCallAt: null }),
+        };
+      throw new Error('Unexpected request ' + url);
+    });
+    expect(result.elements.get('copy-first-question').disabled).toBe(false);
+    await result.focus();
+    expect(requests).toBe(2);
+    expect(result.elements.get('copy-first-question').disabled).toBe(true);
+    await result.elements.get('refresh-extensions').dispatch('click');
+    expect(requests).toBe(3);
+    expect(result.elements.get('copy-first-question').disabled).toBe(false);
+    failOld?.(new Error('Old HTTP 503'));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(result.elements.get('copy-first-question').disabled).toBe(false);
+    expect(result.elements.get('guided-device-status').textContent).toBe(
+      'Connected · design selected',
+    );
+    expect(result.elements.get('guided-kicker').textContent).toBe('DESIGN SELECTED');
+  });
+
   it('shows and copies a read-only first question for the currently verified PCB or schematic, never the previous design', async () => {
     let documentType = 'pcb';
     let documentId = 'pcb-doc';
