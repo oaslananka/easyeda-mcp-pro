@@ -284,6 +284,40 @@ function verifiedRollbackExactId(
   return 'primitiveId' in snapshot && snapshot.primitiveId === requestedId;
 }
 
+async function rollbackVerifiedCreatedPrimitive(
+  bridge: TransactionBridgeCaller,
+  operation: Readonly<TransactionOperation>,
+): Promise<void> {
+  // Unconfirmed create ownership remains unresolved even if a new ID
+  // appears later. Never retry compensation against a synthetic target.
+  if (operation.state === 'failed' && operation.compensation === 'failed') {
+    throw new Error(
+      'Native create outcome or compensation is unresolved; inspect the focused ' +
+        'schematic and reconcile ownership before manual recovery',
+    );
+  }
+  const scope = operation.nativeSchematicScope;
+  if (!scope) {
+    await deletePrimitiveExact(bridge, operation.target.id);
+    return;
+  }
+
+  // The document-local transaction lock does not fence GUI/Cloud editors.
+  await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
+  const snapshot = await getPrimitiveSnapshot(bridge, operation.target.id, 'component');
+  if (
+    snapshot.primitiveId !== operation.target.id ||
+    snapshot.primitiveKind !== 'component' ||
+    !operation.afterHash ||
+    stableHash(snapshot) !== operation.afterHash
+  ) {
+    throw new Error('Native created component changed before rollback; no delete');
+  }
+  await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
+  await deletePrimitiveExact(bridge, operation.target.id, scope, snapshot);
+  await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
+}
+
 export async function rollbackEasyedaTransaction(
   manager: TransactionManager,
   transactionId: string,
@@ -293,7 +327,7 @@ export async function rollbackEasyedaTransaction(
     restore: async (operation) => {
       switch (operation.kind) {
         case 'create':
-          await deletePrimitiveExact(bridge, operation.target.id);
+          await rollbackVerifiedCreatedPrimitive(bridge, operation);
           return;
         case 'modify': {
           const snapshot = requireBeforeSnapshot(operation);

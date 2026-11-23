@@ -33,6 +33,13 @@ describe('standalone schematic writes with project transactions', () => {
     } as ToolContext;
   });
 
+  const nativeFocus = (params: { path?: string }) => ({
+    result:
+      params.path === 'DMT_Project.getCurrentProjectInfo'
+        ? { uuid: 'proj-1' }
+        : { uuid: 'page-1', parentProjectUuid: 'proj-1', documentType: 1 },
+  });
+
   it('requires projectId when transactionId is supplied to standalone placement or deletion', () => {
     const place = registry.get('easyeda_schematic_place_component');
     const remove = registry.get('easyeda_schematic_delete_primitive');
@@ -58,6 +65,17 @@ describe('standalone schematic writes with project transactions', () => {
   it('records standalone component placement and removes it on project rollback', async () => {
     const components = new Map<string, Snapshot>();
     bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'api.read') return nativeFocus(params);
+      if (method === 'schematic.listComponents') {
+        const items = [...components.entries()].map(([primitiveId, snapshot]) => ({
+          primitiveId,
+          deviceUuid: 'dev-1',
+          deviceLibraryUuid: 'lib-1',
+          x: snapshot.property.x,
+          y: snapshot.property.y,
+        }));
+        return { total: items.length, items };
+      }
       if (method === 'schematic.listPrimitiveIds') {
         return { primitiveIds: [...components.keys()] };
       }
@@ -80,6 +98,15 @@ describe('standalone schematic writes with project transactions', () => {
         return structuredClone(snapshot);
       }
       if (method === 'schematic.deletePrimitive') {
+        expect(params).toMatchObject({
+          expectedProjectUuid: 'proj-1',
+          expectedSchematicPageUuid: 'page-1',
+          expectedPrimitiveSnapshot: {
+            primitiveId: 'comp-1',
+            primitiveKind: 'component',
+            property: { x: 10, y: 20 },
+          },
+        });
         for (const id of params.primitiveIds as string[]) components.delete(id);
         return { deleted: params.primitiveIds, notFound: [] };
       }
@@ -120,6 +147,66 @@ describe('standalone schematic writes with project transactions', () => {
       transaction: { state: 'rolled-back', rollback_complete: true, operation_count: 1 },
     });
     expect(components.has('comp-1')).toBe(false);
+  });
+
+  it('refuses to delete a verified transaction-created component whose native attributes changed before rollback', async () => {
+    let created = false;
+    let mutated = false;
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'api.read') return nativeFocus(params);
+      if (method === 'schematic.listComponents') {
+        const items = created
+          ? [
+              {
+                primitiveId: 'new-1',
+                deviceUuid: 'dev-1',
+                deviceLibraryUuid: 'lib-1',
+                x: 10,
+                y: 20,
+              },
+            ]
+          : [];
+        return { total: items.length, items };
+      }
+      if (method === 'schematic.listPrimitiveIds') {
+        return { primitiveIds: created ? ['new-1'] : [] };
+      }
+      if (method === 'schematic.placeComponent') {
+        created = true;
+        return { componentId: 'new-1' };
+      }
+      if (method === 'schematic.getPrimitiveSnapshot') {
+        return {
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveId: 'new-1',
+          primitiveKind: 'component',
+          property: { x: mutated ? 999 : 10, y: 20 },
+        };
+      }
+      if (method === 'schematic.deletePrimitive')
+        throw new Error('UNSAFE: edited component deleted without snapshot readback');
+      throw new Error(`unexpected ${method}`);
+    });
+    const begin = registry.get('easyeda_project_begin_transaction');
+    const place = registry.get('easyeda_schematic_place_component');
+    const rollback = registry.get('easyeda_project_rollback_transaction');
+    const started = (await begin?.handler(context, { projectId: 'proj-1' })) as any;
+    const placed = await place?.handler(context, {
+      projectId: 'proj-1',
+      transactionId: started.transaction.id,
+      deviceItem: { libraryUuid: 'lib-1', uuid: 'dev-1' },
+      x: 10,
+      y: 20,
+      confirmWrite: true,
+    });
+    expect(placed).toMatchObject({ success: true, transaction: { target_id: 'new-1' } });
+    mutated = true; // Concurrent user edit after placement, before rollback.
+    const result = await rollback?.handler(context, {
+      transactionId: started.transaction.id,
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({ success: false, error_code: 'TRANSACTION_ROLLBACK_FAILED' });
+    expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
   });
 
   it('records standalone safe primitive deletion and recreates it on project rollback', async () => {
@@ -279,17 +366,25 @@ describe('standalone schematic writes with project transactions', () => {
     ).resolves.toEqual({ success: false, error: 'bridge exploded' });
 
     bridgeCall.mockReset();
+    let componentReads = 0;
     bridgeCall.mockImplementation(async (method: string) => {
       if (method === 'schematic.placeComponent') throw new Error('Bridge timeout');
       if (method === 'schematic.listComponents') {
+        componentReads += 1;
+        // Success after timeout is supported ONLY when the unique native ID
+        // was not present in the complete pre-write inventory.
         return {
-          items: [
-            {
-              primitiveId: 'comp-timeout',
-              deviceUuid: 'dev-1',
-              position: { x: 10, y: 20 },
-            },
-          ],
+          total: componentReads === 1 ? 0 : 1,
+          items:
+            componentReads === 1
+              ? []
+              : [
+                  {
+                    primitiveId: 'comp-timeout',
+                    deviceUuid: 'dev-1',
+                    position: { x: 10, y: 20 },
+                  },
+                ],
         };
       }
       throw new Error(`unexpected ${method}`);
@@ -299,6 +394,7 @@ describe('standalone schematic writes with project transactions', () => {
         deviceItem: { libraryUuid: 'lib-1', uuid: 'dev-1' },
         x: 10,
         y: 20,
+        verifyAfterWrite: true,
         confirmWrite: true,
       }),
     ).resolves.toMatchObject({
@@ -306,6 +402,7 @@ describe('standalone schematic writes with project transactions', () => {
       reconciled: true,
       component: { primitiveId: 'comp-timeout' },
     });
+    expect(componentReads).toBe(2);
 
     bridgeCall.mockReset();
     bridgeCall.mockImplementation(async (method: string) => {
@@ -323,9 +420,174 @@ describe('standalone schematic writes with project transactions', () => {
     ).resolves.toMatchObject({ success: false, unconfirmed: true, error: 'Bridge timed out' });
   });
 
+  it("never deletes another editor's newly discovered component after a timed-out transactional create", async () => {
+    let listCalls = 0;
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'api.read') return nativeFocus(params);
+      if (method === 'schematic.listComponents') return { total: 0, items: [] };
+      if (method === 'schematic.listPrimitiveIds') {
+        listCalls += 1;
+        return { primitiveIds: listCalls === 1 ? [] : ['unrelated-1'] };
+      }
+      if (method === 'schematic.placeComponent') throw new Error('Bridge timeout');
+      if (method === 'schematic.getPrimitiveSnapshot') {
+        return {
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveId: 'unrelated-1',
+          primitiveKind: 'component',
+          property: { x: 400, y: 500 },
+        };
+      }
+      if (method === 'schematic.deletePrimitive') {
+        throw new Error('UNSAFE: unrelated component deletion was attempted');
+      }
+      throw new Error(`unexpected ${method}`);
+    });
+    const begin = registry.get('easyeda_project_begin_transaction');
+    const place = registry.get('easyeda_schematic_place_component');
+    const started = (await begin?.handler(context, { projectId: 'proj-1' })) as any;
+    const result = await place?.handler(context, {
+      projectId: 'proj-1',
+      transactionId: started.transaction.id,
+      deviceItem: { libraryUuid: 'lib-1', uuid: 'dev-1' },
+      x: 10,
+      y: 20,
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({ success: false, error_code: 'TRANSACTION_OPERATION_FAILED' });
+    expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+    const rollback = registry.get('easyeda_project_rollback_transaction');
+    const rollbackResult = await rollback?.handler(context, {
+      transactionId: started.transaction.id,
+      confirmWrite: true,
+    });
+    expect(rollbackResult).toMatchObject({
+      success: false,
+      error_code: 'TRANSACTION_ROLLBACK_FAILED',
+    });
+    expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+  });
+
+  it('does not accept an unrelated native component as a successful transactional create', async () => {
+    let calls = 0;
+    let placed = false;
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'api.read') return nativeFocus(params);
+      if (method === 'schematic.listPrimitiveIds') {
+        calls += 1;
+        return { primitiveIds: calls === 1 ? [] : ['unrelated-2'] };
+      }
+      if (method === 'schematic.placeComponent') {
+        placed = true;
+        return { componentId: 'unrelated-2' };
+      }
+      if (method === 'schematic.listComponents') {
+        if (!placed) return { total: 0, items: [] };
+        return {
+          total: 1,
+          items: [
+            {
+              primitiveId: 'unrelated-2',
+              deviceUuid: 'other-library-device',
+              deviceLibraryUuid: 'other-library',
+              reference: 'U3',
+              x: 400,
+              y: 500,
+            },
+          ],
+        };
+      }
+      if (method === 'schematic.getPrimitiveSnapshot') {
+        return { primitiveId: 'unrelated-2', primitiveKind: 'component', property: { x: 400 } };
+      }
+      if (method === 'schematic.deletePrimitive')
+        throw new Error('UNSAFE: unrelated component deletion was attempted');
+      throw new Error(`unexpected ${method}`);
+    });
+    const begin = registry.get('easyeda_project_begin_transaction');
+    const place = registry.get('easyeda_schematic_place_component');
+    const started = (await begin?.handler(context, { projectId: 'proj-1' })) as any;
+    const result = await place?.handler(context, {
+      projectId: 'proj-1',
+      transactionId: started.transaction.id,
+      deviceItem: { libraryUuid: 'lib-1', uuid: 'dev-1' },
+      x: 10,
+      y: 20,
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({ success: false, error_code: 'TRANSACTION_OPERATION_FAILED' });
+    expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+  });
+
+  it('refuses the wrong focused native project before creating a transactional component', async () => {
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'api.read') return nativeFocus(params); // native proj-1, transaction proj-foreign
+      if (method === 'schematic.placeComponent') throw new Error('WRONG PROJECT MUTATED');
+      throw new Error(`unexpected ${method}`);
+    });
+    const begin = registry.get('easyeda_project_begin_transaction');
+    const place = registry.get('easyeda_schematic_place_component');
+    const started = (await begin?.handler(context, { projectId: 'proj-foreign' })) as any;
+    const result = await place?.handler(context, {
+      projectId: 'proj-foreign',
+      transactionId: started.transaction.id,
+      deviceItem: { libraryUuid: 'lib-1', uuid: 'dev-1' },
+      x: 10,
+      y: 20,
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({ success: false, error_code: 'TRANSACTION_INVALID_STATE' });
+    expect(bridgeCall).not.toHaveBeenCalledWith('schematic.placeComponent', expect.anything());
+  });
+
+  it('refuses a native focused-page switch during transactional placement preflight', async () => {
+    let pageReads = 0;
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'api.read') {
+        if (params.path === 'DMT_Project.getCurrentProjectInfo')
+          return { result: { uuid: 'proj-1' } };
+        pageReads += 1;
+        return {
+          result: {
+            uuid: pageReads === 1 ? 'page-1' : 'page-2',
+            parentProjectUuid: 'proj-1',
+            documentType: 1,
+          },
+        };
+      }
+      if (method === 'schematic.listComponents') return { total: 0, items: [] };
+      if (method === 'schematic.placeComponent') throw new Error('WRONG PAGE MUTATED');
+      throw new Error(`unexpected ${method}`);
+    });
+    const begin = registry.get('easyeda_project_begin_transaction');
+    const place = registry.get('easyeda_schematic_place_component');
+    const started = (await begin?.handler(context, { projectId: 'proj-1' })) as any;
+    const result = await place?.handler(context, {
+      projectId: 'proj-1',
+      transactionId: started.transaction.id,
+      deviceItem: { libraryUuid: 'lib-1', uuid: 'dev-1' },
+      x: 10,
+      y: 20,
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({ success: false, error_code: 'TRANSACTION_INVALID_STATE' });
+    expect(bridgeCall).not.toHaveBeenCalledWith('schematic.placeComponent', expect.anything());
+  });
+
   it('fails transactional placement when create reconciliation is ambiguous', async () => {
     let placed = false;
-    bridgeCall.mockImplementation(async (method: string) => {
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'api.read') return nativeFocus(params);
+      if (method === 'schematic.listComponents')
+        return {
+          total: placed ? 2 : 0,
+          items: placed
+            ? [
+                { primitiveId: 'comp-1', deviceUuid: 'dev-1', x: 10, y: 20 },
+                { primitiveId: 'comp-2', deviceUuid: 'dev-1', x: 10, y: 20 },
+              ]
+            : [],
+        };
       if (method === 'schematic.listPrimitiveIds') {
         return { primitiveIds: placed ? ['comp-1', 'comp-2'] : [] };
       }
@@ -357,7 +619,9 @@ describe('standalone schematic writes with project transactions', () => {
   it('fails transactional placement without a discoverable created primitive', async () => {
     vi.useFakeTimers();
     try {
-      bridgeCall.mockImplementation(async (method: string) => {
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'api.read') return nativeFocus(params);
+        if (method === 'schematic.listComponents') return { total: 0, items: [] };
         if (method === 'schematic.listPrimitiveIds') return { primitiveIds: [] };
         if (method === 'schematic.placeComponent') return { componentId: 'not-addressable' };
         throw new Error(`unexpected ${method}`);
