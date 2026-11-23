@@ -8,95 +8,139 @@
       :root {
         font-family:
           -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        color-scheme: light dark;
-        --accent-color: #3157c8;
-        --accent-hover: #436be0;
-        --border-color: rgba(127, 127, 127, 0.35);
-        --bg-subtle: rgba(127, 127, 127, 0.08);
-        --bg-active: rgba(49, 87, 200, 0.15);
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --accent-color: #92b0ff;
-          --accent-hover: #a9c2ff;
-          --border-color: rgba(255, 255, 255, 0.22);
-          --bg-subtle: rgba(255, 255, 255, 0.06);
-          --bg-active: rgba(146, 176, 255, 0.2);
-        }
+        color-scheme: dark light;
+        --accent-color: #0ea5e9;
+        --accent-hover: #38bdf8;
+        --accent-glow: rgba(14, 165, 233, 0.25);
+        --border-color: rgba(255, 255, 255, 0.08);
+        --bg-subtle: rgba(255, 255, 255, 0.04);
+        --bg-active: rgba(14, 165, 233, 0.15);
+        --card-bg: rgba(15, 23, 42, 0.65);
+        --code-bg: #050914;
+        --text-primary: #f8fafc;
+        --text-muted: #94a3b8;
+        -webkit-font-smoothing: antialiased;
       }
       body {
-        padding: 20px;
+        padding: 24px;
         margin: 0;
         background: transparent;
-        line-height: 1.5;
+        color: var(--text-primary);
+        line-height: 1.55;
+      }
+      .app-header {
+        margin-bottom: 20px;
+      }
+      .badge-read-only {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.72rem;
+        font-weight: 750;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #38bdf8;
+        background: rgba(56, 189, 248, 0.1);
+        border: 1px solid rgba(56, 189, 248, 0.25);
+        padding: 3px 9px;
+        border-radius: 999px;
+        margin-bottom: 10px;
+      }
+      .badge-read-only::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #38bdf8;
+        box-shadow: 0 0 6px #38bdf8;
       }
       h1 {
-        font-size: 1.25rem;
-        font-weight: 700;
-        margin: 0 0 8px;
-        letter-spacing: -0.02em;
+        font-size: 1.35rem;
+        font-weight: 750;
+        margin: 0 0 6px;
+        letter-spacing: -0.025em;
+        color: var(--text-primary);
       }
       h2 {
         font-size: 1.05rem;
-        font-weight: 600;
+        font-weight: 650;
         margin: 0;
+        color: var(--text-primary);
       }
       small,
       .muted {
-        opacity: 0.82;
-        font-size: 0.9rem;
+        color: var(--text-muted);
+        font-size: 0.88rem;
+        line-height: 1.5;
+        margin: 0 0 14px;
       }
       .project-status {
-        margin: 14px 0 10px;
+        margin: 16px 0 14px;
         display: flex;
         align-items: center;
-        gap: 8px;
-        font-weight: 500;
-        font-size: 0.92rem;
+        gap: 10px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--text-muted);
       }
       .status-pill {
-        display: inline-block;
-        padding: 2px 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 11px;
         border-radius: 9999px;
-        font-size: 0.78rem;
+        font-size: 0.8rem;
+        font-weight: 600;
         background: var(--bg-subtle);
         border: 1px solid var(--border-color);
+        color: var(--text-muted);
       }
       .status-pill.active {
-        background: var(--bg-active);
-        border-color: var(--accent-color);
-        color: var(--accent-color);
+        background: rgba(16, 185, 129, 0.1);
+        border-color: rgba(16, 185, 129, 0.35);
+        color: #6ee7b7;
+      }
+      .status-pill.active::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #10b981;
+        box-shadow: 0 0 8px #10b981;
       }
       nav {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin-top: 12px;
+        margin-top: 14px;
+        padding: 4px;
+        background: rgba(10, 15, 28, 0.6);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        width: fit-content;
       }
       button {
-        padding: 8px 14px;
+        padding: 8px 16px;
         cursor: pointer;
-        border-radius: 6px;
-        border: 1px solid var(--border-color);
-        background: var(--bg-subtle);
-        color: inherit;
+        border-radius: 9px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--text-muted);
         font: inherit;
-        font-size: 0.9rem;
-        font-weight: 500;
-        transition:
-          background 150ms ease,
-          border-color 150ms ease,
-          transform 100ms ease;
+        font-size: 0.88rem;
+        font-weight: 600;
+        transition: all 160ms cubic-bezier(0.16, 1, 0.3, 1);
       }
       button:hover:not(:disabled) {
-        background: var(--bg-active);
-        border-color: var(--accent-color);
+        background: var(--bg-subtle);
+        color: var(--text-primary);
+        border-color: rgba(255, 255, 255, 0.08);
       }
       button:active:not(:disabled) {
-        transform: scale(0.98);
+        transform: translateY(1px);
       }
       button:disabled {
-        opacity: 0.45;
+        opacity: 0.4;
         cursor: not-allowed;
       }
       button:focus-visible {
@@ -104,43 +148,53 @@
         outline-offset: 2px;
       }
       button.active {
-        background: var(--accent-color);
+        background: linear-gradient(135deg, #0ea5e9, #2563eb);
         color: #ffffff;
-        border-color: var(--accent-color);
-      }
-      @media (prefers-color-scheme: dark) {
-        button.active {
-          color: #0f172a;
-          font-weight: 600;
-        }
+        box-shadow: 0 2px 12px var(--accent-glow);
+        border-color: transparent;
       }
       section {
-        margin-top: 18px;
+        margin-top: 20px;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
       }
       .report-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 8px;
+        margin-bottom: 12px;
       }
       .copy-btn {
-        padding: 4px 10px;
+        padding: 6px 14px;
         font-size: 0.8rem;
-        font-weight: 500;
+        font-weight: 650;
+        background: var(--bg-subtle);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        transition: all 150ms ease;
+      }
+      .copy-btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.16);
       }
       pre {
-        max-height: 420px;
+        max-height: 440px;
         overflow: auto;
         white-space: pre-wrap;
         overflow-wrap: anywhere;
         border: 1px solid var(--border-color);
-        border-radius: 8px;
-        padding: 14px;
+        border-radius: 12px;
+        padding: 16px;
         margin: 0;
-        background: var(--bg-subtle);
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        background: var(--code-bg);
+        color: #e2e8f0;
+        font-family: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace;
         font-size: 0.85rem;
-        line-height: 1.45;
+        line-height: 1.5;
       }
       @media (prefers-reduced-motion: reduce) {
         button {
@@ -151,19 +205,22 @@
     </style>
   </head>
   <body>
-    <h1>EasyEDA — read-only project review</h1>
-    <p class="muted">
-      All data is requested from the existing MCP tools and stays subject to their normal scope,
-      project ID and Remote Relay gates. No CAD writes are available from this view.
-    </p>
-    <p id="project" class="project-status">
-      Project: <span id="project-pill" class="status-pill">waiting for MCP host</span>
-    </p>
-    <nav role="tablist" aria-label="Review reports">
-      <button id="bom" role="tab" aria-selected="false" disabled>BOM</button>
-      <button id="pcb" role="tab" aria-selected="false" disabled>PCB components</button>
-      <button id="erc" role="tab" aria-selected="false" disabled>ERC</button>
-    </nav>
+    <div class="app-header">
+      <div class="badge-read-only">Read-Only Safety Gate</div>
+      <h1>EasyEDA — read-only project review</h1>
+      <p class="muted">
+        All data is requested from the existing MCP tools and stays subject to their normal scope,
+        project ID and Remote Relay gates. No CAD writes are available from this view.
+      </p>
+      <p id="project" class="project-status">
+        Project: <span id="project-pill" class="status-pill">waiting for MCP host</span>
+      </p>
+      <nav role="tablist" aria-label="Review reports">
+        <button id="bom" role="tab" aria-selected="false" disabled>BOM</button>
+        <button id="pcb" role="tab" aria-selected="false" disabled>PCB components</button>
+        <button id="erc" role="tab" aria-selected="false" disabled>ERC</button>
+      </nav>
+    </div>
     <section>
       <div class="report-header">
         <h2 id="result-title">Report</h2>

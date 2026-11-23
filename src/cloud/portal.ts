@@ -44,7 +44,7 @@ function page(title: string, body: string, state: 'sign-in' | 'consent' | 'accou
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark">
 <title>${escaped(title)} · EasyEDA MCP Pro Cloud</title><link rel="stylesheet" href="/assets/easyeda-cloud.css?v=${cssVersion}"></head>
 <body><div class="wrap">
-<header class="nav"><a class="brand" href="/"><span class="mark" aria-hidden="true">E</span><span class="brand-name">EasyEDA <span>MCP Pro</span></span></a><div class="nav-right"><span class="tag"><span class="tag-dot" aria-hidden="true"></span>Cloud preview</span><a class="nav-link" href="https://github.com/oaslananka/easyeda-mcp-pro">GitHub ↗</a></div></header>
+<header class="nav"><a class="brand" href="/" aria-label="EasyEDA MCP Pro Cloud"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect x="2.5" y="2.5" width="19" height="19" rx="5" stroke="currentColor" stroke-width="1.8" fill="rgba(14, 165, 233, 0.15)"/><path d="M7 8h6M7 12h4M7 16h7M17 8v8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="17" cy="8" r="1.5" fill="currentColor"/><circle cx="17" cy="16" r="1.5" fill="currentColor"/><circle cx="13" cy="8" r="1.5" fill="currentColor"/><circle cx="11" cy="12" r="1.5" fill="currentColor"/></svg></span><span class="brand-name">EasyEDA <span>MCP Pro</span></span></a><div class="nav-right"><span class="tag"><span class="tag-dot" aria-hidden="true"></span>Cloud preview</span><a class="nav-link" href="https://github.com/oaslananka/easyeda-mcp-pro">GitHub <span class="nav-arrow" aria-hidden="true">↗</span></a></div></header>
 <main id="cloud-root" data-page="${state}">${body}<p class="muted" id="notice" role="status" aria-live="polite"></p></main>
 <footer><span>EasyEDA MCP Pro Cloud · Preview</span><span>Your designs stay on your device. <a href="https://github.com/oaslananka/easyeda-mcp-pro">Use Local MCP without an account ↗</a></span></footer></div>
 <script defer src="/assets/easyeda-cloud.js?v=${jsVersion}"></script></body></html>`;
@@ -64,19 +64,19 @@ const signIn = (): string =>
 <div class="journey-step"><span class="step-num">03</span><span><strong>Choose access</strong><small>Select a design and approve your MCP client</small></span></div>
 </div></section>
 <section class="auth-card" aria-labelledby="signin-title">
-<div class="auth-card-top"><div class="auth-icon" aria-hidden="true">↗</div><span class="step-indicator">STEP 01 / 03</span></div>
+<div class="auth-card-top"><div class="auth-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></div><span class="step-indicator">STEP 01 / 03</span></div>
 <h2 id="signin-title">Get started</h2>
 <p class="auth-description">Sign in to open your Cloud workspace.</p>
 <div class="auth-buttons">
-<button class="btn provider-button" type="button" data-provider="github"><span class="provider-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.11.8-.25.8-.56v-2.08c-3.24.7-3.92-1.38-3.92-1.38-.53-1.35-1.29-1.71-1.29-1.71-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.41-1.26.75-1.55-2.59-.29-5.32-1.3-5.32-5.8 0-1.29.46-2.35 1.2-3.18-.12-.3-.52-1.51.12-3.14 0 0 .98-.31 3.18 1.21a11.1 11.1 0 0 1 5.8 0C16.1 4.1 17.08 4.4 17.08 4.4c.64 1.63.24 2.84.12 3.14.75.83 1.19 1.89 1.19 3.18 0 4.51-2.73 5.51-5.33 5.8.42.36.8 1.06.8 2.13v3.7c0 .31.22.68.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg></span><span>Continue with GitHub</span><span class="button-arrow" aria-hidden="true">↗</span></button>
-<button class="btn provider-button secondary" type="button" data-provider="google"><span class="provider-mark google-mark" aria-hidden="true">G</span><span>Continue with Google</span><span class="button-arrow" aria-hidden="true">↗</span></button>
+<button class="btn provider-button" type="button" data-provider="github"><span class="provider-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.11.8-.25.8-.56v-2.08c-3.24.7-3.92-1.38-3.92-1.38-.53-1.35-1.29-1.71-1.29-1.71-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.41-1.26.75-1.55-2.59-.29-5.32-1.3-5.32-5.8 0-1.29.46-2.35 1.2-3.18-.12-.3-.52-1.51.12-3.14 0 0 .98-.31 3.18 1.21a11.1 11.1 0 0 1 5.8 0C16.1 4.1 17.08 4.4 17.08 4.4c.64 1.63.24 2.84.12 3.14.75.83 1.19 1.89 1.19 3.18 0 4.51-2.73 5.51-5.33 5.8.42.36.8 1.06.8 2.13v3.7c0 .31.22.68.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg></span><span>Continue with GitHub</span><span class="button-arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13 13 3M5 3h8v8"/></svg></span></button>
+<button class="btn provider-button secondary" type="button" data-provider="google"><span class="provider-mark google-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3h3.86c2.26-2.09 3.685-5.17 3.685-9.09z"/><path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"/><path fill="#FBBC05" d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z"/></svg></span><span>Continue with Google</span><span class="button-arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13 13 3M5 3h8v8"/></svg></span></button>
 </div>
-<div class="auth-card-foot"><span class="privacy-icon" aria-hidden="true">✓</span><span>No new password. Your files stay on your computer. You approve each MCP client's permissions separately.</span></div>
+<div class="auth-card-foot"><span class="privacy-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5 6.5 12 13 4.5"/></svg></span><span>No new password. Your files stay on your computer. You approve each MCP client's permissions separately.</span></div>
 </section></div>
 <div class="trust-strip" aria-label="Cloud safeguards">
-<div><span class="trust-mark" aria-hidden="true">◎</span><span><strong>Local first</strong><small>Design files remain on your device</small></span></div>
-<div><span class="trust-mark" aria-hidden="true">⌁</span><span><strong>Explicit pairing</strong><small>Only devices you connect</small></span></div>
-<div><span class="trust-mark" aria-hidden="true">✓</span><span><strong>In your control</strong><small>Revoke access whenever you need</small></span></div>
+<div><span class="trust-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><span><strong>Local first</strong><small>Design files remain on your device</small></span></div>
+<div><span class="trust-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span><span><strong>Explicit pairing</strong><small>Only devices you connect</small></span></div>
+<div><span class="trust-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span><strong>In your control</strong><small>Revoke access whenever you need</small></span></div>
 </div>`,
     'sign-in',
   );
@@ -88,7 +88,7 @@ const account = (): string =>
 <p class="eyebrow">CLOUD WORKSPACE</p>
 <h1 class="workspace-title">Your devices</h1>
 <p class="workspace-desc">Connect EasyEDA to the AI assistant you already use. Your designs stay on your device.</p>
-</div><div class="account-identity"><span class="identity-avatar" aria-hidden="true">●</span><span><small>Signed in as</small><strong id="account-name">Your account</strong></span></div></div>
+</div><div class="account-identity"><span class="identity-avatar" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span><small>Signed in as</small><strong id="account-name">Your account</strong></span></div></div>
 <section class="panel guided-panel" aria-labelledby="guided-title" id="start">
 <div class="section-heading"><div><p class="section-kicker" id="guided-kicker">FIRST CONNECTION</p><h2 id="guided-title">Start using EasyEDA MCP Pro</h2></div><span class="step-indicator" id="guided-phase">GUIDED SETUP</span></div>
 <p class="section-description">Follow one setup path. You do not need a WSS address, API token, or MCP configuration file unless your AI app requires one.</p>
@@ -221,7 +221,7 @@ function consent(clientName: string, redirectHost: string, scopeList: string[]):
 ${additionalPermissions ? '<details class="consent-advanced"><summary>More permissions (optional)</summary><ul class="scopes">' + additionalPermissions + '</ul></details>' : ''}
 <p class="notice">Write, Export and Admin stay off unless you select them. EasyEDA still requires approval before a change or export. Only authorize clients you recognize.</p>
 <div class="actions"><button class="btn" type="button" data-consent="allow">Allow selected permissions</button>
-<button class="btn danger" type="button" data-consent="deny">Deny access</button></div></section>`,
+<button class="btn secondary" type="button" data-consent="deny">Deny access</button></div></section>`,
     'consent',
   );
 }
