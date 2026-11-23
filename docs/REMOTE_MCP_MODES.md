@@ -67,6 +67,13 @@ conservative browser guidance, **not** a server-side revocation or proof the
 underlying device disconnected. The Cloud gateway still independently
 enforces the selected native project and current grants for every tool call.
 
+The suggested read-only first question follows the **currently verified**
+selected document type: PCB and schematic use different examples, and an
+unsupported or unknown document type uses a neutral one. The displayed
+question and the Copy action share the same text. Changing the focused
+document invalidates the old selection and disables Copy until the new
+selection and MCP client Read access have been verified.
+
 ### Cloud BOM export delivery
 
 In Hosted Remote mode, call `easyeda_bom_export` with `format: "csv"` or
