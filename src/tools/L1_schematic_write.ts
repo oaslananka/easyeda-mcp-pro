@@ -2,6 +2,10 @@ import { z } from 'zod';
 import { type ToolDefinition, type ToolContext } from './types.js';
 import { type EnvConfig } from '../config/env.js';
 import {
+  assertFocusedSchematicScope,
+  nativeSchematicTarget,
+} from '../transactions/schematic-scope.js';
+import {
   deletePrimitiveExact,
   getGlobalTransactionManager,
   getPrimitiveSnapshot,
@@ -116,7 +120,16 @@ async function readSchematicComponentsForVerification(
     // return undefined, silently disabling the collision guard and the
     // before/after component-count diff in verifyAfterWrite).
     if (Array.isArray(result)) return result;
-    if (result && Array.isArray(result.items)) return result.items;
+    if (result && Array.isArray(result.items)) {
+      // A paginated/incomplete native collection is not a valid baseline
+      // for collision detection or recovery of an uncertain write.
+      if (
+        result.total !== undefined &&
+        (!Number.isSafeInteger(result.total) || result.total !== result.items.length)
+      )
+        return undefined;
+      return result.items;
+    }
     return undefined;
   } catch {
     return undefined;
@@ -131,32 +144,75 @@ function looksLikeTimeoutOrUnconfirmed(err: unknown): boolean {
 }
 
 /**
- * After a placeComponent call errors (typically a timeout), check whether the
- * write actually landed anyway before reporting failure — the EasyEDA-side
- * operation can complete after the bridge's own timeout fires, and blindly
- * reporting failure invites the caller to retry, creating a duplicate
- * component under a second designator (see easyeda-workflow skill's
- * "known write-safety caveats"). Matches on device identity + placement
- * coordinates within `collisionRadius` against the current component list.
+ * EasyEDA uses a project-local device UUID for an installed part, which can
+ * differ from the original library-device UUID used for placement. A direct
+ * match is usable; otherwise require independently reported library, device
+ * and (when supplied) symbol/footprint metadata. Never equate a name alone
+ * with original library provenance.
+ */
+function matchingPlacedDevice(
+  component: SchematicComponentSnapshot,
+  deviceItem: PlaceComponentParams['deviceItem'],
+): boolean {
+  if (
+    component.deviceLibraryUuid !== undefined &&
+    component.deviceLibraryUuid !== deviceItem.libraryUuid
+  )
+    return false;
+  if (component.deviceUuid === deviceItem.uuid) return true;
+  if (
+    typeof deviceItem.name !== 'string' ||
+    !deviceItem.name ||
+    component.deviceLibraryUuid !== deviceItem.libraryUuid ||
+    component.deviceName !== deviceItem.name
+  )
+    return false;
+  if (typeof deviceItem.symbolName === 'string' && component.symbolName !== deviceItem.symbolName)
+    return false;
+  if (
+    typeof deviceItem.footprintName === 'string' &&
+    component.footprint !== deviceItem.footprintName
+  )
+    return false;
+  return true;
+}
+
+function completeInventoryIds(components: SchematicComponentSnapshot[]): Set<string> | undefined {
+  const ids = components.map((component) => component.primitiveId);
+  if (ids.some((id) => typeof id !== 'string' || !id.trim())) return undefined;
+  const unique = new Set(ids as string[]);
+  return unique.size === ids.length ? unique : undefined;
+}
+
+/**
+ * A placement timeout is NOT proof of success or failure. Reconcile only
+ * exactly one newly observed native ID absent from a complete pre-write
+ * inventory. A pre-existing colocated component or ambiguous new matches
+ * must never turn a failed bridge call into false success.
  */
 function findMatchingPlacedComponent(
-  components: SchematicComponentSnapshot[] | undefined,
-  deviceItem: { uuid: string; libraryUuid: string },
-  x: number,
-  y: number,
-  toleranceRadius: number,
+  before: SchematicComponentSnapshot[] | undefined,
+  after: SchematicComponentSnapshot[] | undefined,
+  p: PlaceComponentParams,
 ): SchematicComponentSnapshot | undefined {
-  for (const component of components ?? []) {
-    if (component.deviceUuid !== deviceItem.uuid) continue;
+  if (!before || !after) return undefined;
+  const beforeIds = completeInventoryIds(before);
+  const afterIds = completeInventoryIds(after);
+  if (!beforeIds || !afterIds) return undefined;
+  const radius = p.collisionRadius ?? 25;
+  const matches = after.filter((component) => {
+    const id = component.primitiveId as string;
+    if (beforeIds.has(id) || !matchingPlacedDevice(component, p.deviceItem)) return false;
+    if (p.designator !== undefined && component.reference !== p.designator) return false;
+    if (p.uniqueId !== undefined && component.uniqueId !== p.uniqueId) return false;
+    if (p.subPartName !== undefined && component.subPartName !== p.subPartName) return false;
     const point = schematicWriteComponentPoint(component);
-    if (!point) continue;
-    if (Math.hypot(point.x - x, point.y - y) <= toleranceRadius) return component;
-  }
-  return undefined;
+    return point !== undefined && Math.hypot(point.x - p.x, point.y - p.y) <= radius;
+  });
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 const STANDALONE_CREATE_RECONCILE_ATTEMPTS = 30;
-const STANDALONE_CREATE_RECONCILE_FAILURE_ATTEMPTS = 10;
 const STANDALONE_CREATE_RECONCILE_DELAY_MS = 100;
 const RECREATABLE_TRANSACTION_DELETE_KINDS = new Set([
   'wire',
@@ -275,15 +331,64 @@ async function pollStandaloneAddedPrimitiveIds(
   return [];
 }
 
+/**
+ * A transaction-local component ID is not provenance. The editor may have
+ * concurrently placed a different primitive, including on another tab.
+ * Require a full native inventory and exact placement/library identity before
+ * using the ID in transaction rollback or automatic compensation.
+ */
+async function verifiedTransactionalPlacementId(
+  ctx: ToolContext,
+  p: PlaceComponentParams,
+  beforeIds: ReadonlySet<string>,
+  observedIds: string[],
+): Promise<string> {
+  const after = await readSchematicComponentsForVerification(ctx);
+  if (!after) throw new Error('Native transaction component inventory is incomplete');
+  const allIds = completeInventoryIds(after);
+  if (!allIds) throw new Error('Native transaction component inventory IDs are invalid');
+  if ([...beforeIds].some((id) => !allIds.has(id))) {
+    throw new Error('Existing native components changed during transaction placement');
+  }
+  const newIds = [...allIds].filter((id) => !beforeIds.has(id));
+  const onlyNewId = newIds[0];
+  if (
+    !onlyNewId ||
+    newIds.length !== 1 ||
+    observedIds.length !== 1 ||
+    observedIds[0] !== onlyNewId
+  ) {
+    throw new Error('Transactional placement is ambiguous: exactly one new primitive required');
+  }
+  const reference = [...beforeIds].map((primitiveId) => ({ primitiveId }));
+  const match = findMatchingPlacedComponent(reference, after, p);
+  if (!match || match.primitiveId !== onlyNewId) {
+    throw new Error('Transactional component library, group or position is not verified');
+  }
+  return onlyNewId;
+}
+
 async function placeComponentInTransaction(
   ctx: ToolContext,
   p: z.infer<typeof placeComponentInputSchema>,
 ) {
-  if (!p.transactionId || !p.projectId) throw new Error('Transactional placement requires IDs');
-  const manager = transactionManagerForProject(p.transactionId, p.projectId);
-  const beforeIds = new Set(await listPrimitiveIds(ctx.bridge, 'component'));
-  return manager.runCreate(p.transactionId, `component:${p.deviceItem.uuid}`, {
+  const { transactionId, projectId } = p;
+  if (!transactionId || !projectId) throw new Error('Transactional placement requires IDs');
+  const manager = transactionManagerForProject(transactionId, projectId);
+  const scope = await assertFocusedSchematicScope(ctx.bridge, projectId);
+  const before = await readSchematicComponentsForVerification(ctx);
+  const beforeIds = before && completeInventoryIds(before);
+  if (!beforeIds) {
+    throw new TransactionError(
+      'TRANSACTION_INVALID_STATE',
+      'Native component inventory unavailable before transactional placement',
+    );
+  }
+  await assertFocusedSchematicScope(ctx.bridge, projectId, scope.documentId);
+  return manager.runCreate(transactionId, `component:${p.deviceItem.uuid}`, {
+    nativeSchematicScope: scope,
     apply: async () => {
+      await assertFocusedSchematicScope(ctx.bridge, projectId, scope.documentId);
       const result = await ctx.bridge.call('schematic.placeComponent', {
         deviceItem: p.deviceItem,
         x: p.x,
@@ -295,6 +400,7 @@ async function placeComponentInTransaction(
         mirror: p.mirror,
         addIntoBom: p.addIntoBom,
         addIntoPcb: p.addIntoPcb,
+        ...nativeSchematicTarget(scope),
       });
       const added = await pollStandaloneAddedPrimitiveIds(
         ctx,
@@ -302,30 +408,55 @@ async function placeComponentInTransaction(
         beforeIds,
         STANDALONE_CREATE_RECONCILE_ATTEMPTS,
       );
-      if (added.length > 1) {
-        throw new Error(
-          `Create reconciliation is ambiguous: ${added.length} new component primitives`,
-        );
+      await assertFocusedSchematicScope(ctx.bridge, projectId, scope.documentId);
+      const targetId = await verifiedTransactionalPlacementId(ctx, p, beforeIds, added);
+      await assertFocusedSchematicScope(ctx.bridge, projectId, scope.documentId);
+      // Native responses may omit an addressable ID; when they provide one,
+      // it must not contradict the independently verified new native ID.
+      const resultRecord =
+        result && typeof result === 'object' && !Array.isArray(result)
+          ? (result as Record<string, unknown>)
+          : undefined;
+      const responseId = resultRecord?.primitiveId ?? resultRecord?.componentId;
+      if (responseId !== undefined && responseId !== targetId) {
+        throw new Error('Native create response disagrees with verified component ID');
       }
-      const targetId = added[0];
-      if (!targetId)
-        throw new Error('Create result did not expose a unique component primitive ID');
       return { result, targetId };
     },
-    getSnapshot: async (targetId) => getPrimitiveSnapshot(ctx.bridge, targetId, 'component'),
-    remove: async (targetId) => deletePrimitiveExact(ctx.bridge, targetId),
-    exists: async (targetId) => primitiveExists(ctx.bridge, targetId, 'component'),
-    reconcile: async () => {
-      const added = await pollStandaloneAddedPrimitiveIds(
-        ctx,
-        'component',
-        beforeIds,
-        STANDALONE_CREATE_RECONCILE_FAILURE_ATTEMPTS,
-      );
-      if (added.length === 0) return { status: 'none' as const };
-      if (added.length === 1) return { status: 'created' as const, targetId: added[0] };
-      return { status: 'ambiguous' as const };
+    getSnapshot: async (targetId) => {
+      await assertFocusedSchematicScope(ctx.bridge, projectId, scope.documentId);
+      const snapshot = await getPrimitiveSnapshot(ctx.bridge, targetId, 'component');
+      if (snapshot.primitiveId !== targetId || snapshot.primitiveKind !== 'component') {
+        throw new Error('Native created component snapshot ID or kind is not verified');
+      }
+      await assertFocusedSchematicScope(ctx.bridge, projectId, scope.documentId);
+      return snapshot;
     },
+    remove: async (targetId) => {
+      await assertFocusedSchematicScope(ctx.bridge, projectId, scope.documentId);
+      const post = await readSchematicComponentsForVerification(ctx);
+      if (
+        !post ||
+        findMatchingPlacedComponent(
+          [...beforeIds].map((primitiveId) => ({ primitiveId })),
+          post,
+          p,
+        )?.primitiveId !== targetId
+      ) {
+        throw new Error('Native compensation target is not independently verified');
+      }
+      const snapshot = await getPrimitiveSnapshot(ctx.bridge, targetId, 'component');
+      if (snapshot.primitiveId !== targetId || snapshot.primitiveKind !== 'component') {
+        throw new Error('Native compensation component type or identity changed');
+      }
+      await assertFocusedSchematicScope(ctx.bridge, projectId, scope.documentId);
+      return deletePrimitiveExact(ctx.bridge, targetId, scope, snapshot);
+    },
+    exists: async (targetId) => primitiveExists(ctx.bridge, targetId, 'component'),
+    // A timed-out native create can still arrive late. A newly visible ID
+    // is not ownership proof, and compensating it could delete another
+    // editor's component. Keep the transaction unresolved instead.
+    reconcile: async () => ({ status: 'ambiguous' as const }),
   });
 }
 
@@ -404,18 +535,17 @@ async function applyPlaceComponentWrite(ctx: ToolContext, p: PlaceComponentParam
   return { result, transaction: undefined };
 }
 
-async function handlePlaceComponentError(ctx: ToolContext, p: PlaceComponentParams, err: unknown) {
+async function handlePlaceComponentError(
+  ctx: ToolContext,
+  p: PlaceComponentParams,
+  err: unknown,
+  beforeComponents?: SchematicComponentSnapshot[],
+) {
   if (err instanceof TransactionError) return transactionFailure(err);
   if (!looksLikeTimeoutOrUnconfirmed(err)) return bridgeFailure(err);
 
   const afterComponents = await readSchematicComponentsForVerification(ctx);
-  const match = findMatchingPlacedComponent(
-    afterComponents,
-    p.deviceItem,
-    p.x,
-    p.y,
-    p.collisionRadius ?? 25,
-  );
+  const match = findMatchingPlacedComponent(beforeComponents, afterComponents, p);
   if (match) {
     return {
       success: true,
@@ -750,13 +880,14 @@ function registerSchematicWriteTools(
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
       const p = placeComponentInputSchema.parse(params);
+      let beforeComponents: SchematicComponentSnapshot[] | undefined;
       try {
         const subpartGuard = subpartPlacementGuard(p);
         if (subpartGuard) return subpartGuard;
         const shouldReadBefore = [p.dryRun, p.verifyAfterWrite, p.checkPlacementCollision].some(
           Boolean,
         );
-        const beforeComponents = shouldReadBefore
+        beforeComponents = shouldReadBefore
           ? await readSchematicComponentsForVerification(ctx)
           : undefined;
         if ((p.verifyAfterWrite || p.checkPlacementCollision) && !beforeComponents) {
@@ -821,7 +952,7 @@ function registerSchematicWriteTools(
           placement_guard: placementGuard,
         };
       } catch (err) {
-        return handlePlaceComponentError(ctx, p, err);
+        return handlePlaceComponentError(ctx, p, err, beforeComponents);
       }
     },
   });

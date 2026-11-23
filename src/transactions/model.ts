@@ -101,6 +101,8 @@ export interface TransactionalCreateReconciliation {
 }
 
 export interface TransactionalCreateHooks<TResult = unknown> {
+  /** Pin a native schematic page for later rollback of an accepted create. */
+  nativeSchematicScope?: NativeSchematicScope;
   apply: () => Promise<TransactionalCreateApplyResult<TResult>>;
   getSnapshot: (targetId: string) => Promise<unknown>;
   remove: (targetId: string) => Promise<unknown>;

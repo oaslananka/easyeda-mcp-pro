@@ -434,6 +434,9 @@ export class TransactionManager {
     const operation = this.reserveOperation(transaction, 'create', targetHint, 'absence', {
       exists: false,
     });
+    if (hooks.nativeSchematicScope) {
+      operation.nativeSchematicScope = structuredClone(hooks.nativeSchematicScope);
+    }
     let targetId: string | undefined;
     let result: TResult | undefined;
 

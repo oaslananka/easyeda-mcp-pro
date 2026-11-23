@@ -729,6 +729,30 @@ the local private reservation protocol: .eext 221,604 → 222,372 bytes
 tracks the complete non-minified testable loader; no size checker or
 production package-ceiling enforcement was disabled.
 
+## Schematic component placement: uncertain write and scoped rollback
+
+A native placement timeout is neither proof of failure nor proof of success.
+The server never replays a write just because the bridge timed out. To report
+an in-editor placement as reconciled, it now requires a complete before/after
+native component inventory with unique primitive IDs, exactly one newly
+observed ID, matching source-library or independently reported installed
+device identity, requested group attributes and native coordinates. A
+pre-existing colocated component or an incomplete inventory cannot establish
+ownership. If still uncertain, the result remains `unconfirmed`.
+
+For transaction-backed placement, the native focused project/schematic page is
+verified before and after the write, and the accepted component is pinned to
+its original ID and full native snapshot. Rollback verifies the same focus and
+unchanged snapshot before requesting an exact scoped native delete. An
+ambiguous failed native create keeps the document transaction unresolved;
+re-running rollback cannot auto-delete a guessed new component. The
+server-side transaction lock is **not** a cross-editor/Cloud writer lease.
+
+These checks protect existing write paths. They do **not** enable arbitrary
+component/netflag/netport deletion, prove full electrical connectivity
+reconstruction, or establish cold-reopen persistence. Unsupported native
+operations still fail closed; no production typed-delete allowlist is widened.
+
 ## Bridge version drift
 
 When the active EasyEDA extension and MCP server report different versions,
