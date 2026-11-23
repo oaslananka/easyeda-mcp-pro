@@ -67,6 +67,15 @@ conservative browser guidance, **not** a server-side revocation or proof the
 underlying device disconnected. The Cloud gateway still independently
 enforces the selected native project and current grants for every tool call.
 
+When you return to an already open Cloud workspace tab after changing the
+active EasyEDA document, Cloud rechecks the device/selected document **and**
+MCP client Read permission immediately rather than showing the earlier
+selected design until the next 30-second foreground poll. During the new
+check, the prior "ready" guidance and Copy action are disabled until the
+focused document is reverified. Background tabs do not poll. If concurrent checks complete out of order, only the newest
+check may update the verified device state; an older answer cannot restore
+a stale ready indication. Manual Refresh remains available after an error.
+
 The suggested read-only first question follows the **currently verified**
 selected document type: PCB and schematic use different examples, and an
 unsupported or unknown document type uses a neutral one. The displayed

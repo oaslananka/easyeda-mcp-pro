@@ -366,6 +366,9 @@ export const CLOUD_JS = String.raw`
       if (deviceStatusUnavailable) return {
         kicker: 'STATUS UNAVAILABLE', title: 'Verify your EasyEDA connection', phase: 'RETRY CONNECTION CHECK',
       };
+      if (!deviceLoaded) return {
+        kicker: 'CHECKING CONNECTION', title: 'Verifying the selected EasyEDA design', phase: 'VERIFYING CURRENT DEVICE',
+      };
       if (clientStatusUnavailable && hasSelectedDesign) return {
         kicker: 'VERIFY PERMISSIONS', title: 'Check MCP authorization', phase: 'RETRY ACCESS CHECK',
       };
@@ -557,11 +560,16 @@ export const CLOUD_JS = String.raw`
       card.appendChild(confirmation);
       return card;
     };
+    // Multiple foreground events, polling and explicit selection can race.
+    // Only the latest initiated device check may update visible trust state.
+    let latestDeviceCheck = 0;
     const refreshExtensions = async () => {
+      const check = ++latestDeviceCheck;
       let data;
       try {
         data = await request('/cloud/api/extensions');
       } catch (error) {
+        if (check !== latestDeviceCheck) return [];
         // An old success may no longer describe the connected device. Do not
         // imply the previous selection is still ready when Cloud is unreachable.
         deviceStatusUnavailable = true;
@@ -578,6 +586,7 @@ export const CLOUD_JS = String.raw`
         updateGuided();
         throw error;
       }
+      if (check !== latestDeviceCheck) return [];
       deviceStatusUnavailable = false;
       selected = data.selection;
       visibleSessionIds = new Set((Array.isArray(data.sessions) ? data.sessions : []).map((session) => session.sessionId));
@@ -746,30 +755,41 @@ export const CLOUD_JS = String.raw`
         const initialLoad = await Promise.allSettled([refreshExtensions(), loadClients(), loadUsage()]);
         if (initialLoad[0].status === 'rejected') fail(initialLoad[0].reason);
         if (initialLoad[1].status === 'rejected') fail(initialLoad[1].reason);
-        // Refresh permission grants made in another OAuth tab when the owner
-        // returns, as well as on the existing foreground polling interval.
-        const refreshVisibleClients = () => {
-          if (!document.hidden) void loadClients().catch(() => {
-            // The Permissions card retains its manual Refresh fallback.
+        // The native editor can switch documents while this Cloud tab is
+        // hidden. On return, independently recheck BOTH the selected device
+        // and the chosen OAuth client's permissions; polling remains bounded
+        // to foreground tabs and never substitutes for live authorization.
+        const refreshVisibleWorkspace = (reverifyBeforeUse = false) => {
+          if (document.hidden) return;
+          if (reverifyBeforeUse) {
+            // While checking after returning from another tab, the old
+            // ready state is not sufficient evidence to offer a tool prompt.
+            deviceLoaded = false;
+            hasSelectedDesign = false;
+            selectedDocumentType = null;
+            updateGuided();
+          }
+          void loadClients().catch(() => {
+            // The Permissions card keeps its manual Refresh fallback.
+          });
+          void refreshExtensions().catch(() => {
+            // Fail-closed status and manual device Refresh remain available.
           });
         };
-        document.addEventListener('visibilitychange', refreshVisibleClients);
-        window.addEventListener('focus', refreshVisibleClients);
+        const refreshOnReturn = () => refreshVisibleWorkspace(true);
+        document.addEventListener('visibilitychange', refreshOnReturn);
+        window.addEventListener('focus', refreshOnReturn);
         // No polling in background tabs or after leaving the workspace.
         const usageTimer = setInterval(() => {
           if (!document.hidden) {
             void loadUsage();
-            refreshVisibleClients();
-            // A device can disconnect while this page remains open.
-            void refreshExtensions().catch(() => {
-              // Manual Refresh is available when a status poll fails.
-            });
+            refreshVisibleWorkspace();
           }
         }, 30000);
         window.addEventListener('pagehide', () => {
           clearInterval(usageTimer);
-          document.removeEventListener('visibilitychange', refreshVisibleClients);
-          window.removeEventListener('focus', refreshVisibleClients);
+          document.removeEventListener('visibilitychange', refreshOnReturn);
+          window.removeEventListener('focus', refreshOnReturn);
         }, { once: true });
         const pair = get('generate-pairing');
         const copy = get('copy-pairing');
