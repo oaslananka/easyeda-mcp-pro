@@ -151,6 +151,7 @@ describe('Hosted Cloud browser recovery', () => {
     fetcher: (url: string) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>,
   ) {
     const redirects: string[] = [];
+    const clipboardWrites: string[] = [];
     const elements = new Map<string, any>();
     const intervals = new Map<number, { delay: number; callback: () => void }>();
     const windowListeners = new Map<string, () => void>();
@@ -238,10 +239,18 @@ describe('Hosted Cloud browser recovery', () => {
         intervals.delete(timer);
       },
       fetch: fetcher,
+      navigator: {
+        clipboard: {
+          writeText: async (value: string) => {
+            clipboardWrites.push(value);
+          },
+        },
+      },
     });
     await new Promise<void>((resolve) => setImmediate(resolve));
     return {
       redirects,
+      clipboardWrites,
       notice: elements.get('notice') as { textContent: string },
       elements,
       async tickUsage() {
@@ -268,6 +277,96 @@ describe('Hosted Cloud browser recovery', () => {
       },
     };
   }
+
+  it('shows and copies a read-only first question for the currently verified PCB or schematic, never the previous design', async () => {
+    let documentType = 'pcb';
+    let documentId = 'pcb-doc';
+    let selection: { sessionId: string; projectId: string; documentId: string } | null = {
+      sessionId: 'owner-session',
+      projectId: 'owner-project',
+      documentId,
+    };
+    const result = await runWorkspace(async (url) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Owner' } }) };
+      if (url === '/cloud/api/extensions')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            sessions: [
+              {
+                sessionId: 'owner-session',
+                connected: true,
+                mode: 'hosted',
+                extensionVersion: '1.17.0',
+                activeProject: { projectId: 'owner-project', documentId, documentType },
+              },
+            ],
+            selection,
+          }),
+        };
+      if (url === '/cloud/api/clients')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            clients: [{ id: 'chatgpt', name: 'ChatGPT', scopes: ['easyeda.read'] }],
+          }),
+        };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            total: 0,
+            succeeded: 0,
+            failed: 0,
+            lastCallAt: null,
+          }),
+        };
+      throw Error('Unexpected Cloud endpoint ' + url);
+    });
+    const prompt = () => result.elements.get('guided-first-question-text').textContent as string;
+    const copy = result.elements.get('copy-first-question');
+
+    expect(result.elements.get('guided-kicker').textContent).toBe('DESIGN SELECTED');
+    expect(copy.disabled).toBe(false);
+    expect(prompt()).toContain('focused PCB');
+    expect(prompt()).toContain('cannot be verified');
+    expect(prompt()).not.toContain('schematic');
+    await copy.dispatch('click');
+    expect(result.clipboardWrites).toEqual([prompt()]);
+
+    // Moving editor focus invalidates the prior document selection: neither a
+    // PCB-specific prompt nor the copy action may carry over to the new page.
+    documentType = 'schematic';
+    documentId = 'schematic-doc';
+    await result.elements.get('refresh-extensions').dispatch('click');
+    expect(copy.disabled).toBe(true);
+    expect(prompt()).not.toContain('focused PCB');
+    expect(prompt()).toContain('selected EasyEDA design');
+    await copy.dispatch('click');
+    expect(result.clipboardWrites).toHaveLength(1);
+
+    selection = { sessionId: 'owner-session', projectId: 'owner-project', documentId };
+    await result.elements.get('refresh-extensions').dispatch('click');
+    expect(copy.disabled).toBe(false);
+    expect(prompt()).toContain('focused schematic');
+    await copy.dispatch('click');
+    expect(result.clipboardWrites).toEqual([expect.stringContaining('focused PCB'), prompt()]);
+
+    // A future/native document type must never be silently called schematic.
+    documentType = 'panel';
+    documentId = 'panel-doc';
+    selection = { sessionId: 'owner-session', projectId: 'owner-project', documentId };
+    await result.elements.get('refresh-extensions').dispatch('click');
+    expect(prompt()).toContain('selected EasyEDA design');
+    expect(prompt()).not.toContain('schematic');
+    expect(prompt()).not.toContain('focused PCB');
+    await copy.dispatch('click');
+    expect(result.clipboardWrites.at(-1)).toBe(prompt());
+  });
 
   it('does not display stale Read permission after a failed authorization refresh', async () => {
     let authorizationUnavailable = false;
@@ -1240,6 +1339,7 @@ describe('Hosted Cloud browser portal', () => {
       }
       expect(signedHtml).toContain('aria-label="Connection progress"');
       expect(signedHtml).toContain('id="copy-first-question"');
+      expect(signedHtml).toContain('id="guided-first-question-text"');
       expect(signedHtml).toContain('id="pair-title"');
       // Setup text must have one flexible text column: bare text/strong children
       // of a flex row shrink into separate narrow columns on a desktop card.

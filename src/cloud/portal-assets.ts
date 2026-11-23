@@ -316,7 +316,12 @@ export const CLOUD_JS = String.raw`
   if (page === 'account') {
     // The URL is public configuration, never a bearer token or extension WSS link.
     const mcpUrl = (window.location.origin || 'https://easyeda-mcp-pro.oaslananka.dev') + '/mcp';
-    const firstQuestion = 'Inspect the focused schematic and explain its power connections. Do not change anything.';
+    const firstQuestionForSelectedDocument = () =>
+      selectedDocumentType === 'pcb'
+        ? "Inspect the focused PCB's component placement and available routing. Explain what cannot be verified. Do not change anything."
+        : selectedDocumentType === 'schematic'
+          ? 'Inspect the focused schematic and explain its power connections. Do not change anything.'
+          : 'Inspect the selected EasyEDA design and summarize what can be verified. Do not change anything.';
     const clientOptions = {
       chatgpt: {
         name: 'ChatGPT', instructions: 'In ChatGPT Plugins, choose Add custom MCP server. Paste this URL and approve Read access when prompted.',
@@ -347,6 +352,7 @@ export const CLOUD_JS = String.raw`
     let hasOnlineDevice = false;
     let hasPreviousPairings = false;
     let hasSelectedDesign = false;
+    let selectedDocumentType = null;
     let readClientCount = 0;
     let readClientNames = [];
     // OAuth grants are authoritative; client display names are only a UI cue,
@@ -401,6 +407,7 @@ export const CLOUD_JS = String.raw`
         !clientsLoaded ? 'Checking authorization…' :
         readClientCount ? 'Read access: ' + readClientNames.slice(0, 2).join(' · ') +
           (readClientCount > 2 ? ' +' + (readClientCount - 2) : '') : 'No MCP client authorized yet');
+      setText('guided-first-question-text', firstQuestionForSelectedDocument());
       const prompt = get('copy-first-question');
       if (prompt) prompt.disabled = !hasSelectedDesign || !chosenClientHasReadAccess;
       const connect = get('guided-connect-link');
@@ -468,7 +475,7 @@ export const CLOUD_JS = String.raw`
       copyGuided(get('client-config')?.textContent || mcpUrl, 'Connection details copied. Add them in your AI app and approve Read access.'));
     get('copy-first-question')?.addEventListener('click', () => {
       if (hasSelectedDesign && selectedClientHasReadAccess())
-        void copyGuided(firstQuestion, 'Question copied. Ask it in the selected, authorized MCP client.');
+        void copyGuided(firstQuestionForSelectedDocument(), 'Question copied. Ask it in the selected, authorized MCP client.');
     });
     selectClient(selectedClient);
     updateGuided();
@@ -562,6 +569,7 @@ export const CLOUD_JS = String.raw`
         hasOnlineDevice = false;
         hasPreviousPairings = false;
         hasSelectedDesign = false;
+        selectedDocumentType = null;
         selected = null;
         visibleSessionIds = new Set();
         hasLoadedSessionList = false;
@@ -578,14 +586,16 @@ export const CLOUD_JS = String.raw`
       const sessions = Array.isArray(data.sessions) ? data.sessions : [];
       const online = sessions.filter((session) => session.connected);
       const offline = sessions.filter((session) => !session.connected);
-      const selectedOnline = online.some((session) =>
+      const selectedOnlineSession = online.find((session) =>
         selected?.sessionId === session.sessionId &&
         selected.projectId === session.activeProject?.projectId &&
         selected.documentId === session.activeProject?.documentId);
+      const selectedOnline = Boolean(selectedOnlineSession);
       deviceLoaded = true;
       hasOnlineDevice = online.length > 0;
       hasPreviousPairings = offline.length > 0;
       hasSelectedDesign = selectedOnline;
+      selectedDocumentType = selectedOnlineSession?.activeProject?.documentType ?? null;
       updateGuided();
       const pairingStatus = get('pairing-code');
       if (!online.length && pairingStatus?.textContent === 'Connected') {

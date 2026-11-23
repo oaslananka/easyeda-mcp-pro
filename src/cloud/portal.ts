@@ -121,7 +121,7 @@ const account = (): string =>
 <div class="guided-status">
 <div class="guided-status-line"><span>EasyEDA & selected design</span><strong id="guided-device-status">Checking connection…</strong><a href="#pair-title" id="guided-connect-link">Set up EasyEDA ↓</a></div>
 <div class="guided-status-line"><span>MCP client permission</span><strong id="guided-access-status">Checking authorization…</strong><a href="#clients-title">Manage permissions ↓</a></div>
-<div class="guided-status-line guided-last"><span>First question</span><p class="muted">“Inspect the focused schematic and explain its power connections. Do not change anything.”</p><button class="btn subtle small" id="copy-first-question" type="button" disabled>Copy first question</button></div>
+<div class="guided-status-line guided-last"><span>First question</span><p class="muted" id="guided-first-question-text">Inspect the selected EasyEDA design and summarize what can be verified. Do not change anything.</p><button class="btn subtle small" id="copy-first-question" type="button" disabled>Copy first question</button></div>
 </div>
 </div>
 <p id="guided-hint" class="guided-hint" role="status" aria-live="polite">Choose your AI app, then connect EasyEDA below.</p>
