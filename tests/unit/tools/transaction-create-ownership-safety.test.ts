@@ -144,4 +144,77 @@ describe('schematic create ownership safety (separate from unsupported typed del
     expect(created).toMatchObject({ success: false, unconfirmed: true });
     expect(created).not.toHaveProperty('reconciled', true);
   });
+
+  it.each([
+    ['truncated native component inventory', 'truncated'],
+    ['existing native component disappears during creation', 'removed'],
+    ['returned native ID differs from the only new component', 'wrong-response'],
+    ['fresh native snapshot reports a different primitive kind', 'wrong-snapshot'],
+  ] as const)('refuses unsafe transaction state: %s', async (_description, scenario) => {
+    let placed = false;
+    const existing = {
+      primitiveId: 'old-1',
+      deviceUuid: 'dev-previous',
+      deviceLibraryUuid: 'lib-previous',
+      x: 100,
+      y: 200,
+    };
+    const created = {
+      primitiveId: 'new-1',
+      deviceUuid: 'dev-1',
+      deviceLibraryUuid: 'lib-1',
+      x: 10,
+      y: 20,
+    };
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'api.read') return nativeFocus(params.path);
+      if (method === 'schematic.listComponents') {
+        if (!placed) {
+          return scenario === 'truncated'
+            ? { total: 2, items: [existing] }
+            : { total: 1, items: [existing] };
+        }
+        const items = scenario === 'removed' ? [created] : [existing, created];
+        return { total: items.length, items };
+      }
+      if (method === 'schematic.listPrimitiveIds')
+        return { primitiveIds: placed ? ['new-1'] : ['old-1'] };
+      if (method === 'schematic.placeComponent') {
+        placed = true;
+        return { componentId: scenario === 'wrong-response' ? 'another-1' : 'new-1' };
+      }
+      if (method === 'schematic.getPrimitiveSnapshot') {
+        return {
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveId: 'new-1',
+          primitiveKind: scenario === 'wrong-snapshot' ? 'wire' : 'component',
+          property: { x: 10, y: 20 },
+        };
+      }
+      if (method === 'schematic.deletePrimitive') {
+        throw new Error('UNSAFE: native component identity cannot be proved');
+      }
+      throw new Error('Unexpected bridge call: ' + method);
+    });
+
+    const begin = registry.get('easyeda_project_begin_transaction');
+    const place = registry.get('easyeda_schematic_place_component');
+    const started = (await begin?.handler(context, { projectId: 'proj-1' })) as any;
+    const result = await place?.handler(context, {
+      projectId: 'proj-1',
+      transactionId: started.transaction.id,
+      deviceItem: { libraryUuid: 'lib-1', uuid: 'dev-1' },
+      x: 10,
+      y: 20,
+      confirmWrite: true,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      error_code:
+        scenario === 'truncated' ? 'TRANSACTION_INVALID_STATE' : 'TRANSACTION_OPERATION_FAILED',
+    });
+    expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
+    if (scenario === 'truncated')
+      expect(bridgeCall).not.toHaveBeenCalledWith('schematic.placeComponent', expect.anything());
+  });
 });
