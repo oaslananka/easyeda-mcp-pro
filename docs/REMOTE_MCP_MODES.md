@@ -55,6 +55,18 @@ Open EasyEDA Web project
 
 The extension opens an outbound relay connection. The hosted gateway never connects directly to a user's local network.
 
+### Cloud workspace connection and permission checks
+
+The Cloud account page verifies the connected EasyEDA extension, explicitly
+selected document and authorized MCP clients separately. If either the device
+list or OAuth permission list becomes unavailable after a previously successful
+read, the guide shows **Connection unavailable** or **Authorization
+unavailable** rather than reusing a stale ready indication. Its sample
+question is disabled until the respective **Refresh** succeeds. This is
+conservative browser guidance, **not** a server-side revocation or proof the
+underlying device disconnected. The Cloud gateway still independently
+enforces the selected native project and current grants for every tool call.
+
 ### Cloud BOM export delivery
 
 In Hosted Remote mode, call `easyeda_bom_export` with `format: "csv"` or
