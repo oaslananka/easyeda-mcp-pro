@@ -79,7 +79,7 @@ function getInfoToastType(): string {
 
 type ConnectMode = 'manual' | 'auto';
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
-type InboundMessageType = 'hello' | 'heartbeat' | 'request' | 'ignored';
+type InboundMessageType = 'hello' | 'heartbeat' | 'request' | 'busy' | 'ignored';
 
 interface EasyedaGlobal {
   [key: string]: unknown;
@@ -1133,11 +1133,12 @@ function recoverConnection(reason: string): void {
   }
 }
 
-function sendHandshake(): void {
+function sendHandshake(mode: ConnectMode): void {
   const sessionToken =
     typeof BRIDGE_SESSION_TOKEN !== 'undefined' ? BRIDGE_SESSION_TOKEN : undefined;
   const handshake: Record<string, unknown> = {
     type: 'handshake',
+    connectionIntent: mode,
     protocol: BRIDGE_PROTOCOL,
     protocolVersion: BRIDGE_VERSION,
     contractVersion: BRIDGE_CONTRACT_VERSION,
@@ -1271,6 +1272,8 @@ function handleMessage(raw: string): InboundMessageType {
     lastServerActivityMs = Date.now();
   }
   switch (message.type) {
+    case 'local_connection_busy':
+      return 'busy';
     case 'hello':
       applyHelloPayload(message as Record<string, unknown>);
       return 'hello';
@@ -1293,6 +1296,7 @@ async function connectToPort(
   runId: number,
   showSuccessToast: boolean,
   timeoutMs: number,
+  mode: ConnectMode,
 ): Promise<boolean> {
   const url = buildLocalBridgeWebSocketUrl(port);
   const socketId = `${SOCKET_ID}-${runId}-${port}`;
@@ -1372,12 +1376,18 @@ async function connectToPort(
               port,
               transport: socketHandle.type,
             });
-            sendHandshake();
+            sendHandshake(mode);
           },
           (data) => {
             if (!isCurrentGeneration()) return;
             try {
               const messageType = handleMessage(data);
+              if (messageType === 'busy') {
+                finish(false);
+                disconnectInternal(false);
+                showToast('Another editor is connected. Click Connect to switch.');
+                return;
+              }
               if (messageType === 'hello' && !settled) {
                 socketHandle = resolvedHandle();
                 connectedPort = port;
@@ -1532,7 +1542,7 @@ async function connectInternal(mode: ConnectMode = 'manual'): Promise<void> {
       for (const attempt of getLocalBridgeConnectionAttempts(preferredPort)) {
         if (runId !== connectRunId || manualDisconnectRequested) return;
         // Always show success toast so the user knows auto-connect worked.
-        const connected = await connectToPort(attempt.port, runId, true, attempt.timeoutMs);
+        const connected = await connectToPort(attempt.port, runId, true, attempt.timeoutMs, mode);
         if (connected) {
           preferredPort = attempt.port;
           return;

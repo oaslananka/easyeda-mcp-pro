@@ -269,6 +269,7 @@ describe('Schematic Tools', () => {
     });
     expect(wires).toMatchObject({ read_scope: focusedScope('system.inspectWires') });
     expect(bridgeCall).toHaveBeenCalledWith('system.inspectWires', {
+      projectId: 'proj-123',
       limit: 50,
       offset: 0,
       scope: 'focused',
@@ -2411,7 +2412,11 @@ describe('Schematic Tools', () => {
         offset: 0,
       });
 
-      expect(bridgeCall).toHaveBeenCalledWith('system.inspectWires', { limit: 50, offset: 0 });
+      expect(bridgeCall).toHaveBeenCalledWith('system.inspectWires', {
+        projectId: 'proj-123',
+        limit: 50,
+        offset: 0,
+      });
       expect(result).toMatchObject({
         project_id: 'proj-123',
         total: 1,

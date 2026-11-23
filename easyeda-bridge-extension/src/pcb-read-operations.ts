@@ -21,7 +21,7 @@ export interface PcbReadOperations {
   readProjectScoped(
     projectId: string,
     read: () => Promise<unknown>,
-    documentType?: number,
+    documentType?: number | null,
   ): Promise<unknown>;
   listComponents(limit?: number, offset?: number): Promise<unknown>;
   listFills(limit?: number, offset?: number): Promise<unknown>;
@@ -229,25 +229,33 @@ export function createPcbReadOperations({
   readFirstPath,
   readState,
 }: PcbReadOperationDependencies): PcbReadOperations {
-  async function verifiedPcbIdentity(projectId: string, documentType: number) {
+  async function verifiedPcbIdentity(projectId: string, documentType: number | null) {
     const documentApi = readFirstPath<any>(['DMT_SelectControl', 'dmt_SelectControl']);
     const projectApi = readFirstPath<any>(['DMT_Project', 'dmt_Project']);
     if (
       typeof projectId !== 'string' ||
       projectId.length === 0 ||
-      typeof documentApi?.getCurrentDocumentInfo !== 'function' ||
+      (documentType !== null && typeof documentApi?.getCurrentDocumentInfo !== 'function') ||
       typeof projectApi?.getCurrentProjectInfo !== 'function'
     ) {
       throw new Error(
         'PCB project identity unavailable: native project/document getters are required',
       );
     }
-    const document = await documentApi.getCurrentDocumentInfo();
     const project = await projectApi.getCurrentProjectInfo();
+    if (documentType === null) {
+      if (project?.uuid === projectId) return projectId;
+      throw Object.assign(new Error('Schematic project identity mismatch'), {
+        code: 'PROJECT_INACTIVE',
+      });
+    }
+    const document = await documentApi.getCurrentDocumentInfo();
     const reason = scopedIdentityFailure(document, project, projectId, documentType);
     if (reason) {
       const label = documentType === 3 ? 'PCB' : 'Schematic';
-      throw new Error(`${label} project identity mismatch: ${reason}`);
+      throw Object.assign(new Error(`${label} project identity mismatch: ${reason}`), {
+        code: project?.uuid !== projectId ? 'PROJECT_INACTIVE' : 'CONTEXT_UNAVAILABLE',
+      });
     }
     return document.uuid as string;
   }
@@ -255,14 +263,17 @@ export function createPcbReadOperations({
   async function readProjectScoped(
     projectId: string,
     read: () => Promise<unknown>,
-    documentType = 3,
+    documentType: number | null = 3,
   ): Promise<unknown> {
     const before = await verifiedPcbIdentity(projectId, documentType);
     const result = await read();
     const after = await verifiedPcbIdentity(projectId, documentType);
     if (before !== after) {
-      throw new Error(
-        `${documentType === 3 ? 'PCB' : 'Schematic'} document changed during list read; discard results and retry`,
+      throw Object.assign(
+        new Error(
+          `${documentType === 3 ? 'PCB' : 'Schematic'} document changed during list read; discard results and retry`,
+        ),
+        { code: 'CONTEXT_UNAVAILABLE' },
       );
     }
     return result;

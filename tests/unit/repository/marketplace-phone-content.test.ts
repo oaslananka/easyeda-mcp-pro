@@ -10,6 +10,20 @@ describe('marketplace phone-content verification', () => {
     expect(findPhoneLikeContent(compiled, 'dist/index.js')).toEqual([]);
   });
 
+  it('accepts the exact reviewed symbol after whitespace-only compression', () => {
+    const compact = compiled
+      .replaceAll(' = ', '=')
+      .replaceAll(': ', ':')
+      .replaceAll(', ', ',')
+      .replaceAll('{ ', '{')
+      .replaceAll(' }', '}');
+    expect(findPhoneLikeContent(compact, 'dist/index.js')).toEqual([]);
+    expect(findPhoneLikeContent(compact.replace('Netport-IN', 'Other'), 'dist/index.js')).toContain(
+      '70348655',
+    );
+    expect(findPhoneLikeContent(compact + '70348655', 'dist/index.js')).toContain('70348655');
+  });
+
   it.each(['README.md', 'CHANGELOG.md', 'extension.json'])(
     'does not apply the exception to %s',
     (file) => {

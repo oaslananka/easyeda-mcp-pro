@@ -58,6 +58,8 @@ The AI client (e.g. Claude Desktop or Cursor) displays an error: `"Failed to sta
 
 9. **Desktop WebSocket 403 (EasyEDA Pro 3.2.209)**: The desktop editor can send `Origin: https://client` when connecting to the local bridge. Older servers may reject this as `Forbidden Origin` even with External Interactions enabled. Use a server build containing the desktop-origin compatibility fix; the exact origin is accepted automatically **only when the bridge listens on loopback**. Do not disable Origin checks, expose the bridge publicly, or set `ALLOWED_ORIGINS=*` to work around this error.
 
+10. **Multiple editor windows**: With matched server and extension builds that support local window ownership, an automatic connection cannot replace an already connected editor. If you see **Another editor is connected. Click Connect to switch.**, open the intended schematic or PCB and choose **MCP Bridge → Connect** in that window. The displaced window stops retrying automatically. Check the project and document identity before continuing a design workflow; a missing or mismatched requested project is not an empty schematic. This behavior is for the local bridge, not Hosted Cloud workspace selection.
+
 ---
 
 ## 3. Supplier API Credentials Missing

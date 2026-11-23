@@ -198,7 +198,11 @@ export function createDispatcherDomainRouter(
       const route = routes.find((candidate) => candidate.method === method);
       if (!route) return { handled: false };
       assertRouterSchematicScope(method, params);
-      const schematicScoped = params.projectId !== undefined && method.startsWith('schematic.list');
+      const schematicScoped =
+        params.projectId !== undefined &&
+        (method.startsWith('schematic.list') ||
+          method === 'system.inspectWires' ||
+          method === 'schematic.getSheetInfo');
       const scoped =
         schematicScoped ||
         method.startsWith('pcb.list') ||
@@ -209,7 +213,14 @@ export function createDispatcherDomainRouter(
           ? dependencies.pcbReadOperations.readProjectScoped(
               params.projectId as string,
               () => route.handle(params),
-              schematicScoped ? 1 : 3,
+              schematicScoped
+                ? method === 'schematic.getSheetInfo' &&
+                  (params.scope === 'all_pages' ||
+                    params.scope === 'page' ||
+                    params.pageUuid !== undefined)
+                  ? null
+                  : 1
+                : 3,
             )
           : route.handle(params)),
       };

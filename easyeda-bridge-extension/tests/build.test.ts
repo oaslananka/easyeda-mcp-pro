@@ -562,7 +562,7 @@ describe('build.mjs hot-swap define', () => {
     outDirs.push(outDir);
     const bundle = buildInto(outDir, { MCP_DEV_HOTSWAP: '' });
 
-    expect(bundle).toContain('var edaEsbuildExportName = (() => {');
+    expect(bundle).toMatch(/var\s+edaEsbuildExportName\s*=\s*\(\(\)\s*=>\s*\{/);
     for (const exportedName of [
       'activate',
       'deactivate',
@@ -573,7 +573,7 @@ describe('build.mjs hot-swap define', () => {
       'disableAutoConnect',
       'toggleAutoConnect',
     ]) {
-      expect(bundle).toMatch(new RegExp(`${exportedName}: \\(\\) => ${exportedName}`));
+      expect(bundle).toMatch(new RegExp(`${exportedName}:\\s*\\(\\)\\s*=>\\s*${exportedName}`));
     }
   });
 });
