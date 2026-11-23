@@ -342,6 +342,8 @@ export const CLOUD_JS = String.raw`
     let selectedClient = 'chatgpt';
     let deviceLoaded = false;
     let clientsLoaded = false;
+    let deviceStatusUnavailable = false;
+    let clientStatusUnavailable = false;
     let hasOnlineDevice = false;
     let hasPreviousPairings = false;
     let hasSelectedDesign = false;
@@ -349,12 +351,18 @@ export const CLOUD_JS = String.raw`
     let readClientNames = [];
     // OAuth grants are authoritative; client display names are only a UI cue,
     // never a security boundary or proof that the selected app is connected.
-    const selectedClientHasReadAccess = () => readClientCount > 0 &&
+    const selectedClientHasReadAccess = () => clientsLoaded && readClientCount > 0 &&
       (selectedClient === 'other' || readClientNames.some((name) =>
         name.toLowerCase().includes(selectedClient)));
     // The connection guide is also shown to returning owners with a selected
     // design. Keep its next action aligned with the actual connection state.
     const guidedPresentation = (readyForQuestion) => {
+      if (deviceStatusUnavailable) return {
+        kicker: 'STATUS UNAVAILABLE', title: 'Verify your EasyEDA connection', phase: 'RETRY CONNECTION CHECK',
+      };
+      if (clientStatusUnavailable && hasSelectedDesign) return {
+        kicker: 'VERIFY PERMISSIONS', title: 'Check MCP authorization', phase: 'RETRY ACCESS CHECK',
+      };
       if (readyForQuestion) return {
         kicker: 'DESIGN SELECTED', title: 'Your EasyEDA workspace', phase: 'NEXT: ASK A QUESTION',
       };
@@ -385,10 +393,12 @@ export const CLOUD_JS = String.raw`
       if (accessStage) accessStage.dataset.state = chosenClientHasReadAccess && hasSelectedDesign ? 'done' : hasSelectedDesign ? 'current' : 'waiting';
       // The sample question still needs to be asked inside the actual MCP client.
       if (questionStage) questionStage.dataset.state = hasSelectedDesign && chosenClientHasReadAccess ? 'current' : 'waiting';
-      setText('guided-device-status', !deviceLoaded ? 'Checking connection…' :
+      setText('guided-device-status', deviceStatusUnavailable ? 'Connection unavailable · refresh to retry' :
+        !deviceLoaded ? 'Checking connection…' :
         hasSelectedDesign ? 'Connected · design selected' : hasOnlineDevice ? 'Connected · choose a design below' :
         hasPreviousPairings ? 'Saved pairing offline' : 'Not connected');
-      setText('guided-access-status', !clientsLoaded ? 'Checking authorization…' :
+      setText('guided-access-status', clientStatusUnavailable ? 'Authorization unavailable · refresh to retry' :
+        !clientsLoaded ? 'Checking authorization…' :
         readClientCount ? 'Read access: ' + readClientNames.slice(0, 2).join(' · ') +
           (readClientCount > 2 ? ' +' + (readClientCount - 2) : '') : 'No MCP client authorized yet');
       const prompt = get('copy-first-question');
@@ -400,7 +410,11 @@ export const CLOUD_JS = String.raw`
           hasPreviousPairings ? 'Reconnect EasyEDA ↓' : 'Connect EasyEDA ↓';
         connect.href = hasOnlineDevice || hasPreviousPairings ? '#extensions-title' : '#pair-title';
       }
-      setText('guided-hint', !deviceLoaded || !clientsLoaded ? 'Checking your connection and permissions…' :
+      setText('guided-hint', deviceStatusUnavailable ?
+        'Cloud could not verify the connected EasyEDA device. Refresh Devices before starting an MCP operation.' :
+        clientStatusUnavailable ?
+          'Cloud could not verify your MCP client permissions. Refresh Permissions before sending a question.' :
+        !deviceLoaded || !clientsLoaded ? 'Checking your connection and permissions…' :
         !hasOnlineDevice && hasPreviousPairings ?
           'A saved pairing is offline. Reopen EasyEDA and let MCP Bridge reconnect; pair again only if access expired or was removed.' :
         !hasOnlineDevice ? 'Next: install the bridge once, then pair EasyEDA below.' :
@@ -537,7 +551,26 @@ export const CLOUD_JS = String.raw`
       return card;
     };
     const refreshExtensions = async () => {
-      const data = await request('/cloud/api/extensions');
+      let data;
+      try {
+        data = await request('/cloud/api/extensions');
+      } catch (error) {
+        // An old success may no longer describe the connected device. Do not
+        // imply the previous selection is still ready when Cloud is unreachable.
+        deviceStatusUnavailable = true;
+        deviceLoaded = false;
+        hasOnlineDevice = false;
+        hasPreviousPairings = false;
+        hasSelectedDesign = false;
+        selected = null;
+        visibleSessionIds = new Set();
+        hasLoadedSessionList = false;
+        setText('device-count', 'Connection unavailable');
+        list.replaceChildren(el('div', 'empty', 'Could not verify device connections. Select Refresh to retry.'));
+        updateGuided();
+        throw error;
+      }
+      deviceStatusUnavailable = false;
       selected = data.selection;
       visibleSessionIds = new Set((Array.isArray(data.sessions) ? data.sessions : []).map((session) => session.sessionId));
       hasLoadedSessionList = true;
@@ -623,6 +656,7 @@ export const CLOUD_JS = String.raw`
         const data = await request('/cloud/api/clients');
         const consents = Array.isArray(data?.clients) ? data.clients : [];
         clientsLoaded = true;
+        clientStatusUnavailable = false;
         const readableClients = consents.filter((consent) => Array.isArray(consent?.scopes) &&
           (consent.scopes.includes('easyeda.read') || consent.scopes.includes('easyeda.project_admin')));
         readClientCount = readableClients.length;
@@ -683,6 +717,9 @@ export const CLOUD_JS = String.raw`
         });
       } catch (error) {
         clientsLoaded = false;
+        clientStatusUnavailable = true;
+        readClientCount = 0;
+        readClientNames = [];
         updateGuided();
         dest.replaceChildren(el('div','empty','Client authorizations could not be loaded. Select Refresh to retry.'));
         throw error;

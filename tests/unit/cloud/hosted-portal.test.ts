@@ -269,6 +269,136 @@ describe('Hosted Cloud browser recovery', () => {
     };
   }
 
+  it('does not display stale Read permission after a failed authorization refresh', async () => {
+    let authorizationUnavailable = false;
+    const response = async (url: string) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Owner' } }) };
+      if (url === '/cloud/api/extensions')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            sessions: [
+              {
+                sessionId: 'device',
+                connected: true,
+                extensionVersion: '1.17.0',
+                mode: 'hosted',
+                activeProject: { projectId: 'pcb-1', documentId: 'board-1', documentType: 'pcb' },
+              },
+            ],
+            selection: { sessionId: 'device', projectId: 'pcb-1', documentId: 'board-1' },
+          }),
+        };
+      if (url === '/cloud/api/clients') {
+        if (authorizationUnavailable)
+          return { ok: false, status: 503, json: async () => ({ message: 'Service unavailable' }) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            clients: [{ id: 'client-1', name: 'ChatGPT', scopes: ['easyeda.read'] }],
+          }),
+        };
+      }
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            total: 0,
+            succeeded: 0,
+            failed: 0,
+            lastCallAt: null,
+          }),
+        };
+      throw Error('Unexpected request ' + url);
+    };
+    const result = await runWorkspace(response);
+    expect(result.elements.get('guided-kicker').textContent).toBe('DESIGN SELECTED');
+    expect(result.elements.get('copy-first-question').disabled).toBe(false);
+
+    authorizationUnavailable = true;
+    await result.elements.get('refresh-clients').dispatch('click');
+    expect(result.elements.get('guided-access-status').textContent).toBe(
+      'Authorization unavailable · refresh to retry',
+    );
+    expect(result.elements.get('copy-first-question').disabled).toBe(true);
+    expect(result.elements.get('progress-ask').dataset.state).toBe('waiting');
+    expect(result.elements.get('guided-kicker').textContent).not.toBe('DESIGN SELECTED');
+
+    authorizationUnavailable = false;
+    await result.elements.get('refresh-clients').dispatch('click');
+    expect(result.elements.get('copy-first-question').disabled).toBe(false);
+    expect(result.elements.get('guided-kicker').textContent).toBe('DESIGN SELECTED');
+  });
+
+  it('does not imply a selected design stays ready after device refresh fails', async () => {
+    let deviceUnavailable = false;
+    const response = async (url: string) => {
+      if (url === '/cloud/api/me')
+        return { ok: true, status: 200, json: async () => ({ user: { name: 'Owner' } }) };
+      if (url === '/cloud/api/extensions') {
+        if (deviceUnavailable)
+          return { ok: false, status: 503, json: async () => ({ message: 'Service unavailable' }) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            sessions: [
+              {
+                sessionId: 'device',
+                connected: true,
+                extensionVersion: '1.17.0',
+                mode: 'hosted',
+                activeProject: { projectId: 'pcb-1', documentId: 'board-1', documentType: 'pcb' },
+              },
+            ],
+            selection: { sessionId: 'device', projectId: 'pcb-1', documentId: 'board-1' },
+          }),
+        };
+      }
+      if (url === '/cloud/api/clients')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            clients: [{ id: 'client-1', name: 'ChatGPT', scopes: ['easyeda.read'] }],
+          }),
+        };
+      if (url === '/cloud/api/usage')
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            total: 0,
+            succeeded: 0,
+            failed: 0,
+            lastCallAt: null,
+          }),
+        };
+      throw Error('Unexpected request ' + url);
+    };
+    const result = await runWorkspace(response);
+    expect(result.elements.get('guided-kicker').textContent).toBe('DESIGN SELECTED');
+    expect(result.elements.get('copy-first-question').disabled).toBe(false);
+
+    deviceUnavailable = true;
+    await result.elements.get('refresh-extensions').dispatch('click');
+    expect(result.elements.get('guided-device-status').textContent).toBe(
+      'Connection unavailable · refresh to retry',
+    );
+    expect(result.elements.get('copy-first-question').disabled).toBe(true);
+    expect(result.elements.get('progress-ask').dataset.state).toBe('waiting');
+    expect(result.elements.get('guided-kicker').textContent).not.toBe('DESIGN SELECTED');
+
+    deviceUnavailable = false;
+    await result.elements.get('refresh-extensions').dispatch('click');
+    expect(result.elements.get('copy-first-question').disabled).toBe(false);
+    expect(result.elements.get('guided-kicker').textContent).toBe('DESIGN SELECTED');
+  });
+
   it('guides new users from AI choice through device selection and a read-only first question', async () => {
     let sessions: any[] = [];
     let selection: any = null;
