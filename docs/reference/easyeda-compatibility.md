@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.18.3               | 1.18.3                | 1.18.3            | Live validated  | 2026-11-24 | 2027-02-22 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.18.2               | 1.18.2                | 1.18.2            | Live validated  | 2026-11-24 | 2027-02-22 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.18.1               | 1.18.1                | 1.18.1            | Live validated  | 2026-11-24 | 2027-02-22 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.18.0               | 1.18.0                | 1.18.0            | Live validated  | 2026-11-24 | 2027-02-22 |
@@ -81,6 +82,53 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-155947a-v1183-native-local
+
+Record ID: `easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-155947a-v1183-native-local`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `4.1.105.0339a6cd`                                                                                      |
+| Electron                                 | `not independently recorded`                                                                            |
+| Chromium                                 | `not independently recorded` (Chromium version not independently measured in this exact-candidate run.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                      |
+| Kernel                                   | `7.0.0-43-generic`                                                                                      |
+| Architecture                             | `x86_64`                                                                                                |
+| Node.js used by validation server        | `24.22.3`                                                                                               |
+| Validation package version               | `1.18.3`                                                                                                |
+| Fix version represented by evidence      | `1.18.3`                                                                                                |
+| Compatibility-sensitive base commit      | `155947a517cac4b17a5db7928ff4a625dc99fafd`                                                              |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                |
+| Installed extension package metadata     | `1.18.3`                                                                                                |
+| Live-validated extension package SHA-256 | `d943e43c10f211d201440f664c9f5b2f236751e28d57aaeb5fa28c1784f14bd6`                                      |
+| Live-validated extension package size    | `239858 bytes`                                                                                          |
+| Loader-reported version                  | `1.18.3`                                                                                                |
+| Bridge contract                          | `1.0.0`                                                                                                 |
+| Dispatcher                               | `baked`                                                                                                 |
+| Method registry hash                     | `18f74759624edc90`                                                                                      |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                       |
+
+The installed extension package and loader both reported version `1.18.3` during this validation.
+
+### Capability evidence
+
+| Capability                                                   | Level  | Status    | Result                                                                                                                                                                                                                                                     | Evidence                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------ | ------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact 1.18.3 package and local MCP handshake                 | `live` | `passed`  | Official isolated extension manager install enabled with external interactions; two native runtime identities match server and extension 1.18.3, health ok, 83 methods, baked dispatcher, no registry or version mismatch.                                 | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.3-155947a-native-local-mcp.json), [PR #1135](https://github.com/oaslananka/easyeda-mcp-pro/pull/1135), [PR #1134](https://github.com/oaslananka/easyeda-mcp-pro/pull/1134)                                                                         |
+| Explicit Local and Disconnect device trust cleanup           | `live` | `passed`  | In a live Local extension context, each explicit Connect Local, Disconnect and Disconnect Cloud command independently cleared a synthetic valid-shape trust record. Local MCP reconnected after each command. No actual Hosted startup or bearer was used. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.3-155947a-native-local-mcp.json), [PR #1135](https://github.com/oaslananka/easyeda-mcp-pro/pull/1135), [PR #1134](https://github.com/oaslananka/easyeda-mcp-pro/pull/1134)                                                                         |
+| Focused schematic read-back after restart                    | `live` | `passed`  | After a full process restart and explicit Local Connect, trust key absent and independently observed focused schematic wire counts match (native 34, MCP 34); disposable design hashes unchanged.                                                          | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.3-155947a-native-local-mcp.json), [PR #1135](https://github.com/oaslananka/easyeda-mcp-pro/pull/1135), [PR #1134](https://github.com/oaslananka/easyeda-mcp-pro/pull/1134)                                                                         |
+| Actual Hosted remembered-device and independent-user journey | `live` | `blocked` | No new authenticated Hosted or provider acceptance; native synthetic trust cleanup and fixture lifecycle coverage do not establish automatic recovery, provider rotation, expiry or isolation.                                                             | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.3-155947a-native-local-mcp.json), [PR #1135](https://github.com/oaslananka/easyeda-mcp-pro/pull/1135), [PR #1134](https://github.com/oaslananka/easyeda-mcp-pro/pull/1134), [Issue #850](https://github.com/oaslananka/easyeda-mcp-pro/issues/850) |
+
+### Known limitations
+
+- Exact 1.18.3 native validation is limited to the recorded Ubuntu V4 official extension installation, Local stdio MCP handshake, explicit Local/Disconnect cleanup of synthetic trust, and focused schematic read-back; not full API or other native versions.
+- Only a synthetic non-authentication record was created after Local activation. No intentional Hosted connection, real credential, provider login, or Cloud OAuth scope/approval test. Failed Cloud startup and automatic fallback are covered by automated fixtures, not this live run. Actual Hosted recovery/independent-user/expiry/provider rotation remain open (#850).
+- The cold absence observation occurred after explicit Local Connect, which can itself clear trust. It is not independent proof of absence before activation or automatic reconnect suppression.
+- Installation inner exit 0; acceptance first inner exit 7 after all three cleanup results were captured, due to a stale expected wire count of 2 from a different fixture. Cold read-back inner exit 0, independently measured native and MCP counts both 34. Outer wrappers exited 1 during immediate post-test checks; subsequent independent checks confirmed process/display/CLI socket cleanup and unchanged fixture hashes. Nonfatal GPU initialization diagnostics were observed.
+- Prior native autoroute/persistence and rollback evidence is historical. No new PCB mutation, fabrication, saved copper equivalence, or manufacturing acceptance.
 
 ## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-381f7ba-v1182-native-local
 

@@ -4,6 +4,117 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-155947a-v1183-native-local",
+      "status": "live-validated",
+      "validatedAt": "2026-11-24T13:44:27Z",
+      "reviewBy": "2027-02-22",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-43-generic",
+        "nodeVersion": "24.22.3"
+      },
+      "easyedaPro": {
+        "version": "4.1.105.0339a6cd",
+        "electronVersion": "not independently recorded",
+        "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+        "chromiumVersion": "not independently recorded",
+        "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+      },
+      "server": {
+        "validationPackageVersion": "1.18.3",
+        "releaseContainingFixes": "1.18.3",
+        "commit": "155947a517cac4b17a5db7928ff4a625dc99fafd",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "f1db57c3b902192765c8b1629c6ee47be0f96370",
+            "src/bridge": "227a0a48511fa54cfe036c619efef59d3325eee9",
+            "src/remote": "7fcd33c262536ec1cba79c49e4ad24615663633a",
+            "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+            "src/tools": "876b584c5fde9620817146df6aa57579f89ab0ec",
+            "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.18.3",
+        "loaderReportedVersion": "1.18.3",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "18f74759624edc90",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "daa4bx4da8x4ec5",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "d943e43c10f211d201440f664c9f5b2f236751e28d57aaeb5fa28c1784f14bd6",
+        "packageSizeBytes": 239858
+      },
+      "fixture": {
+        "project": "Isolated disposable local schematic/PCB fixture copied from prior verified baseline; no personal design",
+        "schematic": "Focused schematic; synthetic non-authentication device record under the trust key after Local activation, explicit command cleanup, cold reopen and independent wire count; no design write",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v1183-native-install-handshake",
+          "name": "Exact 1.18.3 package and local MCP handshake",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Official isolated extension manager install enabled with external interactions; two native runtime identities match server and extension 1.18.3, health ok, 83 methods, baked dispatcher, no registry or version mismatch.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.3-155947a-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1135",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1134"
+          ]
+        },
+        {
+          "id": "v1183-explicit-local-trust-cleanup",
+          "name": "Explicit Local and Disconnect device trust cleanup",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "In a live Local extension context, each explicit Connect Local, Disconnect and Disconnect Cloud command independently cleared a synthetic valid-shape trust record. Local MCP reconnected after each command. No actual Hosted startup or bearer was used.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.3-155947a-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1135",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1134"
+          ]
+        },
+        {
+          "id": "v1183-focused-cold-readback",
+          "name": "Focused schematic read-back after restart",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "After a full process restart and explicit Local Connect, trust key absent and independently observed focused schematic wire counts match (native 34, MCP 34); disposable design hashes unchanged.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.3-155947a-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1135",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1134"
+          ]
+        },
+        {
+          "id": "v1183-hosted-recovery",
+          "name": "Actual Hosted remembered-device and independent-user journey",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "No new authenticated Hosted or provider acceptance; native synthetic trust cleanup and fixture lifecycle coverage do not establish automatic recovery, provider rotation, expiry or isolation.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.3-155947a-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1135",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1134",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/850"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Exact 1.18.3 native validation is limited to the recorded Ubuntu V4 official extension installation, Local stdio MCP handshake, explicit Local/Disconnect cleanup of synthetic trust, and focused schematic read-back; not full API or other native versions.",
+        "Only a synthetic non-authentication record was created after Local activation. No intentional Hosted connection, real credential, provider login, or Cloud OAuth scope/approval test. Failed Cloud startup and automatic fallback are covered by automated fixtures, not this live run. Actual Hosted recovery/independent-user/expiry/provider rotation remain open (#850).",
+        "The cold absence observation occurred after explicit Local Connect, which can itself clear trust. It is not independent proof of absence before activation or automatic reconnect suppression.",
+        "Installation inner exit 0; acceptance first inner exit 7 after all three cleanup results were captured, due to a stale expected wire count of 2 from a different fixture. Cold read-back inner exit 0, independently measured native and MCP counts both 34. Outer wrappers exited 1 during immediate post-test checks; subsequent independent checks confirmed process/display/CLI socket cleanup and unchanged fixture hashes. Nonfatal GPU initialization diagnostics were observed.",
+        "Prior native autoroute/persistence and rollback evidence is historical. No new PCB mutation, fabrication, saved copper equivalence, or manufacturing acceptance."
+      ]
+    },
+    {
       "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-381f7ba-v1182-native-local",
       "status": "live-validated",
       "validatedAt": "2026-11-24T08:36:34Z",
