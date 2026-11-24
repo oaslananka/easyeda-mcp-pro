@@ -64,7 +64,8 @@ or enclosure clearance using the relevant manufacturer drawings. Missing
 models or unmeasured mechanical constraints are **UNKNOWN**, not a passed
 check. Follow the [manual 3D enclosure and assembly review](../production-qa.md).
 
-The current MCP canvas capture is **2D only**; it must not be reported as a
+For a quick visual aid, the Pro-profile `easyeda_pcb_3d_preview` tool renders
+exported geometry with unverified model coverage. The MCP canvas capture is **2D only**; it must not be reported as a
 verified 3D collision or enclosure-fit analysis. Resolve the unknowns before
 manufacturing handoff.
 

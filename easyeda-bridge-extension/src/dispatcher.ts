@@ -84,6 +84,7 @@ const METHOD_LIST: readonly string[] = [
   'board.getFeatures',
   'board.getStackup',
   'board.listLayers',
+  'board.preview3d',
   'bom.generate',
   'bom.validate',
   'canvas.capture',

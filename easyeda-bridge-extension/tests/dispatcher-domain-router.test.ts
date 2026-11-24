@@ -53,6 +53,10 @@ function createDependencies() {
       getFeatures: vi.fn(async () => 'features'),
     },
     exportOperations: {
+      preview3d: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'preview3d',
+        params,
+      })),
       export3d: vi.fn(async (params: Record<string, unknown>) => ({ method: '3d', params })),
       exportGerbers: vi.fn(async (params: Record<string, unknown>) => ({
         method: 'gerbers',
@@ -262,6 +266,7 @@ const expectedMethods = [
   'board.getFeatures',
   'board.getStackup',
   'board.listLayers',
+  'board.preview3d',
   'bom.generate',
   'bom.validate',
   'canvas.capture',
@@ -437,6 +442,7 @@ describe('createDispatcherDomainRouter', () => {
       ['project.create', dependencies.projectOperations.create],
       ['pcb.importFromSchematic', dependencies.projectOperations.importSchematicToPcb],
       ['board.export3d', dependencies.exportOperations.export3d],
+      ['board.preview3d', dependencies.exportOperations.preview3d],
     ] as const) {
       await expect(router.tryDispatch(method, params)).resolves.toMatchObject({ handled: true });
       expect(routed).toHaveBeenCalledWith(params);

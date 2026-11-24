@@ -1,5 +1,5 @@
 import type { ApiRuntime, BridgeErrorFactory } from './api-runtime.js';
-import type { BinaryResultNormalizer } from './binary-result.js';
+import { isBlobLike, type BinaryResultNormalizer } from './binary-result.js';
 import type { PcbReadOperations } from './pcb-read-operations.js';
 
 export interface ExportOperationDependencies {
@@ -16,6 +16,7 @@ export interface ExportOperations {
   exportPdf(params: Record<string, unknown>): Promise<unknown>;
   exportNetlist(params: Record<string, unknown>): Promise<unknown>;
   exportOdb(params: Record<string, unknown>): Promise<unknown>;
+  preview3d(params: Record<string, unknown>): Promise<unknown>;
   export3d(params: Record<string, unknown>): Promise<unknown>;
 }
 
@@ -196,7 +197,62 @@ export function createExportOperations({
     return normalizeBinaryResult(result, fileType === 'obj' ? 'board.obj' : 'board.step');
   }
 
+  async function preview3d(params: Record<string, unknown>): Promise<unknown> {
+    const projectId = requireProjectId(params, '3D preview');
+    const pcbId = typeof params.pcbId === 'string' ? params.pcbId.trim() : '';
+    if (!pcbId) {
+      throw createBridgeError('INVALID_PARAMS', '3D preview requires a PCB ID.', 'Specify pcbId.');
+    }
+    const verifyFocus = async () => {
+      const info = (await callFirst(['DMT_SelectControl.getCurrentDocumentInfo'])) as
+        { documentType?: number; parentProjectUuid?: string; uuid?: string } | undefined;
+      if (info?.documentType !== 3 || info.parentProjectUuid !== projectId || info.uuid !== pcbId) {
+        throw createBridgeError(
+          'DOCUMENT_NOT_FOCUSED',
+          'Requested PCB is not focused.',
+          'Focus the requested PCB and retry.',
+        );
+      }
+    };
+    return readProjectScoped(
+      projectId,
+      async () => {
+        await verifyFocus();
+        const result = await callFirst(
+          [p + 'get3DFile'],
+          'board-3d-preview',
+          'obj',
+          ['Component Model'],
+          'Parts',
+          false,
+        );
+        if (
+          !isBlobLike(result) ||
+          !Number.isSafeInteger(result.size) ||
+          result.size <= 0 ||
+          result.size > 700 * 1024
+        ) {
+          throw createBridgeError(
+            'EXPORT_NOT_AVAILABLE',
+            'Native OBJ export is unavailable or exceeds the preview budget.',
+            'Check the board outline and model export; use regular 3D export for larger boards.',
+          );
+        }
+        const binary = await normalizeBinaryResult(result, 'board-3d-preview.zip');
+        await verifyFocus();
+        return {
+          ...(binary as Record<string, unknown>),
+          projectId,
+          pcbId,
+          autoGenerateModels: false,
+        };
+      },
+      3,
+    );
+  }
+
   return {
+    preview3d,
     export3d,
     exportGerbers,
     exportRouteContext,

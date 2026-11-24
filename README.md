@@ -110,10 +110,10 @@ Counts below are generated from the active registry, not copied from a release c
 | Profile        | Registered tools |
 | -------------- | ---------------: |
 | `core`         |               84 |
-| `pro`          |              113 |
-| `full`         |              130 |
-| `dev`          |              135 |
-| `experimental` |              136 |
+| `pro`          |              114 |
+| `full`         |              131 |
+| `dev`          |              136 |
+| `experimental` |              137 |
 
 <!-- capability-counts:end -->
 

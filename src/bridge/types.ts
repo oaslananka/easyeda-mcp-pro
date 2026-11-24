@@ -47,6 +47,7 @@ export const EasyedaApiMethodSchema = z.enum([
   'board.getFeatures',
   'board.exportGerbers',
   'board.export3d',
+  'board.preview3d',
   'pcb.importFromSchematic',
   'bom.generate',
   'bom.validate',

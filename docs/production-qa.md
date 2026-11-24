@@ -131,7 +131,29 @@ body dimensions or enclosure clearance.
    reviewer has resolved the applicable unknowns. Keep the generated QA
    manifest's `passed` value separate from human mechanical/fabrication sign-off.
 
-### Why there is no automatic 3D capture claim
+### Exported 3D geometry preview (Pro profile)
+
+With a matching server and extension, focus the intended PCB and call
+`easyeda_pcb_3d_preview` with its `projectId`, `pcbId` and optionally
+`view: "isometric"` or `"underside"`. The tool returns an MCP PNG image
+rendered on the CPU from EasyEDA's native OBJ/MTL export, without editing the
+design or writing files. The beta native export format was verified with
+EasyEDA Pro 4.1.105 on Ubuntu 24.04. Other versions and platforms are not
+live-verified for this preview.
+
+The operation requires export permission, including normal remote export
+approval. Its camera is relative to the exported mesh, not the editor's
+top/bottom state. It disables automatic model generation, but native exports
+can still contain placeholder or missing models. Model coverage remains
+unverified. The preview does not establish component body dimensions,
+collision clearance or manufacturing readiness.
+
+The renderer accepts the bounded two-entry native OBJ/MTL ZIP format (700 KiB
+compressed, 8 MiB uncompressed, triangular geometry, opaque materials).
+Unsupported, oversized or unavailable exports return an explicit unavailable
+result; use regular 3D export and external CAD inspection as appropriate.
+
+### Why there is no automatic native 3D capture claim
 
 The [official 3D Preview guide](https://prodocs.easyeda.com/en/pcb/view-preview-3d/)
 describes the editor's manual 3D workflow. Current extension documentation also
@@ -141,7 +163,8 @@ contain an ID, name and transform, **not independently verified body bounds**.
 The [official ray-tracing API reference](https://prodocs.easyeda.com/en/api/reference/pro-api.pcb_raytracerengine.html)
 does not establish a stable, available 3D capture or per-component height
 contract on supported **EasyEDA Pro 3.2.209**. It must not be silently used as a
-production feature. Until a compatible stable API is available and validated on
-an actual disposable PCB, automatic 3D collision/height/side checks remain
+production feature. The exported geometry preview is not a native capture. Until appropriate
+model identity and geometric measurement contracts are validated, automatic
+3D collision/height/side checks remain
 **not available**. Track the missing capability in
 [issue #931](https://github.com/oaslananka/easyeda-mcp-pro/issues/931).

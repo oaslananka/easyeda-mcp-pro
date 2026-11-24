@@ -77,6 +77,7 @@ export function createDispatcherDomainRouter(
     'api.call': (params) => dependencies.systemApiOperations.apiCall(params),
     'api.read': (params) => dependencies.systemApiOperations.apiRead(params),
     'api.execute': (params) => dependencies.systemApiOperations.apiExecute(params),
+    'board.preview3d': (params) => dependencies.exportOperations.preview3d(params),
     'board.export3d': (params) => dependencies.exportOperations.export3d(params),
     'board.exportGerbers': (params) => dependencies.exportOperations.exportGerbers(params),
     'document.activate': (params) => dependencies.projectOperations.activateDocument(params),
