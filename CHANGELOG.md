@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.18.3...easyeda-mcp-pro-v1.19.0) (2026-11-24)
+
+
+### Features
+
+* **pcb:** render scoped native 3D geometry previews ([#1138](https://github.com/oaslananka/easyeda-mcp-pro/issues/1138)) ([cbbda5e](https://github.com/oaslananka/easyeda-mcp-pro/commit/cbbda5e2418c1ac59b74be47cfbd0ae2201b0e9d))
+
 ## [1.18.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.18.2...easyeda-mcp-pro-v1.18.3) (2026-11-24)
 
 
