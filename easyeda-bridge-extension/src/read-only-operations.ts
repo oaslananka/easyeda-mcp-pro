@@ -330,6 +330,12 @@ export function createReadOnlyOperations(
     },
 
     async listPrimitiveIds(params) {
+      if (params.requireVerifiedInventory === true)
+        return dependencies.schematicTransactionOperations.listPrimitiveIds(
+          params.primitiveKind,
+          false,
+          true,
+        );
       return dependencies.schematicTransactionOperations.listPrimitiveIds(
         params.primitiveKind,
         params.includeNativeParts === true,

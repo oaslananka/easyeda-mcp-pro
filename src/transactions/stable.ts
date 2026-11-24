@@ -53,7 +53,7 @@ export function serializedSize(value: unknown): number {
  * paths remain exact until native connectivity equivalence is independently
  * validated. Network, style and all other snapshot properties remain intact.
  */
-function normalizeUndirectedTwoPointWire(
+export function normalizeUndirectedTwoPointWire(
   snapshot: Record<string, unknown>,
 ): Record<string, unknown> {
   if (

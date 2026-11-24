@@ -36,6 +36,36 @@ export async function getPrimitiveSnapshot(
   });
 }
 
+/** A drawing ownership witness is intrinsic native state, not transport metadata.
+ * Require exact native target evidence on every scoped read, then separate it
+ * from the snapshot passed to the transaction hash and native delete guard.
+ */
+export async function getScopedDrawingSnapshot(
+  bridge: TransactionBridgeCaller,
+  primitiveId: string,
+  kind: string,
+  scope: NativeSchematicScope,
+): Promise<PrimitiveSnapshotResult> {
+  const result = await bridge.call<Record<string, unknown>, PrimitiveSnapshotResult>(
+    'schematic.getPrimitiveSnapshot',
+    { primitiveId, expectedPrimitiveKind: kind, ...nativeSchematicTarget(scope) },
+  );
+  const evidence = result?.targetDocument;
+  if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence))
+    throw new Error('Native drawing snapshot target evidence unavailable');
+  const target = evidence as Record<string, unknown>;
+  if (
+    target.uuid !== scope.documentId ||
+    target.projectUuid !== scope.projectId ||
+    target.documentType !== 'schematic' ||
+    typeof target.name !== 'string' ||
+    !target.name.trim()
+  )
+    throw new Error('Native drawing snapshot target does not match the verified project/page');
+  const { targetDocument: _transportEvidence, ...snapshot } = result;
+  return snapshot;
+}
+
 function isPrimitiveNotFoundError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const record = error as Record<string, unknown>;
@@ -308,14 +338,23 @@ async function rollbackVerifiedCreatedPrimitive(
 
   // The document-local transaction lock does not fence GUI/Cloud editors.
   await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
-  const snapshot = await getPrimitiveSnapshot(bridge, operation.target.id, 'component');
+  const kind = (operation.afterSnapshot as PrimitiveSnapshotResult | undefined)?.primitiveKind;
+  if (
+    typeof kind !== 'string' ||
+    !['component', 'wire', 'text', 'rectangle', 'circle', 'polygon'].includes(kind)
+  )
+    throw new Error('Native created primitive kind is unverified; no delete');
+  const snapshot =
+    kind === 'component'
+      ? await getPrimitiveSnapshot(bridge, operation.target.id, kind)
+      : await getScopedDrawingSnapshot(bridge, operation.target.id, kind, scope);
   if (
     snapshot.primitiveId !== operation.target.id ||
-    snapshot.primitiveKind !== 'component' ||
+    snapshot.primitiveKind !== kind ||
     !operation.afterHash ||
     stableHash(snapshot) !== operation.afterHash
   ) {
-    throw new Error('Native created component changed before rollback; no delete');
+    throw new Error('Native created primitive changed before rollback; no delete');
   }
   await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
   await deletePrimitiveExact(bridge, operation.target.id, scope, snapshot);
@@ -378,7 +417,14 @@ export async function rollbackEasyedaTransaction(
     },
     verify: async (operation, restoreResult) => {
       if (operation.kind === 'create') {
-        return !(await primitiveExists(bridge, operation.target.id));
+        const scope = operation.nativeSchematicScope;
+        const kind = scope
+          ? (operation.afterSnapshot as PrimitiveSnapshotResult | undefined)?.primitiveKind
+          : undefined;
+        if (scope) await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
+        const absent = !(await primitiveExists(bridge, operation.target.id, kind));
+        if (scope) await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
+        return absent;
       }
       const beforeSnapshot = requireBeforeSnapshot(operation);
       const pinSnapshot = asPinNoConnectSnapshot(beforeSnapshot);

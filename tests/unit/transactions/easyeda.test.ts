@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   extractCreatedPrimitiveId,
+  getScopedDrawingSnapshot,
   recreatePrimitiveSnapshot,
   rollbackEasyedaTransaction,
   type TransactionBridgeCaller,
@@ -431,6 +432,121 @@ async function exerciseWireRollback(after: ReturnType<typeof wireSnapshot>) {
   } as unknown as TransactionBridgeCaller;
   return { result: await rollbackEasyedaTransaction(manager, transaction.id, bridge), calls };
 }
+
+describe('scoped drawing snapshot transport evidence', () => {
+  const scope = { projectId: 'project-1', documentId: 'page-1' };
+  const snapshot = {
+    schemaVersion: 'schematic-primitive-snapshot/v1',
+    primitiveId: 'text-1',
+    primitiveKind: 'text',
+    property: { x: 1, y: 2, content: 'test' },
+  };
+  const target = {
+    uuid: 'page-1',
+    projectUuid: 'project-1',
+    documentType: 'schematic',
+    name: 'P1',
+  };
+  it('binds the read to both native identifiers and excludes only verified transport evidence', async () => {
+    const response = { ...snapshot, targetDocument: target };
+    const call = vi.fn(async () => response);
+    const bridge = { call } as unknown as TransactionBridgeCaller;
+    await expect(getScopedDrawingSnapshot(bridge, 'text-1', 'text', scope)).resolves.toEqual(
+      snapshot,
+    );
+    expect(call).toHaveBeenCalledWith('schematic.getPrimitiveSnapshot', {
+      primitiveId: 'text-1',
+      expectedPrimitiveKind: 'text',
+      expectedProjectUuid: 'project-1',
+      expectedSchematicPageUuid: 'page-1',
+    });
+    expect(response.targetDocument).toEqual(target);
+  });
+  it.each(
+    [
+      undefined,
+      null,
+      [],
+      { ...target, uuid: 'page-2' },
+      { ...target, projectUuid: 'foreign' },
+      { ...target, projectUuid: undefined },
+      { ...target, documentType: 'pcb' },
+      { ...target, name: '' },
+    ].map((evidence) => ({ evidence })),
+  )('refuses unverifiable target metadata (%j)', async ({ evidence }) => {
+    const call = vi.fn(async () => ({ ...snapshot, targetDocument: evidence }));
+    await expect(
+      getScopedDrawingSnapshot(
+        { call } as unknown as TransactionBridgeCaller,
+        'text-1',
+        'text',
+        scope,
+      ),
+    ).rejects.toThrow('Native drawing snapshot target');
+  });
+});
+
+describe('scoped create rollback kind witness', () => {
+  it('preserves unscoped legacy create rollback without granting it a native scope', async () => {
+    const manager = new TransactionManager();
+    const transaction = manager.begin({ documentId: 'project-1' });
+    const snapshot = {
+      primitiveId: 'legacy',
+      primitiveKind: 'text',
+      property: { content: 'test' },
+    };
+    let exists = true;
+    await manager.runCreate(transaction.id, 'legacy', {
+      apply: async () => ({ result: {}, targetId: 'legacy' }),
+      getSnapshot: async () => snapshot,
+      remove: async () => {},
+      exists: async () => exists,
+    });
+    const call = vi.fn(async (method: string, params: any) => {
+      if (method === 'schematic.deletePrimitive') {
+        expect(params).toEqual({ primitiveIds: ['legacy'] });
+        exists = false;
+        return { deleted: ['legacy'] };
+      }
+      if (method === 'schematic.getPrimitiveSnapshot') {
+        if (!exists) throw Object.assign(new Error('absent'), { code: 'PRIMITIVE_NOT_FOUND' });
+        return snapshot;
+      }
+      throw new Error('Unexpected method ' + method);
+    });
+    const result = await rollbackEasyedaTransaction(manager, transaction.id, {
+      call,
+    } as unknown as TransactionBridgeCaller);
+    expect(result.transaction.rollbackComplete).toBe(true);
+    expect(exists).toBe(false);
+    expect(call.mock.calls.some(([method]) => method === 'api.read')).toBe(false);
+  });
+
+  it('refuses a scoped create without a supported persisted primitive kind', async () => {
+    const manager = new TransactionManager();
+    const transaction = manager.begin({ documentId: 'project-1' });
+    await manager.runCreate(transaction.id, 'unknown', {
+      nativeSchematicScope: { projectId: 'project-1', documentId: 'page-1' },
+      apply: async () => ({ result: {}, targetId: 'unknown' }),
+      getSnapshot: async () => ({ primitiveId: 'unknown', primitiveKind: 'netflag' }),
+      remove: async () => {},
+      exists: async () => true,
+    });
+    const call = vi.fn(async (method: string, params: any) => {
+      if (method === 'api.read')
+        return params.path === 'DMT_Project.getCurrentProjectInfo'
+          ? { result: { uuid: 'project-1' } }
+          : { result: { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 } };
+      throw new Error('Unexpected method ' + method);
+    });
+    await expect(
+      rollbackEasyedaTransaction(manager, transaction.id, {
+        call,
+      } as unknown as TransactionBridgeCaller),
+    ).rejects.toMatchObject({ code: 'TRANSACTION_ROLLBACK_FAILED' });
+    expect(call.mock.calls.every(([method]) => method === 'api.read')).toBe(true);
+  });
+});
 
 describe('scoped schematic deletion rollback', () => {
   async function scopedDeletedWire(bridgePage: string) {

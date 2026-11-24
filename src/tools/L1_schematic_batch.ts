@@ -5,7 +5,6 @@ import {
   deletePrimitiveExact,
   getGlobalTransactionManager,
   getPrimitiveSnapshot,
-  listPrimitiveIds,
   primitiveExists,
   recreatePrimitiveSnapshot,
   rollbackEasyedaTransaction,
@@ -15,6 +14,11 @@ import { stableHash } from '../transactions/stable.js';
 import { assertFocusedSchematicScope } from '../transactions/schematic-scope.js';
 import type { NativeSchematicScope } from '../transactions/model.js';
 import { type ToolContext, type ToolDefinition } from './types.js';
+import {
+  assertSupportedBatchCreate,
+  prepareBatchCreateScope,
+  executeVerifiedBatchCreate,
+} from './schematic-batch-create.js';
 
 const pointSchema = z.object({ x: z.number().finite(), y: z.number().finite() });
 const operationIdSchema = z.string().min(1).max(120);
@@ -161,12 +165,13 @@ const batchOperationSchema = z.union([
   deleteOperationSchema,
 ]);
 type BatchOperation = z.infer<typeof batchOperationSchema>;
-type CreateOperation = z.infer<typeof createOperationSchema>;
 
 const batchInputSchema = z
   .object({
     projectId: z.string().min(1),
     transactionId: z.string().min(1).optional(),
+    expectedSchematicPageUuid: z.string().trim().min(1).optional(),
+    expectedPcbUuid: z.string().trim().min(1).optional(),
     operations: z.array(batchOperationSchema).min(1).max(200),
     atomic: z.literal(true).default(true),
     dryRun: z.boolean().default(false),
@@ -250,28 +255,6 @@ interface DeletePreflightWitness {
   nativeScope?: NativeSchematicScope;
 }
 
-function bridgeCreateRequest(operation: CreateOperation): { method: string; params: object } {
-  const { operationId: _operationId, action: _action, primitiveKind: _kind, ...params } = operation;
-  switch (operation.primitiveKind) {
-    case 'component':
-      return { method: 'schematic.placeComponent', params };
-    case 'wire':
-      return { method: 'schematic.addWire', params };
-    case 'text':
-      return { method: 'schematic.addText', params };
-    case 'rectangle':
-      return { method: 'schematic.addRectangle', params };
-    case 'circle':
-      return { method: 'schematic.addCircle', params };
-    case 'polygon':
-      return { method: 'schematic.addPolygon', params };
-    case 'netflag':
-      return { method: 'schematic.createNetFlag', params };
-    case 'netport':
-      return { method: 'schematic.createNetPort', params };
-  }
-}
-
 async function preflightDeleteOperations(
   context: ToolContext,
   operations: BatchOperation[],
@@ -333,73 +316,6 @@ async function preflightDeleteOperations(
     });
   }
   return snapshots;
-}
-
-const CREATE_RECONCILE_ATTEMPTS = 30;
-const CREATE_RECONCILE_DELAY_MS = 100;
-const CREATE_RECONCILE_FAILURE_ATTEMPTS = 10;
-
-async function pollAddedPrimitiveIds(
-  context: ToolContext,
-  primitiveKind: string,
-  beforeIds: ReadonlySet<string>,
-  attempts: number,
-): Promise<string[]> {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const afterIds = await listPrimitiveIds(context.bridge, primitiveKind);
-    const added = afterIds.filter((id) => !beforeIds.has(id));
-    if (added.length > 0 || attempt === attempts - 1) return added;
-    await new Promise<void>((resolve) => setTimeout(resolve, CREATE_RECONCILE_DELAY_MS));
-  }
-  return [];
-}
-
-async function executeCreate(
-  context: ToolContext,
-  transactionId: string,
-  operation: CreateOperation,
-) {
-  const manager = getGlobalTransactionManager();
-  const beforeIds = new Set(await listPrimitiveIds(context.bridge, operation.primitiveKind));
-  const request = bridgeCreateRequest(operation);
-  return manager.runCreate(transactionId, operation.operationId, {
-    apply: async () => {
-      const result = await context.bridge.call(request.method, request.params);
-      const added = await pollAddedPrimitiveIds(
-        context,
-        operation.primitiveKind,
-        beforeIds,
-        CREATE_RECONCILE_ATTEMPTS,
-      );
-      if (added.length > 1) {
-        throw new Error(
-          `Create reconciliation is ambiguous: ${added.length} new ${operation.primitiveKind} primitives`,
-        );
-      }
-
-      // EasyEDA create() results are not consistently typed and can contain
-      // an unrelated primitive ID. The expected-kind inventory delta is the
-      // sole authority for transactional create identity.
-      const targetId = added[0];
-      if (!targetId) throw new Error('Create result did not expose a unique primitive ID');
-      return { result, targetId };
-    },
-    getSnapshot: async (targetId) =>
-      getPrimitiveSnapshot(context.bridge, targetId, operation.primitiveKind),
-    remove: async (targetId) => deletePrimitiveExact(context.bridge, targetId),
-    exists: async (targetId) => primitiveExists(context.bridge, targetId, operation.primitiveKind),
-    reconcile: async () => {
-      const added = await pollAddedPrimitiveIds(
-        context,
-        operation.primitiveKind,
-        beforeIds,
-        CREATE_RECONCILE_FAILURE_ATTEMPTS,
-      );
-      if (added.length === 0) return { status: 'none' as const };
-      if (added.length === 1) return { status: 'created' as const, targetId: added[0] };
-      return { status: 'ambiguous' as const };
-    },
-  });
 }
 
 async function executeModify(
@@ -664,9 +580,20 @@ async function executeBatchOperation(
   projectId: string,
   operation: BatchOperation,
   preflightSnapshots: ReadonlyMap<string, DeletePreflightWitness>,
+  createScope?: NativeSchematicScope,
 ): Promise<BatchItemResult> {
   if (operation.action === 'create') {
-    const executed = await executeCreate(context, transactionId, operation);
+    if (!createScope)
+      throw new TransactionError(
+        'TRANSACTION_INVALID_STATE',
+        'Batch create has no verified native scope',
+      );
+    const executed = await executeVerifiedBatchCreate(
+      context,
+      transactionId,
+      createScope,
+      operation,
+    );
     return {
       operation_id: operation.operationId,
       action: 'create',
@@ -868,12 +795,36 @@ async function handleSchematicBatchWrite(
   };
 
   try {
+    const creates = parsed.operations.filter((operation) => operation.action === 'create');
+    for (const operation of creates) assertSupportedBatchCreate(operation);
+    if (creates.length && parsed.expectedPcbUuid !== undefined) {
+      throw new TransactionError(
+        'TRANSACTION_INVALID_STATE',
+        'Schematic drawing creates cannot target a PCB.',
+      );
+    }
     const preflightSnapshots = await preflightDeleteOperations(
       context,
       parsed.operations,
       parsed.projectId,
     );
     if (parsed.dryRun) return dryRunBatchResponse(parsed);
+    const createScope = creates.length
+      ? await prepareBatchCreateScope(context, parsed.projectId, parsed.expectedSchematicPageUuid)
+      : undefined;
+    if (createScope) {
+      for (const witness of preflightSnapshots.values()) {
+        if (
+          witness.nativeScope?.documentId !== createScope.documentId ||
+          witness.nativeScope.projectId !== createScope.projectId
+        ) {
+          throw new TransactionError(
+            'TRANSACTION_INVALID_STATE',
+            'Batch create and delete targets must share the same verified native schematic page.',
+          );
+        }
+      }
+    }
     session = openBatchSession(parsed);
     const transactionId = session.transactionId;
     if (!transactionId) throw new Error('Batch transaction was not initialized');
@@ -885,6 +836,7 @@ async function handleSchematicBatchWrite(
           parsed.projectId,
           operation,
           preflightSnapshots,
+          createScope,
         ),
       );
     }
@@ -902,7 +854,7 @@ export function registerSchematicBatchTools(
     name: 'easyeda_schematic_batch_write',
     title: 'Atomic schematic batch write',
     description:
-      'Apply up to 200 validated schematic create, modify, pin no-connect, and delete operations in one snapshot-backed transaction. Any failure rolls the whole transaction back. Delete is limited to safely recreatable drawing primitives.',
+      'Apply up to 200 schematic drawing creates/deletes, modifies or pin no-connect operations in a transaction. Creates require verified native scope, inventory and returned ID. Rollback only removes verified owned creates; inspect unresolved writes. Component and marker creates/deletes are not supported.',
     profile: 'core',
     evidence: ['runtime-probe', 'inferred'],
     risk: 'high',

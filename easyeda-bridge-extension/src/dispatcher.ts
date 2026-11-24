@@ -13,6 +13,10 @@ import {
   withGuardedZonePreflight,
   withTargetDocumentEvidence,
 } from './document-target-guard.js';
+import {
+  acknowledgeDrawingCreate,
+  requireDrawingCreateTarget,
+} from './schematic-verified-create.js';
 import { createDeviceMetadataOperations } from './device-metadata-operations.js';
 import {
   compactPrimitiveSummary,
@@ -1736,7 +1740,29 @@ async function placeComponentApi(params: Record<string, unknown>): Promise<unkno
   return finishPlacedComponentState(createdComp, params, Boolean(subpart));
 }
 
+async function callScopedDrawingNative(
+  method: string,
+  params: Record<string, unknown>,
+  paths: readonly string[],
+  ...args: unknown[]
+): Promise<unknown> {
+  if (params.verifiedDrawingCreate === true)
+    await assertExpectedDocument(method, params, readFirstPath, newBridgeError);
+  return callFirst(paths, ...args);
+}
+
+async function callVerifiedDrawingCreate(
+  method: string,
+  params: Record<string, unknown>,
+  paths: readonly string[],
+  ...args: unknown[]
+): Promise<unknown> {
+  const result = await callScopedDrawingNative(method, params, paths, ...args);
+  return acknowledgeDrawingCreate(method, params, result, readFirstPath, newBridgeError);
+}
+
 async function dispatch(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+  requireDrawingCreateTarget(method, params, newBridgeError);
   const targetDocument = await assertExpectedDocument(
     method,
     params,
@@ -1782,7 +1808,9 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         ? undefined
         : netName;
       const writeToken = schematicTransactionOperations.beginNativeWireMutation();
-      const result = await callFirst(
+      const result = await callScopedDrawingNative(
+        method,
+        params,
         ['SCH_PrimitiveWire.create', 'sch_PrimitiveWire.create'],
         pts,
         wireNetName,
@@ -1796,7 +1824,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
         'create',
         [createdId].filter(Boolean),
       );
-      return result;
+      return acknowledgeDrawingCreate(method, params, result, readFirstPath, newBridgeError);
     }
     case 'schematic.addCircle':
       // SCH_PrimitiveCircle.create's field order was recovered
@@ -1804,7 +1832,9 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       // .toString(): create(CenterX, CenterY, Radius, Color, FillColor,
       // LineWidth, LineType, FillStyle) — 8 args, confirmed live via
       // readback (first attempt succeeded with typed values).
-      return callFirst(
+      return callVerifiedDrawingCreate(
+        method,
+        params,
         ['SCH_PrimitiveCircle.create', 'sch_PrimitiveCircle.create'],
         params.centerX,
         params.centerY,
@@ -1821,7 +1851,9 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       // .toString(): create(Line, Color, FillColor, LineWidth, LineType) —
       // 5 args. `line` is a flat [x1,y1,x2,y2,...] array of vertices (same
       // shape as SCH_PrimitiveWire's `line`), confirmed live via readback.
-      return callFirst(
+      return callVerifiedDrawingCreate(
+        method,
+        params,
         ['SCH_PrimitivePolygon.create', 'sch_PrimitivePolygon.create'],
         (params.points as Array<{ x: number; y: number }>).flatMap((p) => [p.x, p.y]),
         params.color ?? '#000000',
@@ -1836,7 +1868,9 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       // encodings are not valid modify/create inputs.
       const alignMode =
         params.alignMode === undefined ? undefined : requirePublicTextAlignMode(params.alignMode);
-      const result = await callFirst(
+      const result = await callScopedDrawingNative(
+        method,
+        params,
         ['SCH_PrimitiveText.create', 'sch_PrimitiveText.create'],
         params.x,
         params.y,
@@ -1856,7 +1890,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       if (primitiveId && resolvedAlignMode !== undefined) {
         textAlignModeCache.set(primitiveId, resolvedAlignMode);
       }
-      return result;
+      return acknowledgeDrawingCreate(method, params, result, readFirstPath, newBridgeError);
     }
     case 'schematic.addRectangle':
       // SCH_PrimitiveRectangle.create's field order was recovered
@@ -1865,7 +1899,9 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
       // positional order: create(TopLeftX, TopLeftY, Width, Height,
       // CornerRadius, Rotation, Color, FillColor, LineWidth, LineType,
       // FillStyle) — 11 args, confirmed live via readback.
-      return callFirst(
+      return callVerifiedDrawingCreate(
+        method,
+        params,
         ['SCH_PrimitiveRectangle.create', 'sch_PrimitiveRectangle.create'],
         params.x,
         params.y,

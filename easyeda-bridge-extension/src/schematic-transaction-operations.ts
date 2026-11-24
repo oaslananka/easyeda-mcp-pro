@@ -69,7 +69,12 @@ export interface SchematicTransactionOperations {
   listPrimitiveIds(
     primitiveKind: unknown,
     includeNativeParts?: boolean,
-  ): Promise<{ primitiveKind: SchematicPrimitiveSnapshotKind; primitiveIds: string[] }>;
+    requireVerifiedInventory?: boolean,
+  ): Promise<{
+    primitiveKind: SchematicPrimitiveSnapshotKind;
+    primitiveIds: string[];
+    inventoryVerified?: true;
+  }>;
   deletePrimitives(
     primitiveIds: unknown,
     expectedPrimitiveSnapshot?: unknown,
@@ -954,11 +959,46 @@ export function createSchematicTransactionOperations(
     return Array.from(new Set(primitiveIds));
   }
 
+  async function strictDrawingInventory(kind: SchematicPrimitiveSnapshotKind) {
+    const fail = () =>
+      newBridgeError(
+        'NATIVE_INVENTORY_UNVERIFIED',
+        'Strict native drawing inventory unavailable or malformed.',
+        'Inspect the intended schematic; do not create with an unverified inventory.',
+      );
+    if (kind === 'component' || kind === 'netflag' || kind === 'netport') throw fail();
+    const owner = readFirstPath<any>(schematicPrimitiveClassPaths(kind));
+    if (!owner || typeof owner.getAllPrimitiveId !== 'function') throw fail();
+    let raw: unknown;
+    try {
+      raw = await owner.getAllPrimitiveId();
+    } catch {
+      throw fail();
+    }
+    if (
+      !Array.isArray(raw) ||
+      raw.some((id) => typeof id !== 'string' || !id || id.trim() !== id) ||
+      new Set(raw).size !== raw.length
+    )
+      throw fail();
+    return {
+      primitiveKind: kind,
+      primitiveIds: [...raw].sort((a, b) => a.localeCompare(b)),
+      inventoryVerified: true as const,
+    };
+  }
+
   async function listSchematicPrimitiveIds(
     kindInput: unknown,
     includeNativeParts = false,
-  ): Promise<{ primitiveKind: SchematicPrimitiveSnapshotKind; primitiveIds: string[] }> {
+    requireVerifiedInventory = false,
+  ): Promise<{
+    primitiveKind: SchematicPrimitiveSnapshotKind;
+    primitiveIds: string[];
+    inventoryVerified?: true;
+  }> {
     const primitiveKind = parseSchematicPrimitiveKind(kindInput);
+    if (requireVerifiedInventory) return strictDrawingInventory(primitiveKind);
     const primitiveClass = readFirstPath<any>(schematicPrimitiveClassPaths(primitiveKind));
     if (!primitiveClass) return { primitiveKind, primitiveIds: [] };
 
@@ -1059,11 +1099,7 @@ export function createSchematicTransactionOperations(
   // A failed lookup alone does not establish absence: require two matching complete
   // native component inventories, including markers, before considering another owner.
   async function verifiedNonComponentId(owner: any, primitiveId: string): Promise<boolean> {
-    if (
-      !isVerifiedV4BetaTextRuntime() ||
-      typeof owner.getAllPrimitiveId !== 'function' ||
-      typeof owner.getAll !== 'function'
-    )
+    if (typeof owner.getAllPrimitiveId !== 'function' || typeof owner.getAll !== 'function')
       return false;
     try {
       const ids = verifiedTypedIdList(await owner.getAllPrimitiveId());
@@ -1089,7 +1125,8 @@ export function createSchematicTransactionOperations(
     try {
       return await owner.get(primitiveId);
     } catch {
-      if (await verifiedNonComponentId(owner, primitiveId)) return undefined;
+      if (isVerifiedV4BetaTextRuntime() && (await verifiedNonComponentId(owner, primitiveId)))
+        return undefined;
       return unsafe(primitiveId, 'native component type read failed');
     }
   }
@@ -1177,6 +1214,69 @@ export function createSchematicTransactionOperations(
     return { primitiveId };
   }
 
+  function unverifiedDrawingOwner() {
+    return newBridgeError(
+      'NATIVE_DELETE_PRECONDITION_CHANGED',
+      'Native transactional delete refused: native drawing ownership unavailable or ambiguous',
+      'Reinspect the focused schematic and exact primitive before retrying.',
+    );
+  }
+
+  async function assertDrawingMembership(
+    owner: any,
+    kind: SchematicPrimitiveSnapshotKind,
+    primitiveId: string,
+  ): Promise<void> {
+    const inventory = await strictDrawingInventory(kind);
+    let rows: unknown;
+    try {
+      rows = await owner.getAll();
+    } catch {
+      throw unverifiedDrawingOwner();
+    }
+    if (!Array.isArray(rows)) throw unverifiedDrawingOwner();
+    const ids = rows.map(primitiveIdFromValue);
+    if (
+      ids.some((id) => !id) ||
+      new Set(ids).size !== ids.length ||
+      ids.length !== inventory.primitiveIds.length ||
+      !inventory.primitiveIds.every((id) => ids.includes(id)) ||
+      !ids.includes(primitiveId)
+    )
+      throw unverifiedDrawingOwner();
+  }
+
+  async function assertNoCompetingDrawingOwner(
+    primitiveId: string,
+    kind: SchematicPrimitiveSnapshotKind,
+  ): Promise<void> {
+    const componentOwner = readFirstPath<any>(COMPONENT_CLASS_PATHS);
+    if (componentOwner && !(await verifiedNonComponentId(componentOwner, primitiveId)))
+      throw unverifiedDrawingOwner();
+    // An exposed class with an unreadable inventory is ambiguous.
+    for (const other of ['wire', 'text', 'rectangle', 'circle', 'polygon'] as const) {
+      if (other === kind || !readFirstPath(schematicPrimitiveClassPaths(other))) continue;
+      const competing = await strictDrawingInventory(other);
+      if (competing.primitiveIds.includes(primitiveId)) throw unverifiedDrawingOwner();
+    }
+  }
+
+  /** Exact typed membership, not a truthy cross-class native get(), proves the
+   * native owner of a scoped drawing. V4 Text.get can return a drawing ID
+   * outside its own inventory. Never route a scoped delete through it.
+   */
+  async function resolveScopedDrawingOwner(
+    primitiveId: string,
+    kind: SchematicPrimitiveSnapshotKind,
+  ) {
+    const owner = readFirstPath<any>(schematicPrimitiveClassPaths(kind));
+    if (!owner || typeof owner.delete !== 'function' || typeof owner.getAll !== 'function')
+      throw unverifiedDrawingOwner();
+    await assertDrawingMembership(owner, kind, primitiveId);
+    await assertNoCompetingDrawingOwner(primitiveId, kind);
+    return { primitiveId, owner, kind };
+  }
+
   async function deleteSchematicPrimitives(
     primitiveIdsInput: unknown,
     expectedPrimitiveSnapshot?: unknown,
@@ -1210,7 +1310,8 @@ export function createSchematicTransactionOperations(
     }
 
     await refuseUnsafeStandaloneComponentDeletion(primitiveIds);
-    await refuseUnpersistedTextDeletion(primitiveIds);
+    if (!nativeGuard || nativeGuard.kind === 'text')
+      await refuseUnpersistedTextDeletion(primitiveIds);
 
     // Resolve every target before the first write. A native component can
     // change type after the initial preflight, so recheck the exact kind and
@@ -1218,7 +1319,11 @@ export function createSchematicTransactionOperations(
     // wire/marker batch due to a stale component lookup.
     const planned = [];
     for (const primitiveId of primitiveIds) {
-      planned.push(await resolveStandaloneDeletionOwner(primitiveId));
+      planned.push(
+        nativeGuard
+          ? await resolveScopedDrawingOwner(primitiveId, nativeGuard.kind)
+          : await resolveStandaloneDeletionOwner(primitiveId),
+      );
     }
 
     for (const { primitiveId, owner, kind } of planned) {

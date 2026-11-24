@@ -46,7 +46,7 @@ export async function assertFocusedSchematicScope(
   } catch {
     throw new TransactionError(
       'TRANSACTION_INVALID_STATE',
-      'Focused native schematic project/page cannot be verified for transactional deletion',
+      'Focused native schematic project/page cannot be verified for this transactional operation',
     );
   }
 }

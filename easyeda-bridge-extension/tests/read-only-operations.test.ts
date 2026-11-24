@@ -59,6 +59,21 @@ describe('read-only dispatcher operations', () => {
     await expect(operations.listPrimitiveIds({ primitiveKind: 'wire' })).resolves.toEqual({
       primitiveKind: 'wire',
     });
+    await operations.listPrimitiveIds({
+      primitiveKind: 'text',
+      requireVerifiedInventory: true,
+      includeNativeParts: true,
+    });
+    expect(dependencies.schematicTransactionOperations.listPrimitiveIds).toHaveBeenLastCalledWith(
+      'text',
+      false,
+      true,
+    );
+    await operations.listPrimitiveIds({ primitiveKind: 'text', requireVerifiedInventory: 'true' });
+    expect(dependencies.schematicTransactionOperations.listPrimitiveIds).toHaveBeenLastCalledWith(
+      'text',
+      false,
+    );
     await operations.listPrimitiveIds({ primitiveKind: 'component', includeNativeParts: true });
     expect(dependencies.schematicTransactionOperations.listPrimitiveIds).toHaveBeenLastCalledWith(
       'component',

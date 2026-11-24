@@ -298,6 +298,7 @@ export function createSystemApiOperations(
         dispatcherBuildId: dependencies.buildId,
         documentTargetGuard: true,
         documentProjectGuard: true,
+        verifiedDrawingCreate: true,
         nativeZoneSafety: await inspectNativeZoneSafety(dependencies.readFirstPath),
       };
     },
