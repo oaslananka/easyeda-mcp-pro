@@ -47,7 +47,35 @@ describe('easyeda_schematic_batch_write', () => {
     bridgeCall = vi.fn();
     context = {
       profile: 'core',
-      bridge: { connected: true, call: bridgeCall },
+      bridge: {
+        connected: true,
+        // The native dispatcher appends targetDocument to a guarded snapshot
+        // response. Preserve explicitly supplied evidence for negative tests.
+        call: (async (...args: [string, Record<string, unknown>?, unknown?]) => {
+          const value = await bridgeCall(...args);
+          const [method, params] = args;
+          if (
+            method === 'schematic.getPrimitiveSnapshot' &&
+            params?.expectedProjectUuid === 'project-1' &&
+            params.expectedSchematicPageUuid === 'page-1' &&
+            value &&
+            typeof value === 'object' &&
+            !Array.isArray(value) &&
+            !Object.hasOwn(value, 'targetDocument')
+          ) {
+            return {
+              ...value,
+              targetDocument: {
+                uuid: 'page-1',
+                projectUuid: 'project-1',
+                name: 'P1',
+                documentType: 'schematic',
+              },
+            };
+          }
+          return value;
+        }) as ToolContext['bridge']['call'],
+      },
       config: { bridgeTimeoutMs: 1000, artifactDir: '.easyeda-mcp-pro/artifacts' },
       vendors: { lcsc: null, jlcpcb: null, mouser: null, digikey: null },
     };
@@ -558,6 +586,7 @@ describe('easyeda_schematic_batch_write', () => {
         property,
       };
       let exists = false;
+      let callerTargetWrapper = true;
       bridgeCall.mockImplementation(async (name: string, params: any) => {
         if (name === 'system.getStatus') return verifiedDrawingStatus();
         if (name === 'api.read') return verifiedSchematicFocus(name, params);
@@ -578,7 +607,21 @@ describe('easyeda_schematic_batch_write', () => {
         }
         if (name === 'schematic.getPrimitiveSnapshot') {
           if (!exists) throw primitiveNotFound('new-drawing');
-          return structuredClone(snapshot);
+          // The public tool registry adds targetDocument transport evidence
+          // during explicitly targeted calls, but not on a separate rollback.
+          return {
+            ...structuredClone(snapshot),
+            ...(callerTargetWrapper || params.expectedSchematicPageUuid
+              ? {
+                  targetDocument: {
+                    uuid: 'page-1',
+                    documentType: 'schematic',
+                    name: 'P1',
+                    ...(params.expectedProjectUuid ? { projectUuid: 'project-1' } : {}),
+                  },
+                }
+              : {}),
+          };
         }
         if (name === 'schematic.deletePrimitive') {
           expect(params).toMatchObject({
@@ -587,6 +630,7 @@ describe('easyeda_schematic_batch_write', () => {
             expectedSchematicPageUuid: 'page-1',
             expectedPrimitiveSnapshot: snapshot,
           });
+          expect(params.expectedPrimitiveSnapshot).toEqual(snapshot);
           exists = false;
           return { deleted: ['new-drawing'], notFound: [] };
         }
@@ -601,6 +645,7 @@ describe('easyeda_schematic_batch_write', () => {
       });
       expect(result).toMatchObject({ success: true, transaction_state: 'active' });
       expect(exists).toBe(true);
+      callerTargetWrapper = false;
       const { rollbackEasyedaTransaction } = await import('../../../src/transactions/index.js');
       const rb = await rollbackEasyedaTransaction(manager, transaction.id, context.bridge);
       expect(rb.transaction.rollbackComplete).toBe(true);

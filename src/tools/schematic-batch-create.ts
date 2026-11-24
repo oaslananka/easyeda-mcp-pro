@@ -3,7 +3,7 @@ import type { NativeSchematicScope } from '../transactions/model.js';
 import {
   deletePrimitiveExact,
   getGlobalTransactionManager,
-  getPrimitiveSnapshot,
+  getScopedDrawingSnapshot,
   primitiveExists,
   TransactionError,
 } from '../transactions/index.js';
@@ -166,7 +166,7 @@ async function verifiedCreatedDrawing(
     )
       refusal('Native drawing inventory changed unexpectedly; create ownership unresolved.');
     if (added.length === 1) {
-      const snapshot = await getPrimitiveSnapshot(ctx.bridge, id, kind);
+      const snapshot = await getScopedDrawingSnapshot(ctx.bridge, id, kind, scope);
       await assertScope(ctx, scope);
       if (!matchesRequestedDrawing(snapshot, id, kind, expected))
         refusal('Native drawing does not match the requested creation descriptor.');
@@ -190,7 +190,7 @@ export async function executeVerifiedBatchCreate(
   let witness: PrimitiveSnapshotResult | undefined;
   const freshWitness = async (id: string) => {
     await assertScope(ctx, scope);
-    const snapshot = await getPrimitiveSnapshot(ctx.bridge, id, kind);
+    const snapshot = await getScopedDrawingSnapshot(ctx.bridge, id, kind, scope);
     await assertScope(ctx, scope);
     if (
       !witness ||
