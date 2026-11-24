@@ -4,6 +4,111 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-10355ad-v1190-native-preview",
+      "status": "live-validated",
+      "validatedAt": "2026-11-24T21:09:02Z",
+      "reviewBy": "2027-02-22",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-43-generic",
+        "nodeVersion": "24.22.3"
+      },
+      "easyedaPro": {
+        "version": "4.1.105.0339a6cd",
+        "electronVersion": "not independently recorded",
+        "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+        "chromiumVersion": "not independently recorded",
+        "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+      },
+      "server": {
+        "validationPackageVersion": "1.19.0",
+        "releaseContainingFixes": "1.19.0",
+        "commit": "10355ad958a8c3212cacc91490837cbc773ecd16",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "6f60887e5cb703cb44476f7188e19a19b18415c7",
+            "src/bridge": "c2be592f2852bd9407c63414104a02574c53dd0d",
+            "src/remote": "7fcd33c262536ec1cba79c49e4ad24615663633a",
+            "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+            "src/tools": "edd4e67f6c3c2bcf76ad8300b4e42588114538d5",
+            "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.19.0",
+        "loaderReportedVersion": "1.19.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "365e8bb83c720c95",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "de251x305dx5bb4",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "71581aa599675a0b0c9409b0e1423198fccd7d762c741822d7d4b592ea8d0f0f",
+        "packageSizeBytes": 240419
+      },
+      "fixture": {
+        "project": "Isolated disposable local PCB fixture; no personal design",
+        "schematic": "Focused PCB; no design write",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v1190-native-install-handshake",
+          "name": "Exact 1.19.0 package and local MCP handshake",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Official isolated extension manager install with external interactions enabled; fresh Local stdio MCP reports matching 1.19.0 versions, health ok, 84 methods, baked dispatcher and no version or registry mismatch.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.19.0-10355ad-native-preview.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1139"
+          ]
+        },
+        {
+          "id": "v1190-exported-pcb-3d-preview",
+          "name": "Focused PCB exported 3D geometry preview",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Actual MCP PNG image blocks for isometric and underside views, both 640 by 480 pixels, 7,820 vertices and 15,887 triangles; same PNG hashes as the feature acceptance. Model coverage unverified, no native screenshot.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.19.0-10355ad-native-preview.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1138",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/931"
+          ]
+        },
+        {
+          "id": "v1190-preview-identity-safety",
+          "name": "Preview rejects wrong project and PCB",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Wrong project and wrong PCB returned unavailable without an image. Correct focus and disposable fixture hash unchanged; cleanup independently verified.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.19.0-10355ad-native-preview.json"
+          ]
+        },
+        {
+          "id": "v1190-mechanical-hosted-coverage",
+          "name": "Mechanical model completeness and actual Hosted acceptance",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "No physical model completeness, mechanical clearance, native screenshot, or authenticated Hosted journey demonstrated.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.19.0-10355ad-native-preview.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/850"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Exact 1.19.0 native validation covers official extension installation, focused Local stdio MCP handshake, two exported-geometry PNG views, wrong project/PCB rejection and unchanged fixture. Other EasyEDA versions and operating systems were not live-validated in this run.",
+        "The PNGs are CPU renders of native OBJ/MTL geometry, not native 3D editor screenshots. Model coverage is unverified; placeholders and missing models remain possible even with automatic generation disabled. No component dimensions, clearance, enclosure fit or manufacturing approval.",
+        "The native ray tracer timed out in the prior isolated graphics investigation. Nonfatal GPU initialization diagnostics continued in this run. Installation itself completed with exit 0, but its initial outer wrapper exited 1 before acceptance during immediate cleanup checks; subsequent independent cleanup and fixture hash checks succeeded, and a fresh acceptance run exited 0.",
+        "No intentional Hosted connection, provider login, real credential, design mutation, autoroute or fabrication. Earlier live evidence remains historical; actual Hosted acceptance (#850) remains open."
+      ]
+    },
+    {
       "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-155947a-v1183-native-local",
       "status": "live-validated",
       "validatedAt": "2026-11-24T13:44:27Z",
