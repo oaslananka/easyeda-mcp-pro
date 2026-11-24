@@ -1214,34 +1214,27 @@ export function createSchematicTransactionOperations(
     return { primitiveId };
   }
 
-  /** Exact typed membership, not a truthy cross-class native get(), proves the
-   * native owner of a scoped drawing. V4 Text.get can return a drawing ID
-   * outside its own inventory. Never route a scoped delete through it.
-   */
-  async function resolveScopedDrawingOwner(
-    primitiveId: string,
+  function unverifiedDrawingOwner() {
+    return newBridgeError(
+      'NATIVE_DELETE_PRECONDITION_CHANGED',
+      'Native transactional delete refused: native drawing ownership unavailable or ambiguous',
+      'Reinspect the focused schematic and exact primitive before retrying.',
+    );
+  }
+
+  async function assertDrawingMembership(
+    owner: any,
     kind: SchematicPrimitiveSnapshotKind,
-  ) {
-    const fail = () =>
-      newBridgeError(
-        'NATIVE_DELETE_PRECONDITION_CHANGED',
-        'Native transactional delete refused: native drawing ownership unavailable or ambiguous',
-        'Reinspect the focused schematic and exact primitive before retrying.',
-      );
-    const owner = readFirstPath<any>(schematicPrimitiveClassPaths(kind));
-    if (!owner || typeof owner.delete !== 'function' || typeof owner.getAll !== 'function')
-      throw fail();
-    const componentOwner = readFirstPath<any>(COMPONENT_CLASS_PATHS);
-    if (componentOwner && !(await verifiedNonComponentId(componentOwner, primitiveId)))
-      throw fail();
+    primitiveId: string,
+  ): Promise<void> {
     const inventory = await strictDrawingInventory(kind);
     let rows: unknown;
     try {
       rows = await owner.getAll();
     } catch {
-      throw fail();
+      throw unverifiedDrawingOwner();
     }
-    if (!Array.isArray(rows)) throw fail();
+    if (!Array.isArray(rows)) throw unverifiedDrawingOwner();
     const ids = rows.map(primitiveIdFromValue);
     if (
       ids.some((id) => !id) ||
@@ -1250,15 +1243,37 @@ export function createSchematicTransactionOperations(
       !inventory.primitiveIds.every((id) => ids.includes(id)) ||
       !ids.includes(primitiveId)
     )
-      throw fail();
-    // Check every available competing drawing inventory, not its get().
-    // Missing native classes cannot be selected as owners. An exposed class
-    // with an unreadable inventory is ambiguous and must fail closed.
+      throw unverifiedDrawingOwner();
+  }
+
+  async function assertNoCompetingDrawingOwner(
+    primitiveId: string,
+    kind: SchematicPrimitiveSnapshotKind,
+  ): Promise<void> {
+    const componentOwner = readFirstPath<any>(COMPONENT_CLASS_PATHS);
+    if (componentOwner && !(await verifiedNonComponentId(componentOwner, primitiveId)))
+      throw unverifiedDrawingOwner();
+    // An exposed class with an unreadable inventory is ambiguous.
     for (const other of ['wire', 'text', 'rectangle', 'circle', 'polygon'] as const) {
       if (other === kind || !readFirstPath(schematicPrimitiveClassPaths(other))) continue;
       const competing = await strictDrawingInventory(other);
-      if (competing.primitiveIds.includes(primitiveId)) throw fail();
+      if (competing.primitiveIds.includes(primitiveId)) throw unverifiedDrawingOwner();
     }
+  }
+
+  /** Exact typed membership, not a truthy cross-class native get(), proves the
+   * native owner of a scoped drawing. V4 Text.get can return a drawing ID
+   * outside its own inventory. Never route a scoped delete through it.
+   */
+  async function resolveScopedDrawingOwner(
+    primitiveId: string,
+    kind: SchematicPrimitiveSnapshotKind,
+  ) {
+    const owner = readFirstPath<any>(schematicPrimitiveClassPaths(kind));
+    if (!owner || typeof owner.delete !== 'function' || typeof owner.getAll !== 'function')
+      throw unverifiedDrawingOwner();
+    await assertDrawingMembership(owner, kind, primitiveId);
+    await assertNoCompetingDrawingOwner(primitiveId, kind);
     return { primitiveId, owner, kind };
   }
 
