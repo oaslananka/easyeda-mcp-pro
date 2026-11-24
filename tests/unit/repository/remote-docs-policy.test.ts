@@ -45,6 +45,22 @@ describe('Remote Relay documentation policy', () => {
     );
   });
 
+  it('distinguishes released Cloud behavior from remaining live acceptance', () => {
+    const status = read('docs/REMOTE_RELAY_STATUS.md');
+    const modes = read('docs/REMOTE_MCP_MODES.md');
+    const guide = read('docs/guide/cloud-ai-connectors.md');
+
+    expect(status).not.toContain('not-yet-released');
+    expect(status).toContain('Hosted Cloud 1.17.0');
+    expect(status).toContain('issuecomment-7051285101');
+    expect(status).toContain('public rollout #850 remains HOLD');
+    expect(status).toContain('remembered-device recovery remains unverified');
+    expect(modes).not.toContain('the GitHub\nprovider callback');
+    expect(guide).not.toContain('#1057 is Draft');
+    expect(guide).toContain('[Canonical Remote Relay status](../REMOTE_RELAY_STATUS.md)');
+    expect(guide).toContain('MCP OAuth connected does not mean EasyEDA is connected.');
+  });
+
   it('links the canonical status page from VitePress navigation', () => {
     const config = read('docs/.vitepress/config.ts');
     expect(config).toContain("{ text: 'Remote Relay Status', link: '/REMOTE_RELAY_STATUS' }");

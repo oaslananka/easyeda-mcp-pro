@@ -1,11 +1,14 @@
 # Connect EasyEDA MCP Pro Cloud to AI agents
 
-> **Status (2026-11-15):** Cross-client acceptance instructions, **not** a claim of
-> production availability. Feature PR #1057 is Draft and Cloud rollout #850 is HOLD.
+> **Status:** Experimental owner-restricted Hosted Cloud pilot, not general
+> availability. Public rollout [#850](https://github.com/oaslananka/easyeda-mcp-pro/issues/850)
+> remains HOLD. See [Canonical Remote Relay status](../REMOTE_RELAY_STATUS.md)
+> for the recorded deployed version, live acceptance evidence and remaining
+> gates. Local MCP remains account-free.
 
 ## One MCP endpoint, multiple agent hosts
 
-After a reviewed deployment is publicly reachable, point each client at:
+For an authorized owner-pilot account, point a compatible MCP client at:
 
 `https://easyeda-mcp-pro.oaslananka.dev/mcp`
 
@@ -32,8 +35,8 @@ client supplies `Mcp-Method`, per-request version metadata and no
 
 ### First real user journey
 
-1. Sign in to Hosted Cloud, install the exact reviewed preview EasyEDA Pro
-   extension in an isolated profile, and pair it using a one-time code.
+1. Sign in to Hosted Cloud, install the extension version reviewed for the hosted deployment
+   in an isolated EasyEDA Pro profile, and pair it using a one-time code.
 2. Select the real focused document on the Cloud dashboard. Verify that the
    project and account identity match the selected native editor.
 3. Link the agent using only `easyeda.read`; first call `easyeda_health_check`.
