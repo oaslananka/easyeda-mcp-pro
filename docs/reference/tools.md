@@ -1817,6 +1817,9 @@ Returns a JSON object matching the schema:
   project_id: string;
   overall_verdict: 'success' | 'partial' | 'blocked' | 'failed';
   blocked_by_preflight: boolean;
+  persistence_verified: 'false';
+  persistence_status: 'not_attempted' | 'unverified';
+  persistence_guidance: string;
   preflight: object(optional);
   autoroute_result: object(optional);
   post_route_drc: object(optional);
@@ -1827,6 +1830,12 @@ Returns a JSON object matching the schema:
   targetDocument: object(optional);
 }
 ```
+
+**Output field semantics:**
+
+- `persistence_verified`: No saved or reopened PCB revision is verified by this tool.
+- `persistence_status`: Whether routing was prevented before invocation or a native invocation was attempted without durable verification.
+- `persistence_guidance`: Safe next steps; never treats a native save acknowledgement as durable verification.
 
 ---
 

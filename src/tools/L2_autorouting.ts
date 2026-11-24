@@ -211,13 +211,28 @@ function computeOverallVerdict(
   return 'partial';
 }
 
+// Native routing and post-route checks observe the editor, not a durable revision.
+const AUTOROUTE_NOT_ATTEMPTED = {
+  persistence_verified: false,
+  persistence_status: 'not_attempted',
+  persistence_guidance:
+    'No autoroute was attempted. Resolve the reported precondition before applying.',
+} as const;
+
+const AUTOROUTE_PERSISTENCE_UNVERIFIED = {
+  persistence_verified: false,
+  persistence_status: 'unverified',
+  persistence_guidance:
+    'Inspect the intended PCB and routing/DRC evidence before any retry or save. If retaining the result, explicitly save, close and reopen the PCB, and independently verify geometry and connectivity. A save acknowledgement alone does not prove persistence.',
+} as const;
+
 function summaryForVerdict(verdict: 'success' | 'partial' | 'failed'): string {
   if (verdict === 'success')
-    return 'Autoroute completed and post-route DRC/constraint checks passed.';
+    return 'In-memory autoroute and post-route DRC/constraint checks passed. Persistence unverified.';
   if (verdict === 'partial') {
-    return 'Autoroute completed but post-route checks found issues or lack verified evidence; review required.';
+    return 'Native autoroute acknowledged but routing or post-route checks require review. Persistence unverified.';
   }
-  return 'Autoroute did not complete successfully.';
+  return 'Autoroute did not complete successfully. Persistence unverified.';
 }
 
 /**
@@ -333,6 +348,7 @@ function preflightBlockSummary(summary: AutoroutePreflightSummary): string {
 
 function blockedAutorouteTarget(projectId: string) {
   return {
+    ...AUTOROUTE_NOT_ATTEMPTED,
     success: false,
     project_id: projectId,
     overall_verdict: 'blocked' as const,
@@ -432,6 +448,19 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
       project_id: z.string(),
       overall_verdict: z.enum(['success', 'partial', 'blocked', 'failed']),
       blocked_by_preflight: z.boolean(),
+      persistence_verified: z
+        .literal(false)
+        .describe('No saved or reopened PCB revision is verified by this tool.'),
+      persistence_status: z
+        .enum(['not_attempted', 'unverified'])
+        .describe(
+          'Whether routing was prevented before invocation or a native invocation was attempted without durable verification.',
+        ),
+      persistence_guidance: z
+        .string()
+        .describe(
+          'Safe next steps; never treats a native save acknowledgement as durable verification.',
+        ),
       preflight: z
         .object({
           passed: z.boolean(),
@@ -490,6 +519,7 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
 
       if (p.confirmWrite !== true) {
         return {
+          ...AUTOROUTE_NOT_ATTEMPTED,
           success: false,
           project_id: p.projectId,
           overall_verdict: 'blocked' as const,
@@ -506,7 +536,7 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
       if (!target) return blockedAutorouteTarget(p.projectId);
 
       const preflight = await runAutoroutePreflight(ctx, p.projectId, p.boardData, gateMode);
-      if (preflight.response) return preflight.response;
+      if (preflight.response) return { ...preflight.response, ...AUTOROUTE_NOT_ATTEMPTED };
       const preflightSummary = preflight.summary;
       if (!(await readAutorouteTarget(ctx, p.projectId, target.expectedPcbUuid)))
         return blockedAutorouteTarget(p.projectId);
@@ -560,13 +590,14 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
       } catch (err) {
         autorouteError = err instanceof Error ? err.message : String(err);
         return {
+          ...AUTOROUTE_PERSISTENCE_UNVERIFIED,
           success: false,
           project_id: p.projectId,
           overall_verdict: 'failed' as const,
           blocked_by_preflight: false,
           preflight: { passed: true, ...preflightSummary },
           summary:
-            'Autoroute could not be verified. The native API is version-sensitive; inspect the intended PCB before any retry because a write may have occurred.',
+            'Autoroute could not be verified. The native API is version-sensitive; inspect the intended PCB before any retry because a write may have occurred. Persistence unverified.',
           not_available: true,
           error: autorouteError,
         };
@@ -585,6 +616,7 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
       );
 
       return {
+        ...AUTOROUTE_PERSISTENCE_UNVERIFIED,
         success: autorouteStarted,
         project_id: p.projectId,
         overall_verdict: overallVerdict,
