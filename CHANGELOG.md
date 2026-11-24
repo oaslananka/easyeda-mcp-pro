@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.18.2...easyeda-mcp-pro-v1.18.3) (2026-11-24)
+
+
+### Bug Fixes
+
+* **cloud:** forget remembered trust on explicit Local selection after failed startup ([#1134](https://github.com/oaslananka/easyeda-mcp-pro/issues/1134)) ([ae310cb](https://github.com/oaslananka/easyeda-mcp-pro/commit/ae310cbd9536374bce2c60ea3b608ec42de52f02))
+
 ## [1.18.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.18.1...easyeda-mcp-pro-v1.18.2) (2026-11-24)
 
 
