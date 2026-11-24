@@ -1,0 +1,243 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-v1181-native-local-MCP-compatibility",
+  "recordedAtUtc": "2026-11-24T06:00:42Z",
+  "candidate": {
+    "releasePullRequest": 1123,
+    "exactCommit": "b9228cfe31adac0559f8e5628188f9d208ccbfb1",
+    "packageVersion": "1.18.1",
+    "extensionSha256": "7e672279a2867c2568de41d27e1f3bab73576ca1210a53af77a4574670abe746",
+    "extensionBytes": 239792,
+    "compatibilitySensitiveTreeSha1": {
+      "easyeda-bridge-extension/src": "88cc8e3e125a0d5ebbf195d13dd538ca1688de82",
+      "src/bridge": "227a0a48511fa54cfe036c619efef59d3325eee9",
+      "src/remote": "7fcd33c262536ec1cba79c49e4ad24615663633a",
+      "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+      "src/tools": "443780986d1fff2d241d02ac13c56ddc5c6d52ce",
+      "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+    },
+    "dispatcherBuildId": "daa4bx4da8x4ec5",
+    "dispatcherSha256": "3f642dd728149b3e86ee4f29e639494db272d80d9fc74e119c57e1800ea87af6",
+    "dispatcherBytes": 289833,
+    "methodRegistryHash": "18f74759624edc90"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-43-generic",
+    "nodeVersion": "24.22.3"
+  },
+  "editor": {
+    "version": "4.1.105.0339a6cd",
+    "electronVersion": "not independently recorded",
+    "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+    "chromiumVersion": "not independently recorded",
+    "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+  },
+  "runtimeIdentity": {
+    "health": "ok",
+    "serverVersion": "1.18.1",
+    "extensionVersion": "1.18.1",
+    "registryMismatch": false,
+    "versionMismatch": false,
+    "connected": true,
+    "bridgeVersion": "1.0.0",
+    "easyedaVersion": "4.1.105",
+    "methodRegistryHash": "18f74759624edc90",
+    "methodCount": 83,
+    "dispatcher": "daa4bx4da8x4ec5",
+    "source": "loader_status",
+    "devMode": false
+  },
+  "extension": {
+    "installedPackageVersion": "1.18.1",
+    "loaderReportedVersion": "1.18.1",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "18f74759624edc90",
+    "activeDispatcher": "baked",
+    "dispatcherBuildId": "daa4bx4da8x4ec5",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "packageSha256": "7e672279a2867c2568de41d27e1f3bab73576ca1210a53af77a4574670abe746",
+    "packageSizeBytes": 239792
+  },
+  "fixture": {
+    "project": "Separate isolated disposable local schematic and PCB copies; no personal design",
+    "schematic": "Five drawing create/rollback cases, separate committed text create/delete with two cold reopens, focused PCB autoroute and separate cold read",
+    "disposable": true,
+    "readOnly": false
+  },
+  "liveAcceptance": {
+    "reproduciblePackage": true,
+    "installation": {
+      "innerExit": 0,
+      "outerExit": 1,
+      "enabled": true,
+      "externalInteractions": true
+    },
+    "drawingCreateRollback": {
+      "phaseExitCodes": {
+        "text": 0,
+        "rectangle": 0,
+        "circle": 0,
+        "polygon": 0,
+        "wire": 0
+      },
+      "wrongPageDenied": true,
+      "previewUnchanged": true,
+      "sixClassNativeInventoryAgreed": true,
+      "allPreviousObservedRowsUnchanged": true,
+      "allFiveRollbackComplete": true,
+      "restoredPerTransaction": 1,
+      "failedPerTransaction": 0,
+      "baselineRestored": true,
+      "originalAndDisposableHashesUnchanged": true,
+      "originalSha256": "e39e371b95e974de0e99ceb639b3606572ae9dafa814f6925782173d199cdbdd",
+      "drawings": {
+        "text": {
+          "primitiveId": "50f198185c097d0b",
+          "property": {
+            "X": 1860,
+            "Y": 1120,
+            "Content": "QA_BATCH_REVIEW_TEXT"
+          },
+          "baselineRestored": true
+        },
+        "rectangle": {
+          "primitiveId": "3887f93f86548196",
+          "property": {
+            "TopLeftX": 1860,
+            "TopLeftY": 1180,
+            "Width": 80,
+            "Height": 40
+          },
+          "baselineRestored": true
+        },
+        "circle": {
+          "primitiveId": "cee809aa1057b221",
+          "property": {
+            "CenterX": 1860,
+            "CenterY": 1180,
+            "Radius": 20
+          },
+          "baselineRestored": true
+        },
+        "polygon": {
+          "primitiveId": "ba22686afcaa6134",
+          "property": {
+            "Line": [1820, 1140, 1900, 1140, 1860, 1180]
+          },
+          "baselineRestored": true
+        },
+        "wire": {
+          "primitiveId": "1e515f9ec486e995",
+          "property": {
+            "Line": [1900, 1140, 1820, 1140],
+            "Net": "QA_BATCH_REVIEW_WIRE"
+          },
+          "baselineRestored": true
+        }
+      }
+    },
+    "textPersistence": {
+      "phaseExitCodes": {
+        "create": 0,
+        "delete": 0,
+        "cold": 0
+      },
+      "outerExit": 0,
+      "saveNativeAcknowledged": true,
+      "savePersistenceVerifiedByApi": false,
+      "firstColdMarkerPresent": true,
+      "exactDeleteAcknowledged": true,
+      "secondColdMarkerAbsent": true,
+      "baselineObservedInventoryRestored": true,
+      "originalUnchanged": true,
+      "finalDisposableSha256": "ad59ffde098385a17f8a8b6878c7e0dcecb104c0bb33859d1e1d49043de7ea61"
+    },
+    "autoroute": {
+      "wrongProjectAndPcbDenied": true,
+      "missingConfirmDenied": true,
+      "defaultConstraintBlockUnchanged": true,
+      "authorizedMode": "warn/keep",
+      "overallVerdict": "partial",
+      "route": {
+        "started": true,
+        "total_nets_count": 17,
+        "success_nets_count": 13,
+        "failed_nets": ["VCC_IN", "$1N6954", "$1N13327", "$1N10660"],
+        "duration_ms": 18327
+      },
+      "drc": {
+        "passed": false,
+        "total_violations": 1,
+        "error_count": 1,
+        "warning_count": 0
+      },
+      "constraints": {
+        "verdict": "needs-review",
+        "manual_review_required_count": 22
+      },
+      "existingComponents": 33,
+      "existingTracks": 98,
+      "newTracks": 72,
+      "vias": 0,
+      "nativeInnerExit": 0,
+      "combinedOuterExit": 1,
+      "explicitSave": false,
+      "originalUnchanged": true,
+      "originalSha256": "7fe767781ac0f2d947a9713250d2b3e465ee605f564181b8320b37070cc149bd",
+      "disposableAfterSha256": "ef5a420a3c3b521d1e816a54881e5eb1b1569e6732a175cf328a3aaab703795f",
+      "changedSqliteTables": [
+        "branches",
+        "component_full_history_logs",
+        "db_versions",
+        "history_data",
+        "project_attributes",
+        "project_history_c99ad584808b436d87f02f39f1513ee6",
+        "project_images",
+        "project_structures",
+        "projects",
+        "sqlite_sequence"
+      ],
+      "coldRead": {
+        "innerExit": 7,
+        "outerExit": 1,
+        "result": "blocked",
+        "sourceAndCopyUnchangedDuringColdRead": true,
+        "originalTrackCount": 98,
+        "routeAddedTrackCount": 72,
+        "coldTrackCount": 148,
+        "unchangedNewTrackCount": 0,
+        "missingNewTrackCount": 22,
+        "unexpectedNewOrChangedTrackCount": 50,
+        "oldComponentsTracksViasUnchanged": true,
+        "coldMatchesCompleteRoute": false,
+        "sharedNewIds": 50,
+        "newColdIds": 0,
+        "changedFieldsByCount": {
+          "EndX": 50,
+          "StartX": 50,
+          "StartY": 50,
+          "EndY": 50
+        },
+        "endpointReversalOnlyCount": 0,
+        "otherPropertyDifferenceCount": 50,
+        "followupIssue": 1126
+      }
+    }
+  },
+  "knownLimitations": [
+    "Exact current native evidence covers the recorded V4 Ubuntu local stdio MCP paths, not full API, Windows/macOS native compatibility, Cloud or manufacturing.",
+    "Only wire/text/rectangle/circle/polygon batch creates have the verified drawing ownership contract. Component/netflag/netport atomic creates are refused as a deliberate correctness and data-loss-risk restriction. Use independently verified standalone placement where supported. General physical component and marker rollback remain unproven; legacy modify/workflow ownership is separate.",
+    "Autoroute correct-target validation and in-memory partial routing are not a saved-revision guarantee. No explicit save was issued during route. The disposable PCB disk changed with migration and additional history/project records; cold read had 148 tracks rather than 170. Existing observed 98 tracks, 33 components and vias were preserved, but 22 new IDs were missing and all 50 shared new IDs had coordinate differences not explained by endpoint reversal. Geometry equivalence and durable completion remain blocked (#1126); do not blindly retry, and no fabrication approval.",
+    "Prior 1.18.0 native component placement/refusal, netlist, multi-window/reload, private Ground cold restore and earlier PCB lifecycle/import/STEP/local creation are historical evidence, not fresh observations on b9228cf. V3 activation, general component/marker reconstruction, Cloud owner isolation, server-side BOM file delivery and unrestricted persistence remain outside this exact validation.",
+    "All original files unchanged. Five in-memory drawing test files unchanged; separate text persistence output intentionally changed and was independently reopened twice. Route inner exit 0 versus outer exit 1 (disposable disk hash mismatch), cold route inner 7/outer 1. Do not interpret those wrappers as pass. Text cold inner and outer exit 0. No personal design mutation or production Cloud change.",
+    "Electron and Chromium versions were not independently measured. Baked/hot-swap state is established from the packaged non-hot-swap loader, matching live dispatcher and devMode=false."
+  ],
+  "publicEvidence": [
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/1123#issuecomment-7123475853",
+    "https://github.com/oaslananka/easyeda-mcp-pro/issues/1126",
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/1125#issuecomment-7123178101"
+  ]
+}
