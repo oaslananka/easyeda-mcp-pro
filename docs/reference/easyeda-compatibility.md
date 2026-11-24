@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-11-20
+- **Last reviewed:** 2026-11-24
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.18.0               | 1.18.0                | 1.18.0            | Live validated  | 2026-11-24 | 2027-02-22 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.17.0               | 1.17.0                | 1.17.0            | Live validated  | 2026-11-20 | 2027-02-18 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.16.1               | 1.16.1                | 1.16.1            | Live validated  | 2026-11-19 | 2027-02-17 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.16.0               | 1.16.0                | 1.16.0            | Live validated  | 2026-11-19 | 2027-02-17 |
@@ -78,6 +79,59 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-931816d-v118-native-local
+
+Record ID: `easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-931816d-v118-native-local`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `4.1.105.0339a6cd`                                                                                      |
+| Electron                                 | `not independently recorded`                                                                            |
+| Chromium                                 | `not independently recorded` (Chromium version not independently measured in this exact-candidate run.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                      |
+| Kernel                                   | `7.0.0-43-generic`                                                                                      |
+| Architecture                             | `x86_64`                                                                                                |
+| Node.js used by validation server        | `24.22.3`                                                                                               |
+| Validation package version               | `1.18.0`                                                                                                |
+| Fix version represented by evidence      | `1.18.0`                                                                                                |
+| Compatibility-sensitive base commit      | `931816dd05badedbf1dccae5a8109c1932319ea7`                                                              |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                |
+| Installed extension package metadata     | `1.18.0`                                                                                                |
+| Live-validated extension package SHA-256 | `6ab561579e3d3da9edbea5afadeb1340c9ebc911a3c92edb4c35f07c5e61e649`                                      |
+| Live-validated extension package size    | `237561 bytes`                                                                                          |
+| Loader-reported version                  | `1.18.0`                                                                                                |
+| Bridge contract                          | `1.0.0`                                                                                                 |
+| Dispatcher                               | `baked`                                                                                                 |
+| Method registry hash                     | `18f74759624edc90`                                                                                      |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                       |
+
+The installed extension package and loader both reported version `1.18.0` during this validation.
+
+### Capability evidence
+
+| Capability                                                        | Level  | Status    | Result                                                                                                                                                                                                                                                                                                                    | Evidence                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------- | ------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact 1.18.0 native extension and local MCP handshake             | `live` | `passed`  | Official extension manager import, enabled/external interactions, actual local stdio MCP health ok; server and extension 1.18.0, 83 registered methods and no version/registry mismatch. Two identical package builds; dispatcher matched.                                                                                | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.0-931816d-native-local-mcp.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7120701985) |
+| Scoped transactional physical component placement                 | `live` | `passed`  | Exact local device/library verification and search, unchanged preview, confirmed one new physical part; applied transaction target matched independent native ID. Six previous native component/marker/frame rows and two wires unchanged.                                                                                | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.0-931816d-native-local-mcp.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7120701985) |
+| General physical component rollback                               | `live` | `blocked` | Explicit rollback truthfully returned TRANSACTION_ROLLBACK_FAILED, complete=false, restored 0/failed 1. Created part remained in memory, unrelated inventory unchanged. No retry or save; original and disposable disk hashes unchanged.                                                                                  | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.0-931816d-native-local-mcp.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7120701985) |
+| Focused project netlist export                                    | `live` | `passed`  | Correct PADS file 251 bytes, valid sections and one signal; unrelated project denied, no artifact, correct output and native identity preserved.                                                                                                                                                                          | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.0-931816d-native-local-mcp.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7120701985) |
+| Two-window ownership and manual switching                         | `live` | `passed`  | Competing automatic connection refused; 8/8 native wire reads correct; manual projectless read denied PROJECT_INACTIVE; manual return correct.                                                                                                                                                                            | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.0-931816d-native-local-mcp.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7120701985) |
+| Target renderer reload and automatic reconnection                 | `live` | `passed`  | Exactly one verified native renderer target reloaded; automatic connection recovered with same project/page, 4/4 subsequent wire reads correct.                                                                                                                                                                           | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.0-931816d-native-local-mcp.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7120701985) |
+| Confirmed text transaction rollback                               | `live` | `passed`  | Preview unchanged, one text created, explicit rollback complete=true, restored 1/failed 0; independent baseline two texts, two wires and six native rows matched.                                                                                                                                                         | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.0-931816d-native-local-mcp.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7120701985) |
+| Text creation and exact deletion through independent cold reopens | `live` | `passed`  | Distinct committed text created and save acknowledged, first full cold reopen confirmed marker; exact confirmed delete/save and second cold reopen restored baseline IDs/content. Save/delete report persistence unverified until independent readback.                                                                   | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.0-931816d-native-local-mcp.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7120701985) |
+| Documented private single-default-Ground rollback and cold reopen | `live` | `passed`  | Exact built CLI in isolated Linux namespace with existing legitimate read-only activation and bounded vendor library relay: rollbackComplete/coldReopenVerified/originalUnchanged true. Recorded CLI exit 0, independently verified new 520192-byte output; outer Ops wrapper exit 1, not represented as wrapper success. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.0-931816d-native-local-mcp.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7120729807) |
+
+### Known limitations
+
+- Exact current native evidence covers the documented V4 Ubuntu local stdio MCP workflows and private Ground CLI only; not full API, Windows/macOS native compatibility, Cloud, fabrication, or unrestricted component/marker rollback.
+- General physical component rollback remains blocked; legacy batch/workflow ownership reconciliation has not been upgraded to the scoped placement proof. #1119 confines native part classification to verified standalone transactional placement.
+- The immediately preceding exact 1.18.0 candidate ee94f19065d89a51d9ac723da09fed884fa827dd exercised PCB lifecycle/read/STEP, import, autoroute and isolated local creation. Those historical results are not fresh observations on 931816d. The only intervening source changes are scoped schematic inventory/placement and tests plus changelog; no changed PCB/lifecycle/autoroute implementation. Prior import acknowledged with two track net names changed (electrical equivalence unverified); autoroute partial 13/17 with one DRC error; no manufacturing approval.
+- V3 clean-profile activation remains blocked; no general V3 native acceptance. Connected marker/physical component reconstruction, #1060/#1102, Cloud OAuth/owner isolation and production deployment (#850), BOM server-side file delivery and arbitrary design persistence are not established.
+- No personal design or production Cloud mutation. Native save ACK and delete readback are not themselves durable proof. Ground CLI inner exit 0 and independent output validation distinguished from outer wrapper exit 1.
+- Electron/Chromium versions were not independently measured in this exact run. Baked/hot-swap state is established from the verified packaged loader (hot-swap compiled out), matching live dispatcher and devMode=false; no inferred independent runtime measurement.
 
 ## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-20-f8f5a9f-v117-native-local
 

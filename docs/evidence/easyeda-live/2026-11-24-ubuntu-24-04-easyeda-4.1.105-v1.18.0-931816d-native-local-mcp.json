@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-v118-native-local-MCP-compatibility",
+  "recordedAtUtc": "2026-11-24T03:03:01Z",
+  "candidate": {
+    "releasePullRequest": 1107,
+    "exactCommit": "931816dd05badedbf1dccae5a8109c1932319ea7",
+    "packageVersion": "1.18.0",
+    "extensionSha256": "6ab561579e3d3da9edbea5afadeb1340c9ebc911a3c92edb4c35f07c5e61e649",
+    "extensionBytes": 237561,
+    "compatibilitySensitiveTreeSha1": {
+      "easyeda-bridge-extension/src": "6b4d2e12fded28046dd085ff706b3239a34461da",
+      "src/bridge": "227a0a48511fa54cfe036c619efef59d3325eee9",
+      "src/remote": "7fcd33c262536ec1cba79c49e4ad24615663633a",
+      "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+      "src/tools": "a7167e9342acdaa43b9f1d20a94eb31bc0db4bb1",
+      "src/transactions": "548640b1ce18da9feeaf9720be389814d3da5e20"
+    },
+    "methodRegistryHash": "18f74759624edc90",
+    "dispatcherBuildId": "d7a59xbb99xae45"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-43-generic",
+    "nodeVersion": "24.22.3"
+  },
+  "editor": {
+    "version": "4.1.105.0339a6cd",
+    "electronVersion": "not independently recorded",
+    "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+    "chromiumVersion": "not independently recorded",
+    "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+  },
+  "runtimeIdentity": {
+    "health": "ok",
+    "serverVersion": "1.18.0",
+    "extensionVersion": "1.18.0",
+    "registryMismatch": false,
+    "versionMismatch": false,
+    "connected": true,
+    "bridgeVersion": "1.0.0",
+    "easyedaVersion": "4.1.105",
+    "methodRegistryHash": "18f74759624edc90",
+    "methodCount": 83,
+    "dispatcher": "d7a59xbb99xae45",
+    "source": "loader_status",
+    "devMode": false
+  },
+  "extension": {
+    "installedPackageVersion": "1.18.0",
+    "loaderReportedVersion": "1.18.0",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "18f74759624edc90",
+    "activeDispatcher": "baked",
+    "dispatcherBuildId": "d7a59xbb99xae45",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "packageSha256": "6ab561579e3d3da9edbea5afadeb1340c9ebc911a3c92edb4c35f07c5e61e649",
+    "packageSizeBytes": 237561
+  },
+  "fixture": {
+    "project": "Independent isolated disposable local schematic copies and verified single-default-Ground input; no personal design",
+    "schematic": "Native focused identity, component preview/placement and refusal, netlist/multi-window/reload, separate text rollback and two cold reopens",
+    "disposable": true,
+    "readOnly": false
+  },
+  "liveAcceptance": {
+    "phaseExitCodes": {
+      "install": 0,
+      "component": 0,
+      "read": 0,
+      "reload": 0,
+      "create": 0,
+      "delete": 0,
+      "cold": 0
+    },
+    "outerNativeWrapperExitCode": 0,
+    "reproduciblePackage": true,
+    "originalFixtureHashesUnchanged": true,
+    "componentPlacement": {
+      "previewUnchanged": true,
+      "exactNewNativeIdMatchedTransaction": true,
+      "existingInventoryUnchanged": true,
+      "rollbackComplete": false,
+      "rollbackRestored": 0,
+      "rollbackFailed": 1,
+      "createdPartRetainedInMemory": true,
+      "saved": false,
+      "disposableDiskUnchanged": true
+    },
+    "netlist": {
+      "bytes": 251,
+      "signals": 1,
+      "unrelatedProjectDenied": true,
+      "wrongArtifactCreated": false
+    },
+    "ownership": {
+      "backgroundReadsPassed": 8,
+      "wrongProjectDenied": true,
+      "manualReturnPassed": true,
+      "rendererReloadRecovered": true,
+      "postReloadReadsPassed": 4
+    },
+    "text": {
+      "rollbackRestored": 1,
+      "rollbackFailed": 0,
+      "baselineRestored": true,
+      "coldCreatePresent": true,
+      "coldDeleteAbsent": true,
+      "savePersistenceVerifiedByAck": false,
+      "baselineTexts": 2,
+      "baselineWires": 2,
+      "baselineNativeRows": 6
+    },
+    "privateGround": {
+      "cliExitCode": 0,
+      "outerWrapperExitCode": 1,
+      "rollbackComplete": true,
+      "coldReopenVerified": true,
+      "originalUnchanged": true,
+      "outputSha256": "1a343717496d1ee16fcb2f05cd27f590062b13f01bc6932c609d82b49d500758",
+      "outputBytes": 520192
+    }
+  },
+  "priorCandidateEvidence": {
+    "exactCommit": "ee94f19065d89a51d9ac723da09fed884fa827dd",
+    "notReexecutedInCurrentRun": [
+      "PCB lifecycle and STEP export",
+      "schematic-to-PCB import",
+      "autoroute",
+      "offline local project create/cold reopen"
+    ],
+    "links": [
+      "https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7119565005",
+      "https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7119623915",
+      "https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7120031620"
+    ],
+    "limitations": "Import changed two net labels, electrical equivalence not established; autoroute partial with DRC error. Historical only."
+  },
+  "knownLimitations": [
+    "Exact current native evidence covers the documented V4 Ubuntu local stdio MCP workflows and private Ground CLI only; not full API, Windows/macOS native compatibility, Cloud, fabrication, or unrestricted component/marker rollback.",
+    "General physical component rollback remains blocked; legacy batch/workflow ownership reconciliation has not been upgraded to the scoped placement proof. #1119 confines native part classification to verified standalone transactional placement.",
+    "The immediately preceding exact 1.18.0 candidate ee94f19065d89a51d9ac723da09fed884fa827dd exercised PCB lifecycle/read/STEP, import, autoroute and isolated local creation. Those historical results are not fresh observations on 931816d. The only intervening source changes are scoped schematic inventory/placement and tests plus changelog; no changed PCB/lifecycle/autoroute implementation. Prior import acknowledged with two track net names changed (electrical equivalence unverified); autoroute partial 13/17 with one DRC error; no manufacturing approval.",
+    "V3 clean-profile activation remains blocked; no general V3 native acceptance. Connected marker/physical component reconstruction, #1060/#1102, Cloud OAuth/owner isolation and production deployment (#850), BOM server-side file delivery and arbitrary design persistence are not established.",
+    "No personal design or production Cloud mutation. Native save ACK and delete readback are not themselves durable proof. Ground CLI inner exit 0 and independent output validation distinguished from outer wrapper exit 1.",
+    "Electron/Chromium versions were not independently measured in this exact run. Baked/hot-swap state is established from the verified packaged loader (hot-swap compiled out), matching live dispatcher and devMode=false; no inferred independent runtime measurement."
+  ],
+  "publicEvidence": [
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7120701985",
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7120729807",
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7119565005",
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7119623915",
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/1107#issuecomment-7120031620"
+  ]
+}
