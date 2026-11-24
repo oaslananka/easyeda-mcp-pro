@@ -709,6 +709,80 @@ describe('Autorouting Tools', () => {
       expect(result.preflight.error_count).toBeGreaterThan(0);
     });
 
+    it.each([
+      'no-confirm',
+      'wrong-project',
+      'preflight-block',
+      'partial',
+      'acknowledged',
+      'native-false',
+      'missing-ack',
+      'native-timeout',
+    ] as const)('reports a truthful separate route persistence outcome (%s)', async (scenario) => {
+      const attempted = [
+        'partial',
+        'acknowledged',
+        'native-false',
+        'missing-ack',
+        'native-timeout',
+      ].includes(scenario);
+      mockFocusedBridge(async (method: string) => {
+        if (method === 'api.call') {
+          if (scenario === 'native-timeout') throw new Error('Native timeout');
+          return {
+            result:
+              scenario === 'missing-ack'
+                ? {}
+                : {
+                    success: scenario !== 'native-false',
+                    totalNetsCount: 5,
+                    successNetsCount: scenario === 'partial' ? 4 : 5,
+                    failedNets: scenario === 'partial' ? ['NET1'] : [],
+                  },
+          };
+        }
+        if (method === 'design.drc')
+          return { passed: true, errorCount: 0, warningCount: 0, totalViolations: 0 };
+        if (method === 'board.getDimensions') return passingBoardData();
+        return {};
+      });
+      const tool = registry.get('easyeda_pcb_autoroute');
+      const result = await tool?.handler(context, {
+        projectId: scenario === 'wrong-project' ? 'foreign-project' : 'proj-1',
+        confirmWrite: scenario !== 'no-confirm',
+        gateMode: 'warn',
+        boardData: scenario === 'preflight-block' ? { hasOutline: false } : passingBoardData(),
+      });
+      expect(bridgeCall.mock.calls.filter(([method]) => method === 'api.call')).toHaveLength(
+        attempted ? 1 : 0,
+      );
+      expect(result).toMatchObject({
+        persistence_verified: false,
+        persistence_status: attempted ? 'unverified' : 'not_attempted',
+      });
+      const parsed = tool?.outputSchema.safeParse(result);
+      expect(parsed?.success).toBe(true);
+      if (!parsed?.success) throw new Error('Invalid autoroute output');
+      expect(parsed.data).toMatchObject({
+        persistence_verified: false,
+        persistence_status: attempted ? 'unverified' : 'not_attempted',
+      });
+      const row = result as { summary: string; persistence_guidance: string };
+      if (attempted) {
+        expect(row.summary).toContain('Persistence unverified');
+        expect(row.persistence_guidance).toContain('before any retry');
+        expect(row.persistence_guidance).toContain('reopen');
+        expect(row.persistence_guidance).toContain('geometry and connectivity');
+      } else {
+        expect(row.persistence_guidance).toContain('No autoroute was attempted');
+      }
+      expect(
+        bridgeCall.mock.calls.some(
+          ([method, params]) => /save/i.test(method) || /save/i.test(String(params?.path ?? '')),
+        ),
+      ).toBe(false);
+    });
+
     it('reports failed (not silent success) when the autoroute bridge call throws', async () => {
       mockFocusedBridge(async (method: string) => {
         if (method === 'api.call') throw new Error('PCB_Document.autoRouting not found');
