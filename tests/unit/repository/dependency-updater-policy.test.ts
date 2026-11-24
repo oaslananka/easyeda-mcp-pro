@@ -20,7 +20,7 @@ interface RenovatePackageRule {
 }
 
 interface RenovateConfig {
-  dependencyDashboard?: boolean;
+  dependencyDashboard?: { enabled?: boolean };
   osvVulnerabilityAlerts?: boolean;
   packageRules?: RenovatePackageRule[];
   'pip-compile'?: {
@@ -40,7 +40,7 @@ describe('dependency updater ownership', () => {
     const config = JSON.parse(raw) as RenovateConfig;
 
     expect(raw).not.toContain('minimumReleaseAge');
-    expect(config.dependencyDashboard).toBe(true);
+    expect(config.dependencyDashboard?.enabled).toBe(true);
     expect(config.osvVulnerabilityAlerts).toBe(true);
   });
 
