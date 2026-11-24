@@ -12,7 +12,7 @@ import {
   assertFocusedSchematicScope,
   nativeSchematicTarget,
 } from '../transactions/schematic-scope.js';
-import { stableHash } from '../transactions/stable.js';
+import { normalizeUndirectedTwoPointWire, stableHash } from '../transactions/stable.js';
 
 const drawingMethods = {
   wire: 'schematic.addWire',
@@ -140,11 +140,16 @@ function matchesRequestedDrawing(
     !snapshot.property
   )
     return false;
-  const property = snapshot.property;
-  return Object.entries(expected).every(
+  const actual = normalizeUndirectedTwoPointWire({
+    primitiveKind: kind,
+    property: snapshot.property,
+  }).property as Record<string, unknown>;
+  const requested = normalizeUndirectedTwoPointWire({ primitiveKind: kind, property: expected })
+    .property as Record<string, unknown>;
+  return Object.entries(requested).every(
     ([key, value]) =>
       value === undefined ||
-      (Object.hasOwn(property, key) && stableHash(property[key]) === stableHash(value)),
+      (Object.hasOwn(actual, key) && stableHash(actual[key]) === stableHash(value)),
   );
 }
 

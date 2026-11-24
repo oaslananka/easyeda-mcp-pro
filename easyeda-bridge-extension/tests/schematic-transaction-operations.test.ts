@@ -904,11 +904,143 @@ describe('schematic transaction operations', () => {
     expect(componentDelete).not.toHaveBeenCalled();
   });
 
+  it.each(['rectangle', 'circle', 'polygon'])(
+    'does not mistake a truthy Text.get for the native %s owner',
+    async (kind) => {
+      const id = 'drawing-1';
+      const properties =
+        kind === 'rectangle'
+          ? { TopLeftX: 10, TopLeftY: 20, Width: 30, Height: 40 }
+          : kind === 'circle'
+            ? { CenterX: 10, CenterY: 20, Radius: 5 }
+            : { Line: [0, 0, 10, 0, 10, 10] };
+      const native = { primitiveId: id, ...properties };
+      const remove = vi.fn().mockResolvedValue(true);
+      const falseTextDelete = vi.fn().mockResolvedValue(true);
+      const className = 'SCH_Primitive' + kind[0].toUpperCase() + kind.slice(1);
+      const { operations, callFirst } = createSubject(
+        {
+          SCH_PrimitiveText: {
+            get: vi.fn().mockResolvedValue({ primitiveId: id }),
+            getAllPrimitiveId: vi.fn().mockResolvedValue([]),
+            delete: falseTextDelete,
+          },
+          [className]: {
+            get: vi.fn().mockResolvedValue(native),
+            getAllPrimitiveId: vi.fn().mockResolvedValue([id]),
+            getAll: vi.fn().mockResolvedValue([native]),
+            delete: remove,
+          },
+        },
+        { getEasyedaVersion: () => '4.1.105' },
+      );
+      callFirst.mockImplementation(async (paths: string[]) => {
+        if (paths[0] === 'DMT_Project.getCurrentProjectInfo') return { uuid: 'project-1' };
+        if (paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo')
+          return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+        throw new Error('Unexpected native getter');
+      });
+      const expected = await operations.getPrimitiveSnapshot(id, kind);
+      await expect(
+        operations.deletePrimitives([id], expected, {
+          projectId: 'project-1',
+          documentId: 'page-1',
+        }),
+      ).resolves.toMatchObject({ deleted: [id] });
+      expect(remove).toHaveBeenCalledExactlyOnceWith([id]);
+      expect(falseTextDelete).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    'missing-owner',
+    'missing-rows',
+    'row-read-error',
+    'malformed-rows',
+    'different-rows',
+    'duplicate-rows',
+    'missing-target',
+    'competing-id',
+    'competing-unreadable',
+    'component-id',
+    'component-unreadable',
+  ])(
+    'refuses scoped drawing deletion when class membership is unverified (%s)',
+    async (scenario) => {
+      const id = 'rectangle-1';
+      const row = { primitiveId: id, TopLeftX: 10, TopLeftY: 20, Width: 30, Height: 40 };
+      const remove = vi.fn().mockResolvedValue(true);
+      const otherRemove = vi.fn().mockResolvedValue(true);
+      const classes: Record<string, unknown> = {
+        SCH_PrimitiveRectangle: {
+          get: vi.fn().mockResolvedValue(row),
+          delete: remove,
+          getAllPrimitiveId: vi.fn().mockResolvedValue(scenario === 'missing-target' ? [] : [id]),
+          getAll:
+            scenario === 'missing-rows'
+              ? undefined
+              : vi.fn(async () => {
+                  if (scenario === 'row-read-error') throw new Error('native read failed');
+                  return scenario === 'malformed-rows'
+                    ? null
+                    : scenario === 'different-rows'
+                      ? [{ primitiveId: 'other' }]
+                      : scenario === 'duplicate-rows'
+                        ? [row, row]
+                        : [row];
+                }),
+        },
+      };
+      if (scenario === 'missing-owner') delete classes.SCH_PrimitiveRectangle;
+      if (scenario.startsWith('competing'))
+        classes.SCH_PrimitiveText = {
+          getAllPrimitiveId: vi
+            .fn()
+            .mockResolvedValue(scenario === 'competing-id' ? [id] : undefined),
+          delete: otherRemove,
+        };
+      if (scenario.startsWith('component'))
+        classes.SCH_PrimitiveComponent = {
+          get: vi.fn().mockResolvedValue(undefined),
+          getAllPrimitiveId: vi
+            .fn()
+            .mockResolvedValue(scenario === 'component-id' ? [id] : undefined),
+          getAll: vi.fn().mockResolvedValue(scenario === 'component-id' ? [row] : []),
+          delete: otherRemove,
+        };
+      const { operations, callFirst } = createSubject(classes, {
+        getEasyedaVersion: () => '4.1.105',
+      });
+      callFirst.mockImplementation(async (paths: string[]) => {
+        if (paths[0] === 'DMT_Project.getCurrentProjectInfo') return { uuid: 'project-1' };
+        if (paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo')
+          return { uuid: 'page-1', parentProjectUuid: 'project-1', documentType: 1 };
+        throw new Error('Unexpected native getter');
+      });
+      await expect(
+        operations.deletePrimitives(
+          [id],
+          {
+            schemaVersion: 'schematic-primitive-snapshot/v1',
+            primitiveId: id,
+            primitiveKind: 'rectangle',
+            property: { x: 10, y: 20, width: 30, height: 40 },
+          },
+          { projectId: 'project-1', documentId: 'page-1' },
+        ),
+      ).rejects.toBeDefined();
+      expect(remove).not.toHaveBeenCalled();
+      expect(otherRemove).not.toHaveBeenCalled();
+    },
+  );
+
   it('refuses a transactional wire whose native net changed after server snapshot verification', async () => {
     let nativeNet = 'N1';
     const nativeDelete = vi.fn().mockResolvedValue(true);
     const { operations, callFirst } = createSubject({
       SCH_PrimitiveWire: {
+        getAllPrimitiveId: vi.fn().mockResolvedValue(['wire-1']),
+        getAll: vi.fn().mockResolvedValue([{ primitiveId: 'wire-1' }]),
         get: vi.fn(async (id: string) =>
           id === 'wire-1'
             ? {
@@ -945,6 +1077,8 @@ describe('schematic transaction operations', () => {
     const nativeDelete = vi.fn().mockResolvedValue(true);
     const { operations, callFirst } = createSubject({
       SCH_PrimitiveWire: {
+        getAllPrimitiveId: vi.fn().mockResolvedValue(['wire-1']),
+        getAll: vi.fn().mockResolvedValue([{ primitiveId: 'wire-1' }]),
         get: vi.fn(async (id: string) =>
           id === 'wire-1'
             ? {
@@ -978,6 +1112,8 @@ describe('schematic transaction operations', () => {
     const nativeDelete = vi.fn().mockResolvedValue(true);
     const { operations, callFirst } = createSubject({
       SCH_PrimitiveWire: {
+        getAllPrimitiveId: vi.fn().mockResolvedValue(['wire-1']),
+        getAll: vi.fn().mockResolvedValue([{ primitiveId: 'wire-1' }]),
         get: vi.fn(async (id: string) =>
           id === 'wire-1'
             ? {
@@ -1020,6 +1156,8 @@ describe('schematic transaction operations', () => {
     const nativeDelete = vi.fn().mockResolvedValue(true);
     const { operations, callFirst } = createSubject({
       SCH_PrimitiveWire: {
+        getAllPrimitiveId: vi.fn().mockResolvedValue(['wire-1']),
+        getAll: vi.fn().mockResolvedValue([{ primitiveId: 'wire-1' }]),
         get: vi.fn(async (id: string) =>
           id === 'wire-1'
             ? {

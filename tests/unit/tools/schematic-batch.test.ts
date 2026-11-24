@@ -653,6 +653,62 @@ describe('easyeda_schematic_batch_write', () => {
     },
   );
 
+  it.each([
+    { line: [10, 0, 0, 0], net: 'N1', accepted: true },
+    { line: [0, 0, 10, 0], net: 'N1', accepted: true },
+    { line: [10, 0, 0, 0], net: 'N2', accepted: false },
+    { line: [11, 0, 0, 0], net: 'N1', accepted: false },
+    { line: [10, 0, 5, 0, 0, 0], net: 'N1', accepted: false },
+  ])(
+    'verifies only equivalent single-segment wire geometry (%j)',
+    async ({ line, net, accepted }) => {
+      let exists = false;
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'system.getStatus') return verifiedDrawingStatus();
+        if (method === 'api.read') return verifiedSchematicFocus(method, params);
+        if (method === 'schematic.listPrimitiveIds')
+          return {
+            primitiveKind: 'wire',
+            inventoryVerified: true,
+            primitiveIds: exists ? ['new-wire'] : [],
+          };
+        if (method === 'schematic.addWire') {
+          exists = true;
+          return drawingAck('new-wire');
+        }
+        if (method === 'schematic.getPrimitiveSnapshot')
+          return {
+            schemaVersion: 'schematic-primitive-snapshot/v1',
+            primitiveId: 'new-wire',
+            primitiveKind: 'wire',
+            property: { line, net },
+          };
+        throw new Error('Unexpected method ' + method);
+      });
+      const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+        projectId: 'project-1',
+        atomic: true,
+        confirmWrite: true,
+        operations: [
+          {
+            operationId: 'wire',
+            action: 'create',
+            primitiveKind: 'wire',
+            points: [
+              { x: 0, y: 0 },
+              { x: 10, y: 0 },
+            ],
+            netName: 'N1',
+          },
+        ],
+      });
+      expect(result).toMatchObject({ success: accepted, committed: accepted });
+      expect(bridgeCall.mock.calls.some(([method]) => method === 'schematic.deletePrimitive')).toBe(
+        false,
+      );
+    },
+  );
+
   it.each(['changed-snapshot', 'changed-page'])(
     'refuses rollback of an owned drawing after %s',
     async (scenario) => {

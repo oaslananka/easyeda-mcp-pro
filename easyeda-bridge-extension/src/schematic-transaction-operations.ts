@@ -1099,11 +1099,7 @@ export function createSchematicTransactionOperations(
   // A failed lookup alone does not establish absence: require two matching complete
   // native component inventories, including markers, before considering another owner.
   async function verifiedNonComponentId(owner: any, primitiveId: string): Promise<boolean> {
-    if (
-      !isVerifiedV4BetaTextRuntime() ||
-      typeof owner.getAllPrimitiveId !== 'function' ||
-      typeof owner.getAll !== 'function'
-    )
+    if (typeof owner.getAllPrimitiveId !== 'function' || typeof owner.getAll !== 'function')
       return false;
     try {
       const ids = verifiedTypedIdList(await owner.getAllPrimitiveId());
@@ -1129,7 +1125,8 @@ export function createSchematicTransactionOperations(
     try {
       return await owner.get(primitiveId);
     } catch {
-      if (await verifiedNonComponentId(owner, primitiveId)) return undefined;
+      if (isVerifiedV4BetaTextRuntime() && (await verifiedNonComponentId(owner, primitiveId)))
+        return undefined;
       return unsafe(primitiveId, 'native component type read failed');
     }
   }
@@ -1217,6 +1214,54 @@ export function createSchematicTransactionOperations(
     return { primitiveId };
   }
 
+  /** Exact typed membership, not a truthy cross-class native get(), proves the
+   * native owner of a scoped drawing. V4 Text.get can return a drawing ID
+   * outside its own inventory. Never route a scoped delete through it.
+   */
+  async function resolveScopedDrawingOwner(
+    primitiveId: string,
+    kind: SchematicPrimitiveSnapshotKind,
+  ) {
+    const fail = () =>
+      newBridgeError(
+        'NATIVE_DELETE_PRECONDITION_CHANGED',
+        'Native transactional delete refused: native drawing ownership unavailable or ambiguous',
+        'Reinspect the focused schematic and exact primitive before retrying.',
+      );
+    const owner = readFirstPath<any>(schematicPrimitiveClassPaths(kind));
+    if (!owner || typeof owner.delete !== 'function' || typeof owner.getAll !== 'function')
+      throw fail();
+    const componentOwner = readFirstPath<any>(COMPONENT_CLASS_PATHS);
+    if (componentOwner && !(await verifiedNonComponentId(componentOwner, primitiveId)))
+      throw fail();
+    const inventory = await strictDrawingInventory(kind);
+    let rows: unknown;
+    try {
+      rows = await owner.getAll();
+    } catch {
+      throw fail();
+    }
+    if (!Array.isArray(rows)) throw fail();
+    const ids = rows.map(primitiveIdFromValue);
+    if (
+      ids.some((id) => !id) ||
+      new Set(ids).size !== ids.length ||
+      ids.length !== inventory.primitiveIds.length ||
+      !inventory.primitiveIds.every((id) => ids.includes(id)) ||
+      !ids.includes(primitiveId)
+    )
+      throw fail();
+    // Check every available competing drawing inventory, not its get().
+    // Missing native classes cannot be selected as owners. An exposed class
+    // with an unreadable inventory is ambiguous and must fail closed.
+    for (const other of ['wire', 'text', 'rectangle', 'circle', 'polygon'] as const) {
+      if (other === kind || !readFirstPath(schematicPrimitiveClassPaths(other))) continue;
+      const competing = await strictDrawingInventory(other);
+      if (competing.primitiveIds.includes(primitiveId)) throw fail();
+    }
+    return { primitiveId, owner, kind };
+  }
+
   async function deleteSchematicPrimitives(
     primitiveIdsInput: unknown,
     expectedPrimitiveSnapshot?: unknown,
@@ -1250,7 +1295,8 @@ export function createSchematicTransactionOperations(
     }
 
     await refuseUnsafeStandaloneComponentDeletion(primitiveIds);
-    await refuseUnpersistedTextDeletion(primitiveIds);
+    if (!nativeGuard || nativeGuard.kind === 'text')
+      await refuseUnpersistedTextDeletion(primitiveIds);
 
     // Resolve every target before the first write. A native component can
     // change type after the initial preflight, so recheck the exact kind and
@@ -1258,7 +1304,11 @@ export function createSchematicTransactionOperations(
     // wire/marker batch due to a stale component lookup.
     const planned = [];
     for (const primitiveId of primitiveIds) {
-      planned.push(await resolveStandaloneDeletionOwner(primitiveId));
+      planned.push(
+        nativeGuard
+          ? await resolveScopedDrawingOwner(primitiveId, nativeGuard.kind)
+          : await resolveStandaloneDeletionOwner(primitiveId),
+      );
     }
 
     for (const { primitiveId, owner, kind } of planned) {

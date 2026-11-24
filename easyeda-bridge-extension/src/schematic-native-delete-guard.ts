@@ -129,7 +129,10 @@ export function createNativeTransactionalDeleteGuard(
   rawScope: NativeScope | undefined,
   deps: DeleteGuardDependencies,
 ):
-  | { assertBeforeDelete(id: string, kind?: SchematicPrimitiveSnapshotKind): Promise<void> }
+  | {
+      kind: SchematicPrimitiveSnapshotKind;
+      assertBeforeDelete(id: string, kind?: SchematicPrimitiveSnapshotKind): Promise<void>;
+    }
   | undefined {
   if (rawExpected === undefined) return undefined;
   const refuse = (reason: string): never => refusal(deps.createBridgeError, reason);
@@ -144,6 +147,7 @@ export function createNativeTransactionalDeleteGuard(
   }
 
   return {
+    kind: expected.primitiveKind,
     async assertBeforeDelete(id, kind) {
       if (id !== expected.primitiveId || kind !== expected.primitiveKind) {
         refuse('native primitive ID or class changed');
