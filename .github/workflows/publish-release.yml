@@ -345,6 +345,7 @@ jobs:
           fi
 
       - name: Wait for npm package index visibility
+        timeout-minutes: 30
         run: node "$RELEASE_VERIFIER_ROOT/scripts/release-publication-retry.mjs" wait-npm
       - name: Upload Assets to Release
         env:

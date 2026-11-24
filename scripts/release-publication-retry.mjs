@@ -40,15 +40,16 @@ export function decideReleaseCreation({
 export async function waitForNpmVisibility({
   probe,
   delay = (ms) => sleep(ms),
-  attempts = 20,
-  intervalMs = 15_000,
+  attempts = 25,
+  intervalMs = 30_000,
+  pending = () => 'npm version',
 }) {
   if (!Number.isInteger(attempts) || attempts < 1) throw new Error('Invalid retry budget.');
   for (let attempt = 1; attempt <= attempts; attempt++) {
     if (await probe()) return attempt;
     if (attempt < attempts) await delay(intervalMs);
   }
-  throw new Error('npm version not visible after ' + attempts + ' bounded attempts.');
+  throw new Error(pending() + ' not visible after ' + attempts + ' bounded attempts.');
 }
 
 function command(name, args) {
@@ -111,65 +112,137 @@ export function ensureRelease(env = process.env) {
   console.log('Created commit-bound release ' + tag + '.');
 }
 
-export async function waitForPublishedNpm(env = process.env) {
-  const manifest = JSON.parse(command('node', ['-p', 'JSON.stringify(require("./package.json"))']));
-  const version = manifest.version;
-  const name = manifest.name;
+function npmLookup(args) {
+  return spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, {
+    encoding: 'utf8',
+    timeout: 15_000,
+    shell: process.platform === 'win32',
+  });
+}
+
+function lookupNpm(runNpm, args, allowMissing = false) {
+  const response = runNpm([
+    'view',
+    ...args,
+    '--json',
+    '--prefer-online',
+    '--fetch-retries=0',
+    '--fetch-timeout=10000',
+    '--registry=https://registry.npmjs.org/',
+  ]);
+  if (response.status === 0 && !response.error && !response.signal) {
+    const value = decodeNpmView(response.stdout);
+    if (allowMissing && value === null) throw new Error('Invalid npm metadata response.');
+    return value;
+  }
+  if (
+    allowMissing &&
+    !response.error &&
+    !response.signal &&
+    /\bcode E404\b/i.test(response.stderr ?? '')
+  ) {
+    return null;
+  }
+  throw new Error(
+    'npm lookup failed unexpectedly: ' +
+      String(response.error?.message ?? response.stderr).slice(0, 240),
+  );
+}
+
+function validateNpmIdentity(metadata, { version, commitSha, tarball }) {
+  if (
+    metadata?.version !== version ||
+    metadata.gitHead !== commitSha ||
+    metadata['dist.tarball'] !== tarball ||
+    typeof metadata['dist.integrity'] !== 'string' ||
+    !/^sha512-[A-Za-z0-9+/]{86}==$/.test(metadata['dist.integrity'])
+  ) {
+    throw new Error('npm package identity mismatch (version, source, tarball or integrity).');
+  }
+}
+
+function fetchTarballHead(url) {
+  return fetch(url, {
+    method: 'HEAD',
+    redirect: 'manual',
+    credentials: 'omit',
+    headers: { 'Cache-Control': 'no-cache' },
+    signal: AbortSignal.timeout(10_000),
+  });
+}
+
+export async function waitForPublishedNpm(
+  env = process.env,
+  {
+    manifest = JSON.parse(command('node', ['-p', 'JSON.stringify(require("./package.json"))'])),
+    runNpm = npmLookup,
+    headTarball = fetchTarballHead,
+    delay,
+    log = console.log,
+    attempts,
+    intervalMs,
+  } = {},
+) {
+  const { name, version } = manifest;
   const tag = env.NPM_DIST_TAG;
-  const runNpm = (args) =>
-    spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, {
-      encoding: 'utf8',
-      timeout: 15_000,
-      shell: process.platform === 'win32',
-    });
+  const commitSha = env.RELEASE_COMMIT_SHA;
+  if (
+    name !== 'easyeda-mcp-pro' ||
+    !/^\d+\.\d+\.\d+(?:-rc\.[1-9]\d*)?$/.test(version) ||
+    tag !== (version.includes('-rc.') ? 'next' : 'latest') ||
+    !SHA_PATTERN.test(commitSha ?? '')
+  ) {
+    throw new Error('Invalid npm publication identity.');
+  }
+  const tarball = 'https://registry.npmjs.org/' + name + '/-/' + name + '-' + version + '.tgz';
+  let phase = '';
+  function markPending(next, detail = '') {
+    if (phase !== next) log('Waiting for npm ' + next + (detail ? ': ' + detail : '') + '.');
+    phase = next;
+    return false;
+  }
   const attempt = await waitForNpmVisibility({
-    probe: () => {
-      const response = runNpm([
-        'view',
-        name + '@' + version,
-        'version',
-        '--json',
-        '--fetch-retries=0',
-        '--fetch-timeout=10000',
-      ]);
-      if (response.status === 0) return decodeNpmView(response.stdout) === version;
-      if (/E404|404 Not Found|No match found for version/i.test(response.stderr ?? ''))
-        return false;
-      throw new Error(
-        'npm lookup failed unexpectedly: ' +
-          String(response.error?.message ?? response.stderr).slice(0, 240),
+    attempts,
+    intervalMs,
+    delay,
+    pending: () => 'npm ' + phase,
+    probe: async () => {
+      const metadata = lookupNpm(
+        runNpm,
+        [name + '@' + version, 'version', 'gitHead', 'dist.tarball', 'dist.integrity'],
+        true,
       );
+      if (metadata === null) return markPending('metadata');
+      validateNpmIdentity(metadata, { version, commitSha, tarball });
+      const distTag = lookupNpm(runNpm, [name, 'dist-tags.' + tag]);
+      if (distTag !== null && typeof distTag !== 'string') {
+        throw new Error('Invalid npm dist-tag response.');
+      }
+      if (distTag !== version) return markPending('dist-tag ' + tag);
+      const response = await headTarball(tarball);
+      if (response.status === 404) {
+        const age = response.headers.get('age');
+        const detail = age && /^\d+$/.test(age) ? 'HTTP 404, cache age ' + age + 's' : 'HTTP 404';
+        return markPending('tarball', detail);
+      }
+      if (response.status !== 200) {
+        throw new Error('Unexpected npm tarball HTTP status ' + response.status + '.');
+      }
+      return true;
     },
   });
-  try {
-    await waitForNpmVisibility({
-      probe: () => {
-        const distTag = runNpm([
-          'view',
-          name,
-          'dist-tags.' + tag,
-          '--json',
-          '--fetch-retries=0',
-          '--fetch-timeout=10000',
-        ]);
-        if (distTag.status !== 0) {
-          throw new Error(
-            'npm dist-tag lookup failed unexpectedly: ' +
-              String(distTag.error?.message ?? distTag.stderr).slice(0, 240),
-          );
-        }
-        return decodeNpmView(distTag.stdout) === version;
-      },
-    });
-  } catch (error) {
-    if (error instanceof Error && error.message.startsWith('npm version not visible after ')) {
-      throw new Error('npm ' + tag + ' dist-tag mismatch.', { cause: error });
-    }
-    throw error;
-  }
-  console.log(
-    'npm ' + name + '@' + version + ' visible with ' + tag + ' on attempt ' + attempt + '.',
+  log(
+    'npm ' +
+      name +
+      '@' +
+      version +
+      ' visible with ' +
+      tag +
+      ' and canonical tarball on attempt ' +
+      attempt +
+      '.',
   );
+  return attempt;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

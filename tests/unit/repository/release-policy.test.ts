@@ -122,6 +122,9 @@ describe('release channel policy', () => {
     expect(recoveryScript).toContain('existingTagSha: existingTagSha(tag)');
     expect(recoveryScript).toMatch(/'release',\s*'create'/);
     expect(publisher).toContain('name: Wait for npm package index visibility');
+    expect(publisher).toMatch(
+      /name: Wait for npm package index visibility\r?\n {8}timeout-minutes: 30(?:\r?\n)/,
+    );
     expect(publisher).toContain(
       'node "$RELEASE_VERIFIER_ROOT/scripts/release-publication-retry.mjs" wait-npm',
     );
