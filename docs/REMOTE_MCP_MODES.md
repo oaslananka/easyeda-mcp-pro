@@ -181,19 +181,18 @@ Only endpoints with the secure WSS scheme, a hostname, optional valid port and p
 
 EasyEDA Pro 3.2.209's native WebSocket uses the fixed desktop Origin https://client. The gateway accepts only this exact native Origin on the /remote/relay endpoint, not on the generic /session path. Other external origins still require an explicit allowlist and a valid Host. This is transport compatibility, not authentication: an unpaired session cannot read or mutate a project, and owner identity, single-use pairing, scopes, selected native document and approvals remain mandatory.
 
-The official Cloud currently runs as an **owner-restricted Oracle Always Free
-pilot**, not a general-availability service. Real EasyEDA Pro 3.2.209
-acceptance verified native WSS pairing, Google sign-in, selected-PCB reads
-(33/33 components), an approved disposable schematic write with saved
-read-back, and a per-action-approved native Gerber export. The exported ZIP
-contained 13 nonempty files; an independently rejected export failed closed.
-The same live device rejected read requests naming two non-active project UUIDs
-with a project-identity mismatch; neither response disclosed PCB components.
-This does **not** establish manufacturability or general release readiness.
-See [the acceptance record](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057#issuecomment-6933371245)
-and [Remote Relay maturity](./REMOTE_RELAY_STATUS.md).
+The official Cloud is an **owner-restricted Experimental pilot**, not a
+general-availability service. See [Canonical Remote Relay status](./REMOTE_RELAY_STATUS.md)
+for dated, version-specific live evidence and the remaining public-rollout
+acceptance gates. The owner-pilot records include real provider sign-in,
+selected-document reads, approved disposable schematic writes with cold
+reopen, native-approved exports and bounded second-account READ denial.
+These observations do not establish every client, editor release, independent
+user journey, remembered-device recovery, or credential-rotation scenario.
 
-Real standalone Electron revocation/no-retry and cold restart, the GitHub
-provider callback, genuine independent second-account isolation, and
-historic OAuth credential disposition remain unverified for public
-launch. Existing local MCP remains account-free and the default.
+If the OAuth client is connected but the editor is offline, reconnect the
+device before issuing design commands. Re-select the intended native
+schematic or PCB in the Cloud workspace; device recovery never restores
+project selection or edit/export approval. Check the current status before
+retrying a potentially applied write. Local MCP remains account-free and the
+default.

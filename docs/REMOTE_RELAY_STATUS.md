@@ -6,14 +6,60 @@
 
 `MCP_BRIDGE_BACKEND=remote_relay` is an implemented, explicitly selected runtime path. It is not the default and is not yet advertised as Beta or production-ready. Local bridge mode remains the supported default.
 
-## Reconnect UX patch under verification (2026-11-18)
+## Latest recorded owner-pilot acceptance (2026-11-21)
 
-An owner-only Windows EasyEDA Pro 3.2.209 trial confirmed real Cloud READ, a scoped native-approved cosmetic WRITE, GUI Save and full-process cold-reopen persistence on a disposable schematic. The extension was offline after the restart and needed another one-time code plus explicit owner document selection. A **not-yet-released** follow-up adds a separate, clear native “Remember Cloud on this device for 23 hours” choice: no choice means session-only, Local MCP remains the default, and profile-stored rotating credentials never restore OAuth grants, selected projects or write/export approvals. The profile is not a hardware-backed keychain. All tests/real-device reconnection gates must pass before changing the owner-only Experimental maturity label or publishing the artifact. See issue #849.
+**Experimental; public rollout #850 remains HOLD.** Hosted Cloud 1.17.0
+was deployed to the existing owner-restricted pilot on 2026-11-20. This is
+the last recorded deployed release in the acceptance issue, not a claim
+that the hosted service always runs the latest npm or Local MCP release.
 
-## Current owner-only acceptance (2026-11-17)
+On 2026-11-21, actual EasyEDA Pro 4.1.105 and MCP Pro Bridge 1.17.0
+completed a bounded owner-authorized workflow on a disposable schematic:
+
+- Session-only native pairing and explicit document selection, followed by
+  a scoped read.
+- Read-only OAuth client denied mutation; separately Write-authorized
+  client received native approval and successfully added an annotation.
+- Native Save and full-process cold reopen preserved the exact annotation.
+- After process restart, fresh pairing and intentional project reselection
+  restored access. Separate native Export approval returned a header-only
+  inline CSV. A different unselected project was rejected.
+
+See [the live acceptance record](https://github.com/oaslananka/easyeda-mcp-pro/issues/850#issuecomment-7051285101).
+These are bounded owner-pilot results, not a populated BOM test in V4, a
+new user's unaided journey, or acceptance of every newer extension release.
+
+The remaining [rollout acceptance criteria](https://github.com/oaslananka/easyeda-mcp-pro/issues/850)
+include repeatable independent-user isolation across design switches and
+scopes, longer interruptions and token/session expiry, provider credential
+rotation, exact supported editor/version coverage, and a complete new-user
+journey without operator intervention. Earlier provider sign-in and
+second-account read-denial observations below remain valid for their own
+recorded scope.
+
+## Released device-trust option; live recovery acceptance pending
+
+PR [#1077](https://github.com/oaslananka/easyeda-mcp-pro/pull/1077) added the
+explicit native **Remember Cloud on this device for 23 hours** option, which
+is included in the published 1.17.0 release. Session-only remains the
+default; Local MCP remains account-free and the default connection mode.
+Profile-stored rotating credentials are not a hardware-backed keychain.
+Remembered-device credentials can reconnect only the device, never restore
+OAuth grants, selected projects or write/export approvals.
+
+Session-only re-pairing and explicit reselection were observed in the V4
+owner pilot above; automatic remembered-device recovery remains unverified
+in that live flow, including credential rotation, expiry and revocation.
+If a device is offline, reconnect it and deliberately select the intended
+document. If trust has expired or been revoked, generate a fresh one-time
+code. Do not retry a potentially applied write until its native result has
+been inspected. See [Remote MCP modes](./REMOTE_MCP_MODES.md) for the
+connection and recovery controls.
+
+## Earlier owner-only acceptance (2026-11-17)
 
 The Oracle Always Free pilot is live for the authenticated owner, but **public
-rollout #850 remains HOLD**. The latest PR [#1057](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057)
+rollout #850 remains HOLD**. The merged feature PR [#1057](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057)
 implements opt-in Cloud alongside the account-free Local MCP path.
 
 **Real GitHub OAuth callback: PASS.** The owner signed in through GitHub's
