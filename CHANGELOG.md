@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.18.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.17.0...easyeda-mcp-pro-v1.18.0) (2026-11-24)
+
+
+### Features
+
+* **schematic:** deliver verified isolated Ground deletion and rollback ([#1102](https://github.com/oaslananka/easyeda-mcp-pro/issues/1102)) ([c94e551](https://github.com/oaslananka/easyeda-mcp-pro/commit/c94e5511e322a64ac2af9c088d253635105edbe1))
+* tools for an unattended design cycle (activate, create, import from schematic, 3D export) ([#1106](https://github.com/oaslananka/easyeda-mcp-pro/issues/1106)) ([6ccc2d7](https://github.com/oaslananka/easyeda-mcp-pro/commit/6ccc2d7c6bbb51fd157458f28e01e5e010c18147))
+* **ui:** modernize cloud portal, project review app, and docs design ([#1111](https://github.com/oaslananka/easyeda-mcp-pro/issues/1111)) ([3aac7dd](https://github.com/oaslananka/easyeda-mcp-pro/commit/3aac7dd4155780abe590894672354ccb340e1743))
+
+
+### Bug Fixes
+
+* **bridge:** preserve selected local editor ownership ([#1116](https://github.com/oaslananka/easyeda-mcp-pro/issues/1116)) ([db65d2e](https://github.com/oaslananka/easyeda-mcp-pro/commit/db65d2e2438caf12b7daa67d8afcf7929ac25773))
+* **cloud:** match first question to selected EasyEDA design ([#1114](https://github.com/oaslananka/easyeda-mcp-pro/issues/1114)) ([2348653](https://github.com/oaslananka/easyeda-mcp-pro/commit/2348653bd56d859a9ef216107504458428f4c8b6))
+* **cloud:** prevent stale-ready guidance when connection checks fail ([#1113](https://github.com/oaslananka/easyeda-mcp-pro/issues/1113)) ([01484df](https://github.com/oaslananka/easyeda-mcp-pro/commit/01484dffcfa58b792f935d40403e462aa0474bdb))
+* **cloud:** reverify focused design when owner returns to workspace ([#1115](https://github.com/oaslananka/easyeda-mcp-pro/issues/1115)) ([c1e72c8](https://github.com/oaslananka/easyeda-mcp-pro/commit/c1e72c87ec4bb99bdbdae752d9595f560d78fbb7))
+* **export:** bind netlist generation to native project identity ([#1117](https://github.com/oaslananka/easyeda-mcp-pro/issues/1117)) ([3728603](https://github.com/oaslananka/easyeda-mcp-pro/commit/3728603141761bf75e91f9010f06e35838feaf85))
+* **extension:** recognize EasyEDA Pro 4.x PCB tabs in project open/close ([#1105](https://github.com/oaslananka/easyeda-mcp-pro/issues/1105)) ([a687f08](https://github.com/oaslananka/easyeda-mcp-pro/commit/a687f086f1c32976c0cc50ccd88bb55b6fe11159))
+* **pcb:** let autoroute pre-flight route with unknown checks and wait for the router ([#1104](https://github.com/oaslananka/easyeda-mcp-pro/issues/1104)) ([d5e7ccc](https://github.com/oaslananka/easyeda-mcp-pro/commit/d5e7ccc0ab26480590cc5d2da6858b669ad2fc25))
+* **schematic:** classify native part IDs in transaction inventories ([#1119](https://github.com/oaslananka/easyeda-mcp-pro/issues/1119)) ([80d5886](https://github.com/oaslananka/easyeda-mcp-pro/commit/80d588649eef5e6e08f3441438fbf0b8b5a2cdc9))
+* **schematic:** reject unowned component creation and rollback ([#1112](https://github.com/oaslananka/easyeda-mcp-pro/issues/1112)) ([b8872f1](https://github.com/oaslananka/easyeda-mcp-pro/commit/b8872f15f3a8c97c9a3b012d2c108ffc2c2c48d9))
+* **schematic:** verify component absence before drawing deletion ([#1118](https://github.com/oaslananka/easyeda-mcp-pro/issues/1118)) ([e8a3204](https://github.com/oaslananka/easyeda-mcp-pro/commit/e8a32044a18aa9f1d5c779c196eb4906c687e2dc))
+* **security:** bound relay deadlines and avoid sensitive operational logs ([#1108](https://github.com/oaslananka/easyeda-mcp-pro/issues/1108)) ([494fb89](https://github.com/oaslananka/easyeda-mcp-pro/commit/494fb8963c1b902f11f5b0b97d9dcf8703ef1462))
+* **security:** close relay timer alert and stabilize bridge CI ([#1109](https://github.com/oaslananka/easyeda-mcp-pro/issues/1109)) ([0aebbc2](https://github.com/oaslananka/easyeda-mcp-pro/commit/0aebbc2c246d32be74abc4fb33accde7ab271665))
+
 ## [1.17.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.16.1...easyeda-mcp-pro-v1.17.0) (2026-11-20)
 
 
