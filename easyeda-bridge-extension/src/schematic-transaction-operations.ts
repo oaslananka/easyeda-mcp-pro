@@ -871,7 +871,10 @@ export function createSchematicTransactionOperations(
       return invalid();
     }
     if (!item || primitiveIdFromValue(item) !== id) return invalid();
-    const kind = readComponentType(item);
+    const nativeKind = readComponentType(item);
+    // Native V4 physical parts report "part". Canonicalize only inventory reads,
+    // not raw snapshots or the independent native deletion permission checks.
+    const kind = nativeKind === 'part' ? 'component' : nativeKind;
     if (!['sheet', 'component', 'netflag', 'netport'].includes(kind)) return invalid();
     return kind;
   }
@@ -968,7 +971,8 @@ export function createSchematicTransactionOperations(
     const primitiveIds = values
       .filter((value) => {
         if (primitiveKind === 'component') {
-          return readComponentType(value) === 'component';
+          const nativeKind = readComponentType(value);
+          return nativeKind === 'component' || nativeKind === 'part';
         }
         if (primitiveKind === 'netflag' || primitiveKind === 'netport') {
           return readComponentType(value) === primitiveKind;

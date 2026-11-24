@@ -1649,6 +1649,70 @@ describe('schematic transaction operations', () => {
     );
   });
 
+  it('recognizes V4 native part IDs in physical component inventory without granting delete permission', async () => {
+    const part = { primitiveId: 'part-1', componentType: 'part' };
+    const rows = [
+      part,
+      { primitiveId: 'sheet-1', componentType: 'sheet' },
+      { primitiveId: 'flag-1', componentType: 'netflag' },
+      { primitiveId: 'port-1', componentType: 'netport' },
+    ];
+    const remove = vi.fn();
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        getAll: vi.fn().mockResolvedValue(rows),
+        get: vi.fn(async (id: string) => rows.find((row) => row.primitiveId === id)),
+        delete: remove,
+      },
+    });
+    await expect(operations.listPrimitiveIds('component')).resolves.toEqual({
+      primitiveKind: 'component',
+      primitiveIds: ['part-1'],
+    });
+    await expect(operations.listPrimitiveIds('netflag')).resolves.toMatchObject({
+      primitiveIds: ['flag-1'],
+    });
+    await expect(operations.listPrimitiveIds('netport')).resolves.toMatchObject({
+      primitiveIds: ['port-1'],
+    });
+    await expect(operations.getPrimitiveSnapshot('part-1', 'component')).resolves.toMatchObject({
+      primitiveKind: 'component',
+      primitiveId: 'part-1',
+      componentType: 'part',
+    });
+    await expect(operations.deletePrimitives(['part-1'])).rejects.toMatchObject({
+      code: 'UNSUPPORTED_RUNTIME',
+    });
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('classifies part in exact native ID fallback without confusing marker types', async () => {
+    const rows = [
+      { primitiveId: 'part-1', componentType: 'part' },
+      { primitiveId: 'component-1', componentType: 'component' },
+      { primitiveId: 'sheet-1', componentType: 'sheet' },
+      { primitiveId: 'flag-1', componentType: 'netflag' },
+      { primitiveId: 'port-1', componentType: 'netport' },
+    ];
+    const { operations } = createSubject({
+      SCH_PrimitiveComponent: {
+        getAll: vi.fn().mockResolvedValue([]),
+        getAllPrimitiveId: vi.fn().mockResolvedValue(rows.map((row) => row.primitiveId)),
+        get: vi.fn(async (id: string) => rows.find((row) => row.primitiveId === id)),
+      },
+    });
+    for (const [kind, ids] of [
+      ['component', ['component-1', 'part-1']],
+      ['netflag', ['flag-1']],
+      ['netport', ['port-1']],
+    ] as const) {
+      await expect(operations.listPrimitiveIds(kind)).resolves.toEqual({
+        primitiveKind: kind,
+        primitiveIds: ids,
+      });
+    }
+  });
+
   it('filters component, net-flag, and net-port inventories by runtime type', async () => {
     const values = [
       { primitiveId: 'component-1', getState_ComponentType: () => 'component' },
