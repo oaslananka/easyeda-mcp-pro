@@ -177,7 +177,14 @@ describe('createDispatcher', () => {
     }));
     const dispatcher = createDispatcher(
       makeToolkit({
-        DMT_SelectControl: { getCurrentDocumentInfo: async () => ({ documentType: 3 }) },
+        DMT_Project: { getCurrentProjectInfo: async () => ({ uuid: 'project-1' }) },
+        DMT_SelectControl: {
+          getCurrentDocumentInfo: async () => ({
+            documentType: 3,
+            uuid: 'pcb-1',
+            parentProjectUuid: 'project-1',
+          }),
+        },
         PCB_ManufactureData: {
           getNetlistFile: getNetlist,
           getGerberFile,
@@ -220,6 +227,82 @@ describe('createDispatcher', () => {
     expect(getPickAndPlaceFile).toHaveBeenCalledWith('project-1', 'csv');
     expect(getPdfFile).toHaveBeenCalledWith(undefined, undefined);
     expect(getNetlist).toHaveBeenCalledWith('project-1-netlist', 'PADS');
+  });
+
+  describe('native netlist export project identity', () => {
+    it.each([1, 3])(
+      'refuses an unrelated project before native netlist generation (type %i)',
+      async (documentType) => {
+        const getNetlistFile = vi.fn(async () => 'foreign-file');
+        const dispatcher = createDispatcher(
+          makeToolkit({
+            DMT_Project: { getCurrentProjectInfo: async () => ({ uuid: 'active-project' }) },
+            DMT_SelectControl: {
+              getCurrentDocumentInfo: async () => ({
+                documentType,
+                uuid: 'active-document',
+                parentProjectUuid: 'active-project',
+              }),
+            },
+            SCH_ManufactureData: { getNetlistFile },
+            PCB_ManufactureData: { getNetlistFile },
+          }),
+        );
+        await expect(
+          dispatcher.dispatch('export.netlist', { projectId: 'wrong-project', format: 'pads' }),
+        ).rejects.toMatchObject({ code: 'PROJECT_INACTIVE' });
+        expect(getNetlistFile).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      { uuid: 'active-document', parentProjectUuid: 'different-project' },
+      { parentProjectUuid: 'active-project' },
+    ])('refuses missing or foreign native document identity: %j', async (identity) => {
+      const getNetlistFile = vi.fn(async () => 'foreign-file');
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          DMT_Project: { getCurrentProjectInfo: async () => ({ uuid: 'active-project' }) },
+          DMT_SelectControl: {
+            getCurrentDocumentInfo: async () => ({ documentType: 1, ...identity }),
+          },
+          SCH_ManufactureData: { getNetlistFile },
+        }),
+      );
+      await expect(
+        dispatcher.dispatch('export.netlist', { projectId: 'active-project', format: 'pads' }),
+      ).rejects.toMatchObject({ code: 'CONTEXT_UNAVAILABLE' });
+      expect(getNetlistFile).not.toHaveBeenCalled();
+    });
+
+    it.each([1, 3])(
+      'discards the netlist if native document identity changes during export (type %i)',
+      async (documentType) => {
+        let uuid = 'initial-document';
+        const getNetlistFile = vi.fn(async () => {
+          uuid = 'different-document';
+          return 'stale-file';
+        });
+        const dispatcher = createDispatcher(
+          makeToolkit({
+            DMT_Project: { getCurrentProjectInfo: async () => ({ uuid: 'active-project' }) },
+            DMT_SelectControl: {
+              getCurrentDocumentInfo: async () => ({
+                documentType,
+                uuid,
+                parentProjectUuid: 'active-project',
+              }),
+            },
+            SCH_ManufactureData: { getNetlistFile },
+            PCB_ManufactureData: { getNetlistFile },
+          }),
+        );
+        await expect(
+          dispatcher.dispatch('export.netlist', { projectId: 'active-project', format: 'pads' }),
+        ).rejects.toMatchObject({ code: 'CONTEXT_UNAVAILABLE' });
+        expect(getNetlistFile).toHaveBeenCalledOnce();
+      },
+    );
   });
 
   it('returns a dispatcher with a sorted, non-empty method list and a build id', () => {

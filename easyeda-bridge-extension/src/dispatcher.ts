@@ -2140,15 +2140,16 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
     errorMessage,
     findFloatingPins: findFloatingPinsApi,
   });
-  exportOperations = createExportOperations({
-    callFirst,
-    normalizeBinaryResult,
-    createBridgeError: newBridgeError,
-  });
   pcbReadOperations = createPcbReadOperations({
     requireActivePcbContext: () => boardInspection.requireActivePcbContext(),
     readFirstPath,
     readState: safeGetState,
+  });
+  exportOperations = createExportOperations({
+    callFirst,
+    normalizeBinaryResult,
+    createBridgeError: newBridgeError,
+    readProjectScoped: pcbReadOperations.readProjectScoped,
   });
   pcbMutationOperations = createPcbMutationOperations({
     callFirst,
