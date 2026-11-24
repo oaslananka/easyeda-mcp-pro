@@ -1038,6 +1038,45 @@ export function createSchematicTransactionOperations(
     }
   }
 
+  // V4.1.105 throws from Component.get() for an ordinary drawing primitive ID.
+  // A failed lookup alone does not establish absence: require two matching complete
+  // native component inventories, including markers, before considering another owner.
+  async function verifiedNonComponentId(owner: any, primitiveId: string): Promise<boolean> {
+    if (
+      !isVerifiedV4BetaTextRuntime() ||
+      typeof owner.getAllPrimitiveId !== 'function' ||
+      typeof owner.getAll !== 'function'
+    )
+      return false;
+    try {
+      const ids = verifiedTypedIdList(await owner.getAllPrimitiveId());
+      const rows: unknown = await owner.getAll(undefined, true);
+      if (!Array.isArray(rows)) return false;
+      const listed = verifiedTypedIdList(rows.map(primitiveIdFromValue));
+      return (
+        new Set(ids).size === ids.length &&
+        ids.length === listed.length &&
+        ids.every((id, index) => id === listed[index]) &&
+        !ids.includes(primitiveId)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  async function readComponentDeletionCandidate(
+    owner: any,
+    primitiveId: string,
+    unsafe: (id: string, reason: string) => never,
+  ): Promise<unknown> {
+    try {
+      return await owner.get(primitiveId);
+    } catch {
+      if (await verifiedNonComponentId(owner, primitiveId)) return undefined;
+      return unsafe(primitiveId, 'native component type read failed');
+    }
+  }
+
   /** The native Component class also owns net flags, ports, and sheet symbols.
    * Inspect the entire standalone request before any primitive is removed.
    */
@@ -1071,12 +1110,7 @@ export function createSchematicTransactionOperations(
     }
 
     for (const id of primitiveIds) {
-      let component: unknown;
-      try {
-        component = await owner.get(id);
-      } catch {
-        unsafe(id, 'native component type read failed');
-      }
+      const component = await readComponentDeletionCandidate(owner, id, unsafe);
       if (!component) continue;
       if (extractPrimitiveId(component) !== id) {
         unsafe(id, 'native component identity is missing or inconsistent');
