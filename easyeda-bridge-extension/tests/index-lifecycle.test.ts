@@ -994,6 +994,69 @@ describe('opt-in Hosted Cloud device trust across real extension lifecycle bound
     expect(JSON.stringify(second.toasts)).not.toContain(rotatedCredential);
   });
 
+  it.each(['connect', 'disconnect', 'disconnectRemoteRelay'] as const)(
+    'forgets remembered Cloud trust on explicit %s after failed Cloud startup',
+    async (command) => {
+      const trustedSettings = new Map<string, unknown>([
+        [TRUST_KEY, { version: 1, credential: firstCredential, expiresAt: Date.now() + 60_000 }],
+      ]);
+      const { extension } = await loadExtension({ trustedSettings });
+      await extension.activate('onStartupFinished');
+      expect(trustedSettings.has(TRUST_KEY)).toBe(true);
+
+      // Native/browser transport is unavailable; the startup fallback is Local.
+      // An explicit Local choice must still remove the remembered Cloud trust.
+      await extension[command]();
+      await flushMicrotasks();
+      expect(trustedSettings.has(TRUST_KEY)).toBe(false);
+
+      extension.deactivate();
+      HarnessSocket.instances = [];
+      const restarted = await loadExtension({ withWebSocket: true, trustedSettings });
+      await restarted.extension.activate('onStartupFinished');
+      expect(HarnessSocket.instances.filter((s) => s.url.startsWith('wss://'))).toHaveLength(0);
+    },
+  );
+
+  it('retains remembered trust during automatic Local fallback until an explicit Local choice', async () => {
+    const trustedSettings = new Map<string, unknown>([
+      [TRUST_KEY, { version: 1, credential: firstCredential, expiresAt: Date.now() + 60_000 }],
+    ]);
+    const { extension } = await loadExtension({ trustedSettings, autoConnect: true });
+    await extension.activate('onStartupFinished');
+    await flushMicrotasks();
+    expect(trustedSettings.has(TRUST_KEY)).toBe(true);
+
+    await extension.connect('auto');
+    await flushMicrotasks();
+    expect(trustedSettings.has(TRUST_KEY)).toBe(true);
+    await extension.connect();
+    await flushMicrotasks();
+    expect(trustedSettings.has(TRUST_KEY)).toBe(false);
+  });
+
+  it('clears persisted trust on explicit Local selection after native Cloud registration is denied', async () => {
+    const trustedSettings = new Map<string, unknown>([
+      [TRUST_KEY, { version: 1, credential: firstCredential, expiresAt: Date.now() + 60_000 }],
+    ]);
+    const { extension } = await loadExtension({
+      trustedSettings,
+      webSocketApi: {
+        register: () => {
+          throw new Error('External interactions permission denied');
+        },
+        send: () => undefined,
+        close: () => undefined,
+      },
+    });
+    await extension.activate('onStartupFinished');
+    expect(trustedSettings.has(TRUST_KEY)).toBe(true);
+
+    await extension.connect();
+    await flushMicrotasks();
+    expect(trustedSettings.has(TRUST_KEY)).toBe(false);
+  });
+
   it('defaults to session-only when a native remember choice is refused', async () => {
     const trustedSettings = new Map<string, unknown>();
     const extension = await loadExtension({

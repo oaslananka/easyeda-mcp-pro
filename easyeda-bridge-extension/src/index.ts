@@ -698,11 +698,7 @@ function getRemoteRelayClient(): RemoteRelayClient {
         if (!saved) showToast('Cloud device trust could not be saved; this session still works.');
       });
     },
-    onTrustedCredentialInvalidated: () => {
-      void trustedHostedDevice.forget().then((removed) => {
-        if (!removed) showToast('Could not forget this device locally. Revoke its Cloud access.');
-      });
-    },
+    onTrustedCredentialInvalidated: forgetTrustedHostedDevice,
     timers: runtimeTimers,
     createWebSocket: (url) => {
       const native = getWsApi();
@@ -857,11 +853,27 @@ async function connectCustomRemoteInternal(): Promise<void> {
   connectRemoteRelayInternal('self_hosted', relayUrl, code);
 }
 
+function forgetTrustedHostedDevice(): void {
+  void trustedHostedDevice.forget().then((removed) => {
+    if (!removed) showToast('Could not forget this device locally. Revoke its Cloud access.');
+  });
+}
+
+/** An explicit Local/disconnect choice also applies after a failed Cloud startup. */
+function leaveRemoteMode(): void {
+  const client = remoteRelayClient;
+  const hosted = client?.getStatus().mode === 'hosted';
+  client?.disconnect('user_disabled');
+  // Hosted disconnect already queues storage cleanup. A startup fallback can
+  // leave valid persisted trust without ever constructing a Hosted client.
+  if (!hosted && trustedHostedDevice.read()) forgetTrustedHostedDevice();
+  selectedConnectionMode = 'local';
+}
+
 function connectLocalInternal(mode: ConnectMode = 'manual'): Promise<void> {
   connectionPromptGeneration += 1; // Ignore any delayed native dialog callback.
-  if (selectedConnectionMode === 'remote') {
-    remoteRelayClient?.disconnect('user_disabled');
-    selectedConnectionMode = 'local';
+  if (selectedConnectionMode === 'remote' || mode === 'manual') {
+    leaveRemoteMode();
   }
   return connectInternal(mode);
 }
@@ -906,8 +918,7 @@ function connectRemoteRelayInternal(
 
 function disconnectRemoteRelayInternal(): void {
   connectionPromptGeneration += 1;
-  getRemoteRelayClient().disconnect('user_disabled');
-  selectedConnectionMode = 'local';
+  leaveRemoteMode();
   showToast('Remote Relay off. Use Connect for the local bridge.');
 }
 
@@ -1605,6 +1616,8 @@ function disconnectCommandInternal(): void {
   if (selectedConnectionMode === 'remote') {
     disconnectRemoteRelayInternal();
   } else {
+    connectionPromptGeneration += 1;
+    leaveRemoteMode();
     disconnectInternal(true);
   }
 }
