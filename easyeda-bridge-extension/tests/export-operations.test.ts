@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { normalizeBinaryResult as normalize } from '../src/binary-result.js';
 import { createExportOperations } from '../src/export-operations.js';
 
 function makeOperations() {
@@ -243,6 +244,68 @@ describe('export operations', () => {
       await expect(operations.exportOdb(params)).rejects.toThrow(/non-empty projectId/i);
       expect(callFirst).not.toHaveBeenCalled();
       expect(normalizeBinaryResult).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('PCB geometry preview export', () => {
+  const identity = { documentType: 3, uuid: 'pcb-1', parentProjectUuid: 'project-1' };
+  const params = { projectId: 'project-1', pcbId: 'pcb-1' };
+  function previewOperations(
+    before: unknown = identity,
+    after: unknown = identity,
+    result: unknown = new Blob(['zip']),
+  ) {
+    const callFirst = vi
+      .fn()
+      .mockResolvedValueOnce(before)
+      .mockResolvedValueOnce(result)
+      .mockResolvedValueOnce(after);
+    const operations = createExportOperations({
+      callFirst,
+      normalizeBinaryResult: normalize,
+      createBridgeError: (_code, message) => new Error(message),
+      readProjectScoped: async (_id, read) => read(),
+    });
+    return { callFirst, operations };
+  }
+
+  it('exports only the requested PCB without generating models', async () => {
+    const { operations, callFirst } = previewOperations();
+    await expect(operations.preview3d(params)).resolves.toMatchObject({
+      projectId: 'project-1',
+      pcbId: 'pcb-1',
+      autoGenerateModels: false,
+      base64: 'emlw',
+      byteLength: 3,
+    });
+    expect(callFirst).toHaveBeenNthCalledWith(
+      2,
+      ['PCB_ManufactureData.get3DFile'],
+      'board-3d-preview',
+      'obj',
+      ['Component Model'],
+      'Parts',
+      false,
+    );
+  });
+
+  it('rejects a different focused PCB before exporting', async () => {
+    const { operations, callFirst } = previewOperations({ ...identity, uuid: 'other' });
+    await expect(operations.preview3d(params)).rejects.toThrow(/focus/i);
+    expect(callFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it('discards the export if document focus changes', async () => {
+    const { operations } = previewOperations(identity, { ...identity, uuid: 'other' });
+    await expect(operations.preview3d(params)).rejects.toThrow(/focus/i);
+  });
+
+  it.each([undefined, {}, new Blob([]), new Blob([new Uint8Array(700 * 1024 + 1)])])(
+    'rejects unavailable or over-budget native bytes',
+    async (result) => {
+      const { operations } = previewOperations(identity, identity, result ?? null);
+      await expect(operations.preview3d(params)).rejects.toThrow(/export/i);
     },
   );
 });

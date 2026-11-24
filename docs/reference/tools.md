@@ -49,6 +49,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_live_smoke_report`                        | `dev`          | `low`    | Run a read-only live smoke report against the connected EasyEDA bridge and return status, API inventory, components, wires, and schematic nets in one response.                                                                                                                                                               |
 | `easyeda_live_write_regression`                    | `dev`          | `medium` | Exercise real schematic (and optionally PCB) write paths against the bridge — place, connect, wire, delete — reporting pass/fail per step, then clean up its own scratch primitives. Needs a test device from schematic_search_device and the matching tab focused.                                                           |
 | `easyeda_observability_report`                     | `core`         | `low`    | Return latency budgets, runtime metrics, cache/vendor timing snapshot, and storage retention policy for performance diagnostics.                                                                                                                                                                                              |
+| `easyeda_pcb_3d_preview`                           | `pro`          | `low`    | Render the focused PCB native OBJ export as a CPU-rendered PNG without design edits. Beta export API; tested native format on EasyEDA Pro 4.1.105. Not a native screenshot. Models may be missing or placeholders; not clearance, dimension or manufacturing evidence. Requires export permission.                            |
 | `easyeda_pcb_add_region`                           | `full`         | `high`   | Create a native EasyEDA PCB Region/keepout from a typed polygon and documented rule values. This is not a copper pour/zone. Success requires getAll-backed read-back; unconfirmed optional name/lineWidth values cause rollback.                                                                                              |
 | `easyeda_pcb_add_silkscreen_line`                  | `full`         | `medium` | Draw a non-electrical line on the PCB (e.g. Top/Bottom Silkscreen) for section dividers or board art — reuses the same PCB_PrimitiveLine primitive as add_track but with an empty net name, so it never appears in the netlist or ratsnest.                                                                                   |
 | `easyeda_pcb_add_text`                             | `full`         | `medium` | Place a text primitive on a PCB layer (typically Top/Bottom Silkscreen) — reference labels, section titles, assembly notes. Signature recovered from PCB_PrimitiveString: fontFamily must be a name the runtime's font list actually contains — "default" (font 45, width 6, align 3) verified live in Web 3.2.209.           |
@@ -1547,6 +1548,47 @@ Returns a JSON object matching the schema:
   metrics: object;
   retention: object;
   timeout_policy: object;
+}
+```
+
+---
+
+## `easyeda_pcb_3d_preview`
+
+**Profile:** `pro` | **Risk Level:** `low`
+
+> Render the focused PCB native OBJ export as a CPU-rendered PNG without design edits. Beta export API; tested native format on EasyEDA Pro 4.1.105. Not a native screenshot. Models may be missing or placeholders; not clearance, dimension or manufacturing evidence. Requires export permission.
+
+### Input Parameters
+
+| Parameter   | Type                           | Required | Description |
+| ----------- | ------------------------------ | -------- | ----------- |
+| `projectId` | `string`                       | Yes      |             |
+| `pcbId`     | `string`                       | Yes      |             |
+| `view`      | `'isometric'` \| `'underside'` | Yes      |             |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  project_id: string;
+  pcb_id: string;
+  view: 'isometric' | 'underside';
+  preview_generated: boolean;
+  source: 'exported-obj-geometry';
+  native_capture: 'false';
+  model_coverage: 'unverified';
+  warnings: string[];
+  source_sha256: string (optional);
+  vertex_count: number (optional);
+  triangle_count: number (optional);
+  image_dimensions: object (optional);
+  image_base64: string (optional);
+  mime_type: 'image/png' (optional);
+  not_available: boolean (optional);
+  error: string (optional);
 }
 ```
 
