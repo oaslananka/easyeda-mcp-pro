@@ -4,6 +4,136 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-b9228cf-v1181-native-local",
+      "status": "live-validated",
+      "validatedAt": "2026-11-24T06:00:42Z",
+      "reviewBy": "2027-02-22",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-43-generic",
+        "nodeVersion": "24.22.3"
+      },
+      "easyedaPro": {
+        "version": "4.1.105.0339a6cd",
+        "electronVersion": "not independently recorded",
+        "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+        "chromiumVersion": "not independently recorded",
+        "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+      },
+      "server": {
+        "validationPackageVersion": "1.18.1",
+        "releaseContainingFixes": "1.18.1",
+        "commit": "b9228cfe31adac0559f8e5628188f9d208ccbfb1",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "88cc8e3e125a0d5ebbf195d13dd538ca1688de82",
+            "src/bridge": "227a0a48511fa54cfe036c619efef59d3325eee9",
+            "src/remote": "7fcd33c262536ec1cba79c49e4ad24615663633a",
+            "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+            "src/tools": "443780986d1fff2d241d02ac13c56ddc5c6d52ce",
+            "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.18.1",
+        "loaderReportedVersion": "1.18.1",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "18f74759624edc90",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "daa4bx4da8x4ec5",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "7e672279a2867c2568de41d27e1f3bab73576ca1210a53af77a4574670abe746",
+        "packageSizeBytes": 239792
+      },
+      "fixture": {
+        "project": "Separate isolated disposable local schematic and PCB copies; no personal design",
+        "schematic": "Five drawing create/rollback cases, separate committed text create/delete with two cold reopens, focused PCB autoroute and separate cold read",
+        "disposable": true,
+        "readOnly": false
+      },
+      "capabilities": [
+        {
+          "id": "v1181-native-install-handshake",
+          "name": "Exact 1.18.1 package and local MCP handshake",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Official manager enabled/external install; server and extension 1.18.1, health ok, 83 methods, no version/registry mismatch, verified loader build. Two reproducible extension builds.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.1-b9228cf-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1123#issuecomment-7123475853"
+          ]
+        },
+        {
+          "id": "v1181-drawing-ownership",
+          "name": "Scoped drawing batch create and rollback",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Five isolated text, rectangle, circle, polygon and straight wire transactions each returned the independently witnessed new native ID; wrong page and preview unchanged, rollback complete 1 restored/0 failed, exact baseline restored. All five original and disposable file hashes unchanged. Native wire endpoint reversal matched the same finite nonzero segment and net.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.1-b9228cf-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1123#issuecomment-7123475853"
+          ]
+        },
+        {
+          "id": "v1181-text-cold-persistence",
+          "name": "Exact text create/delete and two cold reopens",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Committed distinct text save acknowledged, first cold reopen marker present, confirmed exact typed delete/save acknowledged, second cold reopen restored baseline IDs/content; both save acknowledgements reported persistence unverified until independent readback. Three inner phases and wrapper exit 0.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.1-b9228cf-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1123#issuecomment-7123475853"
+          ]
+        },
+        {
+          "id": "v1181-autoroute-target-guard",
+          "name": "Scoped native PCB autoroute target and confirmation guard",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Wrong project/PCB, missing confirmation and default preflight block preserve independent board inventory. Correct focused PCB with explicit warn/keep admitted the native partial route.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.1-b9228cf-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1123#issuecomment-7123475853"
+          ]
+        },
+        {
+          "id": "v1181-autoroute-partial",
+          "name": "Native autoroute post-route review",
+          "evidenceLevel": "live",
+          "status": "limited",
+          "summary": "13/17 nets completed, one DRC error and 22 manual-review constraints; partial result, independent in-memory 33 components and 98 old tracks unchanged, 72 new tracks and zero vias. No manufacturing or saved-revision claim.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.1-b9228cf-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1123#issuecomment-7123475853"
+          ]
+        },
+        {
+          "id": "v1181-autoroute-cold",
+          "name": "Native autoroute complete durable geometry",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "Cold read of a separate resulting-disk copy had 148 tracks, all 98 original tracks/components/vias preserved; 22 newly routed IDs missing and 50 shared new IDs had changed endpoint coordinates (not reversal only). No explicit save was requested; equivalence not established.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.18.1-b9228cf-native-local-mcp.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1123#issuecomment-7123475853",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/1126"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Exact current native evidence covers the recorded V4 Ubuntu local stdio MCP paths, not full API, Windows/macOS native compatibility, Cloud or manufacturing.",
+        "Only wire/text/rectangle/circle/polygon batch creates have the verified drawing ownership contract. Component/netflag/netport atomic creates are refused as a deliberate correctness and data-loss-risk restriction. Use independently verified standalone placement where supported. General physical component and marker rollback remain unproven; legacy modify/workflow ownership is separate.",
+        "Autoroute correct-target validation and in-memory partial routing are not a saved-revision guarantee. No explicit save was issued during route. The disposable PCB disk changed with migration and additional history/project records; cold read had 148 tracks rather than 170. Existing observed 98 tracks, 33 components and vias were preserved, but 22 new IDs were missing and all 50 shared new IDs had coordinate differences not explained by endpoint reversal. Geometry equivalence and durable completion remain blocked (#1126); do not blindly retry, and no fabrication approval.",
+        "Prior 1.18.0 native component placement/refusal, netlist, multi-window/reload, private Ground cold restore and earlier PCB lifecycle/import/STEP/local creation are historical evidence, not fresh observations on b9228cf. V3 activation, general component/marker reconstruction, Cloud owner isolation, server-side BOM file delivery and unrestricted persistence remain outside this exact validation.",
+        "All original files unchanged. Five in-memory drawing test files unchanged; separate text persistence output intentionally changed and was independently reopened twice. Route inner exit 0 versus outer exit 1 (disposable disk hash mismatch), cold route inner 7/outer 1. Do not interpret those wrappers as pass. Text cold inner and outer exit 0. No personal design mutation or production Cloud change.",
+        "Electron and Chromium versions were not independently measured. Baked/hot-swap state is established from the packaged non-hot-swap loader, matching live dispatcher and devMode=false."
+      ]
+    },
+    {
       "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-931816d-v118-native-local",
       "status": "live-validated",
       "validatedAt": "2026-11-24T03:03:01Z",
