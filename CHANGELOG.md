@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.18.1...easyeda-mcp-pro-v1.18.2) (2026-11-24)
+
+
+### Bug Fixes
+
+* **pcb:** expose unverified autoroute persistence and recovery guidance ([#1128](https://github.com/oaslananka/easyeda-mcp-pro/issues/1128)) ([9891faf](https://github.com/oaslananka/easyeda-mcp-pro/commit/9891faf01b27ddeb393a63d60e4cded1a677fcd6))
+
 ## [1.18.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.18.0...easyeda-mcp-pro-v1.18.1) (2026-11-24)
 
 
