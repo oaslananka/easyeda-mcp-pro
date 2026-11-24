@@ -134,11 +134,15 @@ export async function recreatePrimitiveSnapshot(
 export async function listPrimitiveIds(
   bridge: TransactionBridgeCaller,
   primitiveKind: string,
+  includeNativeParts = false,
 ): Promise<string[]> {
-  const result = await bridge.call<{ primitiveKind: string }, { primitiveIds?: unknown }>(
-    'schematic.listPrimitiveIds',
-    { primitiveKind },
-  );
+  const result = await bridge.call<
+    { primitiveKind: string; includeNativeParts?: true },
+    { primitiveIds?: unknown }
+  >('schematic.listPrimitiveIds', {
+    primitiveKind,
+    ...(includeNativeParts ? { includeNativeParts: true as const } : {}),
+  });
   return Array.isArray(result?.primitiveIds)
     ? result.primitiveIds.filter((value): value is string => typeof value === 'string')
     : [];

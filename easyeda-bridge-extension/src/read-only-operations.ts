@@ -330,7 +330,10 @@ export function createReadOnlyOperations(
     },
 
     async listPrimitiveIds(params) {
-      return dependencies.schematicTransactionOperations.listPrimitiveIds(params.primitiveKind);
+      return dependencies.schematicTransactionOperations.listPrimitiveIds(
+        params.primitiveKind,
+        params.includeNativeParts === true,
+      );
     },
 
     async listComponents(params) {

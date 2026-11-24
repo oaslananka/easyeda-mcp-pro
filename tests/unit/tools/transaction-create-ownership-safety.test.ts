@@ -117,6 +117,10 @@ describe('schematic create ownership safety (separate from unsupported typed del
       y: 20,
       confirmWrite: true,
     });
+    expect(bridgeCall).toHaveBeenCalledWith('schematic.listPrimitiveIds', {
+      primitiveKind: 'component',
+      includeNativeParts: true,
+    });
     expect(created).toMatchObject({ success: false, error_code: 'TRANSACTION_OPERATION_FAILED' });
     expect(bridgeCall).not.toHaveBeenCalledWith('schematic.deletePrimitive', expect.anything());
   });
