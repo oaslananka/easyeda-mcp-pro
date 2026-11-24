@@ -811,7 +811,13 @@ operation list before applying.
 - `easyeda_pcb_autoroute` (profile `pro`) calls EasyEDA Pro's native autorouter through the existing
   documented `api.call` path (`PCB_Document.autoRouting`) — a `@beta` API per `@jlceda/pro-api-types`,
   so unavailability on a given EasyEDA Pro version is reported as `not_available: true`, never a
-  silent success. It always runs a pre-flight constraint check (caller `boardData` merged over the
+  silent success. It requires a verified native project and focused PCB identity plus extension
+  project/document guard support before pre-flight. The same identity is checked again before
+  dispatch, and both identifiers are passed to the native write guard; `gateMode: 'warn'` and
+  caller evidence cannot override this boundary. Missing or mismatched native target evidence
+  makes the mutation outcome unverified: inspect the intended PCB before retrying. Post-route
+  observations are discarded if native focus cannot be reverified; this is not a saved-revision
+  or continuous focus-lock proof. It always runs a pre-flight constraint check (caller `boardData` merged over the
   board evidence read from the bridge; any error blocks before the autorouter is called; unknown
   checks block in the default `gateMode: 'block'` and are reported without blocking in `'warn'`)
   and a mandatory post-route DRC + constraint report, folded into `overall_verdict`.

@@ -162,9 +162,9 @@ Because top and bottom devices genuinely share the same board area on a real two
 
 The tool never returns success without evidence:
 
-1. **Pre-flight** — `validatePcbConstraints` runs first on the caller `boardData` merged over the board evidence read from the bridge; any error blocks before the autorouter is called (`blocked_by_preflight: true`). Unknown checks (missing evidence) also block in the default `gateMode: 'block'`; with `gateMode: 'warn'` they are reported in `preflight.unknown_checks` and routing proceeds. There is no mode that lets errors through.
-2. **Autoroute** — calls `PCB_Document.autoRouting` with the requested nets/corner-style/optimization/existing-primitive-mode, translated to the exact numeric enum values EasyEDA Pro's runtime expects.
-3. **Post-route (mandatory)** — runs `design.drc` and a fresh `validatePcbConstraints` + `buildConstraintReport` pass, and folds both into `overall_verdict`: `success` only when autorouting completed _and_ DRC passed _and_ the constraint report verdict is `approved`; otherwise `partial` (needs review) or `failed`.
+1. **Pre-flight** — requires a verified native focused PCB in the requested project and extension project/document guard support. An optional `expectedPcbUuid` must match. `validatePcbConstraints` then runs on the caller `boardData` merged over the board evidence read from the bridge; any error blocks before the autorouter is called (`blocked_by_preflight: true`). Unknown checks (missing evidence) also block in the default `gateMode: 'block'`; with `gateMode: 'warn'` they are reported in `preflight.unknown_checks` and routing proceeds. There is no mode that lets errors through.
+2. **Autoroute** — rechecks the same native project/PCB after pre-flight, passes both IDs to the native write guard and requires matching target evidence. Calls `PCB_Document.autoRouting` with the requested nets/corner-style/optimization/existing-primitive-mode, translated to the exact numeric enum values EasyEDA Pro's runtime expects.
+3. **Post-route (mandatory)** — runs `design.drc` and a fresh `validatePcbConstraints` + `buildConstraintReport` pass, and folds both into `overall_verdict`: `success` only when autorouting completed _and_ DRC passed _and_ the constraint report verdict is `approved`; otherwise `partial` (needs review) or `failed`. Missing or changed focus discards post-route evidence. An unverified mutation outcome requires read-back before any retry; no automatic retry or saved-revision claim.
 
 ## Vendor-neutral route-context export
 
