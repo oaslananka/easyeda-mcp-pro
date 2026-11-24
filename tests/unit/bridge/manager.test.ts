@@ -1793,6 +1793,10 @@ describe('BridgeManager - process ownership', () => {
       await expect(resultPromise).resolves.toEqual({ shared: true });
       expect(follower.connected).toBe(true);
       expect(follower.extensionVersion).toBe(SERVER_VERSION);
+      expect(owner.bridgeRole).toBe('owner');
+      expect(follower.bridgeRole).toBe('follower');
+      expect(follower.ownerServerVersion).toBe(SERVER_VERSION);
+      expect(follower.ownerVersionMismatch).toBe(false);
     } finally {
       extension?.close();
       follower.disconnect('test complete');

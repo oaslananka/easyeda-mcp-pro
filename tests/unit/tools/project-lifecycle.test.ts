@@ -68,6 +68,7 @@ describe('safe project lifecycle tools', () => {
       complete: false,
       projects: [],
       status: 'native_listing_unavailable',
+      errorCode: 'BRIDGE_ERROR',
     });
     expect(JSON.stringify(output)).not.toContain('private.eprj2');
     call.mockResolvedValue({ status: 'ok', projects: [], complete: true, private: 'x' });
