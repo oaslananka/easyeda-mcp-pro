@@ -1665,7 +1665,10 @@ describe('schematic transaction operations', () => {
         delete: remove,
       },
     });
-    await expect(operations.listPrimitiveIds('component')).resolves.toEqual({
+    await expect(operations.listPrimitiveIds('component')).resolves.toMatchObject({
+      primitiveIds: [],
+    });
+    await expect(operations.listPrimitiveIds('component', true)).resolves.toEqual({
       primitiveKind: 'component',
       primitiveIds: ['part-1'],
     });
@@ -1701,12 +1704,15 @@ describe('schematic transaction operations', () => {
         get: vi.fn(async (id: string) => rows.find((row) => row.primitiveId === id)),
       },
     });
+    await expect(operations.listPrimitiveIds('component')).rejects.toMatchObject({
+      code: 'NATIVE_INVENTORY_UNVERIFIED',
+    });
     for (const [kind, ids] of [
       ['component', ['component-1', 'part-1']],
       ['netflag', ['flag-1']],
       ['netport', ['port-1']],
     ] as const) {
-      await expect(operations.listPrimitiveIds(kind)).resolves.toEqual({
+      await expect(operations.listPrimitiveIds(kind, true)).resolves.toEqual({
         primitiveKind: kind,
         primitiveIds: ids,
       });

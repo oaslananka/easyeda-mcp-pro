@@ -319,7 +319,14 @@ async function pollStandaloneAddedPrimitiveIds(
   attempts: number,
 ): Promise<string[]> {
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const afterIds = await listPrimitiveIds(ctx.bridge, primitiveKind);
+    // Only this scope- and identity-verified transactional placement path opts
+    // into native part IDs. Legacy batch/workflow reconciliation still lacks
+    // the ownership proof needed to adopt those IDs safely.
+    const afterIds = await listPrimitiveIds(
+      ctx.bridge,
+      primitiveKind,
+      primitiveKind === 'component',
+    );
     const added = afterIds.filter((id) => !beforeIds.has(id));
     if (added.length > 0) return added;
     if (attempt + 1 < attempts) {

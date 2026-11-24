@@ -68,6 +68,7 @@ export interface SchematicTransactionOperations {
   ): Promise<SchematicPrimitiveSnapshot>;
   listPrimitiveIds(
     primitiveKind: unknown,
+    includeNativeParts?: boolean,
   ): Promise<{ primitiveKind: SchematicPrimitiveSnapshotKind; primitiveIds: string[] }>;
   deletePrimitives(
     primitiveIds: unknown,
@@ -863,6 +864,7 @@ export function createSchematicTransactionOperations(
     owner: any,
     id: string,
     invalid: () => never,
+    includeNativeParts: boolean,
   ): Promise<string> {
     let item: unknown;
     try {
@@ -874,7 +876,7 @@ export function createSchematicTransactionOperations(
     const nativeKind = readComponentType(item);
     // Native V4 physical parts report "part". Canonicalize only inventory reads,
     // not raw snapshots or the independent native deletion permission checks.
-    const kind = nativeKind === 'part' ? 'component' : nativeKind;
+    const kind = includeNativeParts && nativeKind === 'part' ? 'component' : nativeKind;
     if (!['sheet', 'component', 'netflag', 'netport'].includes(kind)) return invalid();
     return kind;
   }
@@ -887,6 +889,7 @@ export function createSchematicTransactionOperations(
     owner: any,
     primitiveIds: string[],
     requestedKind: 'component' | 'netflag' | 'netport',
+    includeNativeParts: boolean,
   ): Promise<string[]> {
     const invalid = (): never => {
       throw newBridgeError(
@@ -901,7 +904,10 @@ export function createSchematicTransactionOperations(
 
     const matched: string[] = [];
     for (const id of primitiveIds) {
-      if ((await exactNativeComponentKind(owner, id, invalid)) === requestedKind) matched.push(id);
+      if (
+        (await exactNativeComponentKind(owner, id, invalid, includeNativeParts)) === requestedKind
+      )
+        matched.push(id);
     }
     return matched;
   }
@@ -920,6 +926,7 @@ export function createSchematicTransactionOperations(
   async function verifiedFallbackIds(
     owner: any,
     kind: SchematicPrimitiveSnapshotKind,
+    includeNativeParts: boolean,
   ): Promise<string[] | undefined> {
     if (typeof owner.getAllPrimitiveId !== 'function') return undefined;
     let raw: unknown;
@@ -930,7 +937,12 @@ export function createSchematicTransactionOperations(
       return undefined;
     }
     if (kind === 'component' || kind === 'netflag' || kind === 'netport') {
-      return typedComponentIdsFromFallback(owner, verifiedTypedIdList(raw), kind);
+      return typedComponentIdsFromFallback(
+        owner,
+        verifiedTypedIdList(raw),
+        kind,
+        includeNativeParts,
+      );
     }
     const primitiveIds = Array.isArray(raw)
       ? raw
@@ -944,6 +956,7 @@ export function createSchematicTransactionOperations(
 
   async function listSchematicPrimitiveIds(
     kindInput: unknown,
+    includeNativeParts = false,
   ): Promise<{ primitiveKind: SchematicPrimitiveSnapshotKind; primitiveIds: string[] }> {
     const primitiveKind = parseSchematicPrimitiveKind(kindInput);
     const primitiveClass = readFirstPath<any>(schematicPrimitiveClassPaths(primitiveKind));
@@ -964,7 +977,7 @@ export function createSchematicTransactionOperations(
     }
 
     if (values.length === 0) {
-      const fallback = await verifiedFallbackIds(primitiveClass, primitiveKind);
+      const fallback = await verifiedFallbackIds(primitiveClass, primitiveKind, includeNativeParts);
       if (fallback !== undefined) return { primitiveKind, primitiveIds: fallback };
     }
 
@@ -972,7 +985,7 @@ export function createSchematicTransactionOperations(
       .filter((value) => {
         if (primitiveKind === 'component') {
           const nativeKind = readComponentType(value);
-          return nativeKind === 'component' || nativeKind === 'part';
+          return nativeKind === 'component' || (includeNativeParts && nativeKind === 'part');
         }
         if (primitiveKind === 'netflag' || primitiveKind === 'netport') {
           return readComponentType(value) === primitiveKind;
