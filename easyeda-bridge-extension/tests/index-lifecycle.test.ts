@@ -391,6 +391,54 @@ describe('extension loader lifecycle source', () => {
     expect(handshake?.easyedaVersion).toBe('3.2.209');
   });
 
+  it.each(['manual', 'auto'] as const)(
+    'identifies %s connection intent in the local handshake',
+    async (intent) => {
+      HarnessSocket.localBehavior = 'success';
+      const { extension } = await loadExtension({ withWebSocket: true });
+      await extension.connect(intent);
+      expect(HarnessSocket.instances[0].sent).toContainEqual(
+        expect.objectContaining({ type: 'handshake', connectionIntent: intent }),
+      );
+    },
+  );
+
+  it('stops automatic scanning when another editor owns the local bridge, then allows explicit Connect', async () => {
+    HarnessSocket.localBehavior = 'pending';
+    const { extension, toasts } = await loadExtension({ autoConnect: true, withWebSocket: true });
+    HarnessSocket.localHello = { type: 'local_connection_busy' };
+    const pending = extension.connect('auto');
+    HarnessSocket.instances[0].open();
+    await flushMicrotasks();
+    await vi.advanceTimersByTimeAsync(RECONNECT_BASE_MS + 1000);
+    expect(HarnessSocket.instances).toHaveLength(1);
+    expect(toasts.at(-1)).toContain('Connect to switch');
+    await pending;
+    HarnessSocket.localHello = {
+      type: 'hello',
+      contractVersion: 1,
+      supportedProtocolVersions: ['1.0.0'],
+    };
+    HarnessSocket.localBehavior = 'success';
+    await extension.connect();
+    expect(HarnessSocket.instances[1].sent).toContainEqual(
+      expect.objectContaining({ type: 'handshake', connectionIntent: 'manual' }),
+    );
+  });
+
+  it('clears displaced local ownership immediately instead of reconnecting automatically', async () => {
+    HarnessSocket.localBehavior = 'success';
+    const { extension, toasts } = await loadExtension({ autoConnect: true, withWebSocket: true });
+    await extension.connect();
+    HarnessSocket.instances[0].receive({ type: 'local_connection_busy' });
+    await vi.advanceTimersByTimeAsync(RECONNECT_BASE_MS + 1000);
+    expect(HarnessSocket.instances).toHaveLength(1);
+    expect(HarnessSocket.instances[0].readyState).toBe(HarnessSocket.CLOSED);
+    expect(toasts.at(-1)).toContain('Connect to switch');
+    await extension.connect();
+    expect(HarnessSocket.instances).toHaveLength(2);
+  });
+
   it('suppresses duplicate auto-connect calls while one handshake is pending', async () => {
     HarnessSocket.localBehavior = 'pending';
     const { extension } = await loadExtension({ withWebSocket: true });

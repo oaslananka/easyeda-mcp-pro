@@ -32,6 +32,8 @@ const commonOptions = {
   format: 'iife',
   platform: 'browser',
   target: 'es2020',
+  // Keep stable public/native identifiers; compact only whitespace and syntax.
+  minifyWhitespace: true,
   define: {
     __MCP_DISPATCHER_BUILD_ID__: JSON.stringify(BUILD_ID_PLACEHOLDER),
     __MCP_DEV_HOTSWAP__: JSON.stringify(devHotSwap),
@@ -44,9 +46,7 @@ await build({
   ...commonOptions,
   entryPoints: [join(root, 'src', 'dispatcher-entry.ts')],
   outfile: join(distDir, 'dispatcher.js'),
-  // Keep the developer hot-swap artifact within its byte budget without
-  // minifying identifiers or whitespace. The production index.js build below
-  // remains unchanged.
+  // Both outputs retain identifiers and use the same deterministic compression.
   minifySyntax: true,
 });
 
@@ -64,8 +64,7 @@ await build({
   ...commonOptions,
   entryPoints: [join(root, 'src', 'index.ts')],
   outfile: join(distDir, 'index.js'),
-  // Use the same syntax-only compression as the hot-swap bundle; keep identifiers
-  // and whitespace intact for loader compatibility and readable artifacts.
+  // Match the hot-swap bundle's syntax and whitespace compression.
   minifySyntax: true,
   // EasyEDA's extension loader resolves exported lifecycle/menu functions from
   // this exact IIFE global (the official pro-api-sdk uses the same name), then

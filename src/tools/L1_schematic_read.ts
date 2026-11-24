@@ -570,6 +570,7 @@ function registerSchematicReadTools(
         const observation = await readStable(
           () =>
             ctx.bridge.call('system.inspectWires', {
+              projectId,
               limit,
               offset,
               ...schematicReadBridgeParams(scope, pageUuid),

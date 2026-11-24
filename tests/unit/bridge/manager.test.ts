@@ -208,6 +208,48 @@ describe('BridgeManager', () => {
     }
   });
 
+  it('keeps an explicitly selected window against automatic takeover, but allows manual switching and reconnect after close', async () => {
+    const manager = new BridgeManager(
+      createTestConfig({
+        BRIDGE_HOST: '127.0.0.1',
+        BRIDGE_PORT_SCAN: await getFreePortCandidates(),
+      }),
+    );
+    const sockets: WebSocket[] = [];
+    async function connect(intent: 'manual' | 'auto') {
+      const ws = await openSocket(manager.activePort);
+      sockets.push(ws);
+      const outcome = Promise.race([
+        waitForMessage(ws),
+        waitForClose(ws).then((code) => ({ closed: code })),
+      ]);
+      sendHandshake(ws, { extensionVersion: SERVER_VERSION, connectionIntent: intent });
+      return { ws, outcome: await outcome };
+    }
+    try {
+      await manager.connect();
+      const selected = await connect('manual');
+      expect(selected.outcome).toMatchObject({ type: 'hello' });
+      const background = await connect('auto');
+      expect(background.outcome).toEqual({ type: 'local_connection_busy' });
+      expect(selected.ws.readyState).toBe(WebSocket.OPEN);
+      const selectedNotice = waitForMessage(selected.ws);
+      const switched = await connect('manual');
+      await expect(selectedNotice).resolves.toEqual({ type: 'local_connection_busy' });
+      expect(switched.outcome).toMatchObject({ type: 'hello' });
+      const oldWindow = await connect('auto');
+      expect(oldWindow.outcome).toEqual({ type: 'local_connection_busy' });
+      const closed = waitForClose(switched.ws);
+      switched.ws.close();
+      await closed;
+      const reopened = await connect('auto');
+      expect(reopened.outcome).toMatchObject({ type: 'hello' });
+    } finally {
+      for (const ws of sockets) ws.close();
+      manager.disconnect('test complete');
+    }
+  });
+
   it('does not let a stale extension replace an active exact-version session', async () => {
     const port = await getFreePort();
     const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });

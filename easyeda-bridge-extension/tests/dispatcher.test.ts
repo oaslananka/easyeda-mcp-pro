@@ -422,6 +422,54 @@ describe('createDispatcher', () => {
     expect(result.samples[0].net).toBe('NET_A');
   });
 
+  it.each([
+    'system.inspectWires',
+    'schematic.listNets',
+    'schematic.listComponents',
+    'schematic.getSheetInfo',
+  ])(
+    'rejects %s for a requested project when the active native context is missing',
+    async (method) => {
+      const getAll = vi.fn(async () => []);
+      const dispatcher = createDispatcher(
+        makeToolkit({
+          DMT_Project: { getCurrentProjectInfo: async () => undefined },
+          DMT_SelectControl: { getCurrentDocumentInfo: async () => undefined },
+          SCH_PrimitiveWire: { getAll },
+          SCH_PrimitiveComponent: { getAll },
+        }),
+      );
+      await expect(
+        dispatcher.dispatch(method, { projectId: 'intended', scope: 'focused' }),
+      ).rejects.toMatchObject({ code: 'PROJECT_INACTIVE' });
+      expect(getAll).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects a focused wire read if the selected schematic changes during enumeration', async () => {
+    let page = 'first';
+    const getAll = vi.fn(async () => {
+      page = 'second';
+      return [];
+    });
+    const dispatcher = createDispatcher(
+      makeToolkit({
+        DMT_Project: { getCurrentProjectInfo: async () => ({ uuid: 'intended' }) },
+        DMT_SelectControl: {
+          getCurrentDocumentInfo: async () => ({
+            uuid: page,
+            parentProjectUuid: 'intended',
+            documentType: 1,
+          }),
+        },
+        SCH_PrimitiveWire: { getAll },
+      }),
+    );
+    await expect(
+      dispatcher.dispatch('system.inspectWires', { projectId: 'intended', scope: 'focused' }),
+    ).rejects.toMatchObject({ code: 'CONTEXT_UNAVAILABLE' });
+  });
+
   it('refuses addWire when a point collides with a wire on a different net', async () => {
     const create = vi.fn();
     const dispatcher = createDispatcher(

@@ -748,6 +748,43 @@ export class BridgeManager extends EventEmitter {
     );
   }
 
+  private rejectCompetingHandshake(
+    ws: WebSocket,
+    version: string | undefined,
+    intent: 'manual' | 'auto' | undefined,
+  ): boolean {
+    const logger = getLogger();
+    // When an exact-version extension is already active, a stale desktop/web
+    // instance must not hijack its session. Still allow an exact-version
+    // replacement (normal reload) and allow a stale client as the sole session
+    // so existing fail-closed read-only diagnostics remain available.
+    if (this.staleHandshakeWouldReplaceExactVersion(version)) {
+      logger.warn(
+        { incomingVersion: version },
+        'stale bridge extension rejected: exact-version session remains active',
+      );
+      ws.close(4003, 'Active exact-version extension takes precedence');
+      return true;
+    }
+
+    // Background windows must not take ownership of an already connected local
+    // editor. Explicit Connect may switch windows; exact-version upgrades still
+    // replace stale clients. Legacy handshakes remain compatible.
+    if (
+      this.ws !== ws &&
+      this.ws?.readyState === WebSocket.OPEN &&
+      intent === 'auto' &&
+      !(version === SERVER_VERSION && this._extensionVersion !== SERVER_VERSION)
+    ) {
+      logger.info('automatic bridge connection refused: another editor is connected');
+      ws.send(JSON.stringify({ type: 'local_connection_busy' }));
+      ws.close(4004, 'Another editor is connected; use Connect to switch');
+      return true;
+    }
+
+    return false;
+  }
+
   private handleHandshake(ws: WebSocket, data: unknown): void {
     const logger = getLogger();
     const parsed = BridgeHandshakeSchema.safeParse(data);
@@ -771,16 +808,9 @@ export class BridgeManager extends EventEmitter {
       }
     }
 
-    // When an exact-version extension is already active, a stale desktop/web
-    // instance must not hijack its session. Still allow an exact-version
-    // replacement (normal reload) and allow a stale client as the sole session
-    // so existing fail-closed read-only diagnostics remain available.
-    if (this.staleHandshakeWouldReplaceExactVersion(parsed.data.extensionVersion)) {
-      logger.warn(
-        { incomingVersion: parsed.data.extensionVersion },
-        'stale bridge extension rejected: exact-version session remains active',
-      );
-      ws.close(4003, 'Active exact-version extension takes precedence');
+    if (
+      this.rejectCompetingHandshake(ws, parsed.data.extensionVersion, parsed.data.connectionIntent)
+    ) {
       return;
     }
 
@@ -791,6 +821,9 @@ export class BridgeManager extends EventEmitter {
     if (previousWs && previousWs !== ws) {
       logger.info('replacing existing bridge client connection');
       this.rejectPending(new Error('Bridge connection replaced by a new client.'));
+      if (previousWs.readyState === WebSocket.OPEN) {
+        previousWs.send(JSON.stringify({ type: 'local_connection_busy' }));
+      }
       previousWs.close(4000, 'Replaced by new bridge client');
       this.stopHeartbeat();
       this.stopStaleSweep();

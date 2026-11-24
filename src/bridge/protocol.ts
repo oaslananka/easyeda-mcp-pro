@@ -19,6 +19,7 @@ export const BridgeHandshakeSchema = z.object({
   clientName: z.literal(BRIDGE_CLIENT_NAME),
   contractVersion: z.literal(BRIDGE_CONTRACT_VERSION).default(BRIDGE_CONTRACT_VERSION),
   extensionVersion: z.string().optional(),
+  connectionIntent: z.enum(['manual', 'auto']).optional(),
   easyedaVersion: z.string().optional(),
   devMode: z.boolean().optional(),
   sessionToken: z.string().optional(),
