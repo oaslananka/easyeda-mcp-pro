@@ -831,6 +831,26 @@ describe('createDispatcherDomainRouter', () => {
     }
   });
 
+  it.each([{ scope: 'all_pages' }, { scope: 'page', pageUuid: 'page-2' }, { pageUuid: 'page-2' }])(
+    'guards explicit sheet metadata scope by project without requiring focus: %j',
+    async (selector) => {
+      const dependencies = createDependencies();
+      const router = createDispatcherDomainRouter(dependencies);
+      const params = { projectId: 'verified-project', ...selector };
+
+      await expect(router.tryDispatch('schematic.getSheetInfo', params)).resolves.toEqual({
+        handled: true,
+        value: { method: 'schematic.getSheetInfo' },
+      });
+      expect(dependencies.pcbReadOperations.readProjectScoped).toHaveBeenCalledWith(
+        'verified-project',
+        expect.any(Function),
+        null,
+      );
+      expect(dependencies.readOnlyOperations.getSheetInfo).toHaveBeenCalledWith(params);
+    },
+  );
+
   it('forwards supported schematic selector intent to read-only routes', async () => {
     const dependencies = createDependencies();
     const router = createDispatcherDomainRouter(dependencies);

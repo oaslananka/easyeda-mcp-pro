@@ -1193,6 +1193,47 @@ describe('PCB list project identity enforcement', () => {
     expect(read).toHaveBeenCalledOnce();
   });
 
+  it('allows project-scoped sheet metadata without requiring a focused document', async () => {
+    const getCurrentProjectInfo = vi.fn(async () => project);
+    const { operations } = makeOperations({ DMT_Project: { getCurrentProjectInfo } });
+    const read = vi.fn(async () => ({ pages: [{ uuid: 'page-2' }] }));
+
+    await expect(operations.readProjectScoped(projectUuid, read, null)).resolves.toEqual({
+      pages: [{ uuid: 'page-2' }],
+    });
+    expect(read).toHaveBeenCalledOnce();
+    expect(getCurrentProjectInfo).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects an unrelated project before reading sheet metadata', async () => {
+    const { operations } = makeOperations(runtime());
+    const read = vi.fn(async () => ({ pages: [] }));
+
+    await expect(
+      operations.readProjectScoped('different-project', read, null),
+    ).rejects.toMatchObject({
+      code: 'PROJECT_INACTIVE',
+    });
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('discards project-scoped metadata when the native project changes during the read', async () => {
+    const currentProject = vi
+      .fn<() => Promise<unknown>>()
+      .mockResolvedValueOnce(project)
+      .mockResolvedValueOnce({ uuid: 'different-project' });
+    const { operations } = makeOperations({
+      DMT_Project: { getCurrentProjectInfo: currentProject },
+    });
+    const read = vi.fn(async () => ({ pages: [{ uuid: 'page-2' }] }));
+
+    await expect(operations.readProjectScoped(projectUuid, read, null)).rejects.toMatchObject({
+      code: 'PROJECT_INACTIVE',
+    });
+    expect(read).toHaveBeenCalledOnce();
+    expect(currentProject).toHaveBeenCalledTimes(2);
+  });
+
   it('can validate a focused schematic document against the exact native project', async () => {
     const schematic = { documentType: 1, uuid: 'sch-doc', parentProjectUuid: projectUuid };
     const { operations } = makeOperations(runtime(vi.fn(async () => schematic)));
