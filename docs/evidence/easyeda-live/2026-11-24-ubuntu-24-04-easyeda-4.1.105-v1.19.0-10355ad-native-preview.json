@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-v1190-native-local-MCP-preview-compatibility",
+  "recordedAtUtc": "2026-11-24T21:09:02Z",
+  "candidate": {
+    "releasePullRequest": 1139,
+    "exactCommit": "10355ad958a8c3212cacc91490837cbc773ecd16",
+    "packageVersion": "1.19.0",
+    "extensionSha256": "71581aa599675a0b0c9409b0e1423198fccd7d762c741822d7d4b592ea8d0f0f",
+    "extensionBytes": 240419,
+    "compatibilitySensitiveTreeSha1": {
+      "easyeda-bridge-extension/src": "6f60887e5cb703cb44476f7188e19a19b18415c7",
+      "src/bridge": "c2be592f2852bd9407c63414104a02574c53dd0d",
+      "src/remote": "7fcd33c262536ec1cba79c49e4ad24615663633a",
+      "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+      "src/tools": "edd4e67f6c3c2bcf76ad8300b4e42588114538d5",
+      "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+    },
+    "previewRendererTreeSha1": "4d2f44489d0ca75c4191a580760c0b83be0785c0",
+    "dispatcherBuildId": "de251x305dx5bb4",
+    "methodRegistryHash": "365e8bb83c720c95"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-43-generic",
+    "nodeVersion": "24.22.3"
+  },
+  "editor": {
+    "version": "4.1.105.0339a6cd",
+    "electronVersion": "not independently recorded",
+    "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+    "chromiumVersion": "not independently recorded",
+    "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+  },
+  "runtimeIdentity": {
+    "health": "ok",
+    "serverVersion": "1.19.0",
+    "extensionVersion": "1.19.0",
+    "registryMismatch": false,
+    "versionMismatch": false,
+    "connected": true,
+    "bridgeVersion": "1.0.0",
+    "easyedaVersion": "4.1.105",
+    "methodRegistryHash": "365e8bb83c720c95",
+    "methodCount": 84,
+    "dispatcher": "de251x305dx5bb4",
+    "source": "loader_status",
+    "devMode": false
+  },
+  "extension": {
+    "installedPackageVersion": "1.19.0",
+    "loaderReportedVersion": "1.19.0",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "365e8bb83c720c95",
+    "activeDispatcher": "baked",
+    "dispatcherBuildId": "de251x305dx5bb4",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "packageSha256": "71581aa599675a0b0c9409b0e1423198fccd7d762c741822d7d4b592ea8d0f0f",
+    "packageSizeBytes": 240419
+  },
+  "fixture": {
+    "project": "Isolated disposable local PCB fixture; no personal design",
+    "schematic": "Focused PCB; no design write",
+    "disposable": true,
+    "readOnly": true
+  },
+  "liveAcceptance": {
+    "installation": {
+      "innerExit": 0,
+      "outerExit": 1,
+      "enabled": true,
+      "externalInteractions": true,
+      "laterCleanupVerified": true
+    },
+    "preview": {
+      "exit": 0,
+      "views": [
+        {
+          "view": "isometric",
+          "width": 640,
+          "height": 480,
+          "bytes": 13594,
+          "sha256": "f74b674eea4d48599dd90e20605132dcc9710aa21bb6ece9ea7b4680c726cddc",
+          "vertices": 7820,
+          "triangles": 15887,
+          "source": "0596eaff96df1fc89cd298217e26ea8545503b6223beead05a3e8d468a8df14c"
+        },
+        {
+          "view": "underside",
+          "width": 640,
+          "height": 480,
+          "bytes": 8311,
+          "sha256": "931d5abc3ee4a1aa66bd947754ec0c4b5fe804fb55df1c047028b9c4d6b15a1e",
+          "vertices": 7820,
+          "triangles": 15887,
+          "source": "c1330694a6a8a06cebd2dd6e14c38b2426b73cbf945c42df6ff49531eb61da2d"
+        }
+      ],
+      "wrongPcbRejected": true,
+      "wrongProjectRejected": true,
+      "noImageForWrongIdentity": true,
+      "source": "exported-obj-geometry",
+      "nativeCapture": false,
+      "modelCoverage": "unverified",
+      "imageBlocks": true,
+      "duplicateBase64Absent": true,
+      "focusUnchanged": true,
+      "fixtureHashUnchanged": true,
+      "cleanupVerified": true
+    },
+    "resultEnvelopeSha256": {
+      "runtime-identity.json": "d78e1c14d0a5feff2afc6d4493702c1a3eb1df9ec8c807ef912f861a3ad7f996"
+    }
+  },
+  "knownLimitations": [
+    "Exact 1.19.0 native validation covers official extension installation, focused Local stdio MCP handshake, two exported-geometry PNG views, wrong project/PCB rejection and unchanged fixture. Other EasyEDA versions and operating systems were not live-validated in this run.",
+    "The PNGs are CPU renders of native OBJ/MTL geometry, not native 3D editor screenshots. Model coverage is unverified; placeholders and missing models remain possible even with automatic generation disabled. No component dimensions, clearance, enclosure fit or manufacturing approval.",
+    "The native ray tracer timed out in the prior isolated graphics investigation. Nonfatal GPU initialization diagnostics continued in this run. Installation itself completed with exit 0, but its initial outer wrapper exited 1 before acceptance during immediate cleanup checks; subsequent independent cleanup and fixture hash checks succeeded, and a fresh acceptance run exited 0.",
+    "No intentional Hosted connection, provider login, real credential, design mutation, autoroute or fabrication. Earlier live evidence remains historical; actual Hosted acceptance (#850) remains open."
+  ]
+}

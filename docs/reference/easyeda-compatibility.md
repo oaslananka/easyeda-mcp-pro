@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.19.0               | 1.19.0                | 1.19.0            | Live validated  | 2026-11-24 | 2027-02-22 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.18.3               | 1.18.3                | 1.18.3            | Live validated  | 2026-11-24 | 2027-02-22 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.18.2               | 1.18.2                | 1.18.2            | Live validated  | 2026-11-24 | 2027-02-22 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.18.1               | 1.18.1                | 1.18.1            | Live validated  | 2026-11-24 | 2027-02-22 |
@@ -82,6 +83,52 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-10355ad-v1190-native-preview
+
+Record ID: `easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-10355ad-v1190-native-preview`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `4.1.105.0339a6cd`                                                                                      |
+| Electron                                 | `not independently recorded`                                                                            |
+| Chromium                                 | `not independently recorded` (Chromium version not independently measured in this exact-candidate run.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                      |
+| Kernel                                   | `7.0.0-43-generic`                                                                                      |
+| Architecture                             | `x86_64`                                                                                                |
+| Node.js used by validation server        | `24.22.3`                                                                                               |
+| Validation package version               | `1.19.0`                                                                                                |
+| Fix version represented by evidence      | `1.19.0`                                                                                                |
+| Compatibility-sensitive base commit      | `10355ad958a8c3212cacc91490837cbc773ecd16`                                                              |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                |
+| Installed extension package metadata     | `1.19.0`                                                                                                |
+| Live-validated extension package SHA-256 | `71581aa599675a0b0c9409b0e1423198fccd7d762c741822d7d4b592ea8d0f0f`                                      |
+| Live-validated extension package size    | `240419 bytes`                                                                                          |
+| Loader-reported version                  | `1.19.0`                                                                                                |
+| Bridge contract                          | `1.0.0`                                                                                                 |
+| Dispatcher                               | `baked`                                                                                                 |
+| Method registry hash                     | `365e8bb83c720c95`                                                                                      |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                       |
+
+The installed extension package and loader both reported version `1.19.0` during this validation.
+
+### Capability evidence
+
+| Capability                                                 | Level  | Status    | Result                                                                                                                                                                                                                  | Evidence                                                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------- | ------ | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact 1.19.0 package and local MCP handshake               | `live` | `passed`  | Official isolated extension manager install with external interactions enabled; fresh Local stdio MCP reports matching 1.19.0 versions, health ok, 84 methods, baked dispatcher and no version or registry mismatch.    | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.19.0-10355ad-native-preview.json), [PR #1139](https://github.com/oaslananka/easyeda-mcp-pro/pull/1139)                                                                         |
+| Focused PCB exported 3D geometry preview                   | `live` | `passed`  | Actual MCP PNG image blocks for isometric and underside views, both 640 by 480 pixels, 7,820 vertices and 15,887 triangles; same PNG hashes as the feature acceptance. Model coverage unverified, no native screenshot. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.19.0-10355ad-native-preview.json), [PR #1138](https://github.com/oaslananka/easyeda-mcp-pro/pull/1138), [Issue #931](https://github.com/oaslananka/easyeda-mcp-pro/issues/931) |
+| Preview rejects wrong project and PCB                      | `live` | `passed`  | Wrong project and wrong PCB returned unavailable without an image. Correct focus and disposable fixture hash unchanged; cleanup independently verified.                                                                 | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.19.0-10355ad-native-preview.json)                                                                                                                                              |
+| Mechanical model completeness and actual Hosted acceptance | `live` | `blocked` | No physical model completeness, mechanical clearance, native screenshot, or authenticated Hosted journey demonstrated.                                                                                                  | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-24-ubuntu-24-04-easyeda-4.1.105-v1.19.0-10355ad-native-preview.json), [Issue #850](https://github.com/oaslananka/easyeda-mcp-pro/issues/850)                                                                      |
+
+### Known limitations
+
+- Exact 1.19.0 native validation covers official extension installation, focused Local stdio MCP handshake, two exported-geometry PNG views, wrong project/PCB rejection and unchanged fixture. Other EasyEDA versions and operating systems were not live-validated in this run.
+- The PNGs are CPU renders of native OBJ/MTL geometry, not native 3D editor screenshots. Model coverage is unverified; placeholders and missing models remain possible even with automatic generation disabled. No component dimensions, clearance, enclosure fit or manufacturing approval.
+- The native ray tracer timed out in the prior isolated graphics investigation. Nonfatal GPU initialization diagnostics continued in this run. Installation itself completed with exit 0, but its initial outer wrapper exited 1 before acceptance during immediate cleanup checks; subsequent independent cleanup and fixture hash checks succeeded, and a fresh acceptance run exited 0.
+- No intentional Hosted connection, provider login, real credential, design mutation, autoroute or fabrication. Earlier live evidence remains historical; actual Hosted acceptance (#850) remains open.
 
 ## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-24-155947a-v1183-native-local
 
