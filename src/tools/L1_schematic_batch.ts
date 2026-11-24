@@ -812,6 +812,19 @@ async function handleSchematicBatchWrite(
     const createScope = creates.length
       ? await prepareBatchCreateScope(context, parsed.projectId, parsed.expectedSchematicPageUuid)
       : undefined;
+    if (createScope) {
+      for (const witness of preflightSnapshots.values()) {
+        if (
+          witness.nativeScope?.documentId !== createScope.documentId ||
+          witness.nativeScope.projectId !== createScope.projectId
+        ) {
+          throw new TransactionError(
+            'TRANSACTION_INVALID_STATE',
+            'Batch create and delete targets must share the same verified native schematic page.',
+          );
+        }
+      }
+    }
     session = openBatchSession(parsed);
     const transactionId = session.transactionId;
     if (!transactionId) throw new Error('Batch transaction was not initialized');

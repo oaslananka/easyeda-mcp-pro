@@ -89,6 +89,49 @@ describe('target document guard #946', () => {
     expect(createText).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    { value: { primitiveId: 'new-text' } },
+    { value: { PrimitiveId: 'new-text' } },
+    { value: { getState: () => ({ PrimitiveId: 'new-text' }) } },
+    { value: { primitiveId: 'new-text', getState: () => ({ PrimitiveId: 'new-text' }) } },
+  ])('accepts only consistent direct native primitive evidence (%j)', async ({ value }) => {
+    const { dispatcher, createText } = makeDispatcher('page-1', 1);
+    createText.mockResolvedValueOnce(value as any);
+    await expect(
+      dispatcher.dispatch('schematic.addText', {
+        expectedProjectUuid: 'project-1',
+        expectedSchematicPageUuid: 'page-1',
+        verifiedDrawingCreate: true,
+        x: 10,
+        y: 20,
+        content: 'test',
+      }),
+    ).resolves.toMatchObject({ primitiveId: 'new-text', verifiedDrawingCreate: true });
+  });
+
+  it('refuses a native target change after create, without issuing a second write', async () => {
+    const { dispatcher, createText, getCurrentDocumentInfo } = makeDispatcher('page-1', 1);
+    createText.mockImplementationOnce(async () => {
+      getCurrentDocumentInfo.mockResolvedValue({
+        uuid: 'page-2',
+        documentType: 1,
+        parentProjectUuid: 'project-1',
+      });
+      return { getState_PrimitiveId: () => 'new-text' };
+    });
+    await expect(
+      dispatcher.dispatch('schematic.addText', {
+        expectedProjectUuid: 'project-1',
+        expectedSchematicPageUuid: 'page-1',
+        verifiedDrawingCreate: true,
+        x: 10,
+        y: 20,
+        content: 'test',
+      }),
+    ).rejects.toBeDefined();
+    expect(createText).toHaveBeenCalledOnce();
+  });
+
   it('refuses strict drawing creation without both target identifiers', async () => {
     const { dispatcher, createText } = makeDispatcher('page-1', 1);
     await expect(
@@ -104,7 +147,17 @@ describe('target document guard #946', () => {
 
   it.each([
     { value: undefined },
+    { value: { success: false, primitiveId: 'new-text' } },
     { value: { uuid: 'generic-uuid' } },
+    { value: { primitiveId: ' ' } },
+    { value: { primitiveId: 42 } },
+    {
+      value: {
+        getState: () => {
+          throw new Error('native state unavailable');
+        },
+      },
+    },
     { value: { primitiveId: 'new-text', getState_PrimitiveId: () => 'another' } },
   ])(
     'does not convert an ambiguous native result into verified ownership (%j)',

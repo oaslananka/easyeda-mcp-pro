@@ -380,7 +380,11 @@ describe('easyeda_schematic_batch_write', () => {
 
   it.each([
     'no-ack',
+    'explicit-failure-ack',
     'wrong-target-ack',
+    'lost-old-id',
+    'wrong-kind',
+    'never-visible',
     'old-extension',
     'missing-inventory',
     'duplicate-inventory',
@@ -412,27 +416,36 @@ describe('easyeda_schematic_batch_write', () => {
           primitiveKind: 'text',
           inventoryVerified: scenario !== 'missing-inventory',
           primitiveIds:
-            scenario === 'duplicate-inventory'
-              ? ['old', 'old']
-              : scenario === 'existing-id'
+            scenario === 'lost-old-id'
+              ? created
                 ? ['new-text']
-                : created
-                  ? scenario === 'foreign-delta'
-                    ? ['new-text', 'other']
-                    : ['new-text']
-                  : [],
+                : ['old']
+              : scenario === 'never-visible'
+                ? []
+                : scenario === 'duplicate-inventory'
+                  ? ['old', 'old']
+                  : scenario === 'existing-id'
+                    ? ['new-text']
+                    : created
+                      ? scenario === 'foreign-delta'
+                        ? ['new-text', 'other']
+                        : ['new-text']
+                      : [],
         };
       if (method === 'schematic.addText') {
         created = true;
         if (scenario === 'no-ack') return undefined;
         const ack = drawingAck('new-text');
+        if (scenario === 'explicit-failure-ack') return { ...ack, success: false };
         if (scenario === 'wrong-target-ack') ack.targetDocument.uuid = 'page-2';
         return ack;
       }
-      if (method === 'schematic.getPrimitiveSnapshot') return snapshot;
+      if (method === 'schematic.getPrimitiveSnapshot')
+        return scenario === 'wrong-kind' ? { ...snapshot, primitiveKind: 'rectangle' } : snapshot;
       throw new Error('Unexpected method ' + method);
     });
-    const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+    if (scenario === 'never-visible') vi.useFakeTimers();
+    const pending = registry.get('easyeda_schematic_batch_write')?.handler(context, {
       projectId: 'project-1',
       operations: [
         {
@@ -447,6 +460,11 @@ describe('easyeda_schematic_batch_write', () => {
       atomic: true,
       confirmWrite: true,
     });
+    if (scenario === 'never-visible') {
+      await vi.advanceTimersByTimeAsync(3000);
+      vi.useRealTimers();
+    }
+    const result = await pending;
     expect(result).toMatchObject({
       success: false,
       committed: false,
@@ -659,6 +677,176 @@ describe('easyeda_schematic_batch_write', () => {
       expect(bridgeCall.mock.calls.some(([method]) => method === 'schematic.deletePrimitive')).toBe(
         false,
       );
+    },
+  );
+
+  it.each([{ connected: false }, { registryMismatch: true }, { extensionVersionMismatch: true }])(
+    'blocks creation on incompatible bridge (%j)',
+    async (state) => {
+      const result = await registry.get('easyeda_schematic_batch_write')?.handler(
+        {
+          ...context,
+          bridge: { ...context.bridge, ...state },
+        },
+        {
+          projectId: 'project-1',
+          atomic: true,
+          confirmWrite: true,
+          operations: [
+            {
+              operationId: 'text',
+              action: 'create',
+              primitiveKind: 'text',
+              x: 1,
+              y: 2,
+              content: 'test',
+            },
+          ],
+        },
+      );
+      expect(result).toMatchObject({ success: false, committed: false });
+      expect(bridgeCall).not.toHaveBeenCalled();
+    },
+  );
+
+  it('blocks a PCB expectation on a schematic create before any bridge call', async () => {
+    const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+      projectId: 'project-1',
+      expectedPcbUuid: 'pcb-1',
+      atomic: true,
+      confirmWrite: true,
+      operations: [
+        {
+          operationId: 'text',
+          action: 'create',
+          primitiveKind: 'text',
+          x: 1,
+          y: 2,
+          content: 'test',
+        },
+      ],
+    });
+    expect(result).toMatchObject({ success: false, committed: false });
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
+  it('refuses mixed drawing creation and deletion when the preflight page changes', async () => {
+    let page = 'page-1';
+    bridgeCall.mockImplementation(async (method: string, params: any) => {
+      if (method === 'system.getStatus') {
+        page = 'page-2';
+        return verifiedDrawingStatus();
+      }
+      if (method === 'api.read') {
+        if (params.path === 'DMT_SelectControl.getCurrentDocumentInfo')
+          return { result: { uuid: page, parentProjectUuid: 'project-1', documentType: 1 } };
+        return verifiedSchematicFocus(method, params);
+      }
+      if (method === 'schematic.getPrimitiveSnapshot')
+        return {
+          schemaVersion: 'schematic-primitive-snapshot/v1',
+          primitiveId: 'old-text',
+          primitiveKind: 'text',
+          property: { x: 1, y: 2, content: 'old' },
+        };
+      throw new Error('Unexpected method ' + method);
+    });
+    const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+      projectId: 'project-1',
+      atomic: true,
+      confirmWrite: true,
+      operations: [
+        { operationId: 'delete', action: 'delete', primitiveId: 'old-text' },
+        {
+          operationId: 'create',
+          action: 'create',
+          primitiveKind: 'text',
+          x: 1,
+          y: 2,
+          content: 'new',
+        },
+      ],
+    });
+    expect(result).toMatchObject({ success: false, committed: false });
+    expect(result).toMatchObject({
+      error: expect.stringContaining('same verified native schematic page'),
+    });
+    expect(
+      bridgeCall.mock.calls.some(([method]) =>
+        ['schematic.addText', 'schematic.deletePrimitive'].includes(method),
+      ),
+    ).toBe(false);
+  });
+
+  it.each(['snapshot-too-large', 'changed-after-ack'])(
+    'compensates only the unchanged verified owned drawing (%s)',
+    async (scenario) => {
+      const snapshot = {
+        schemaVersion: 'schematic-primitive-snapshot/v1',
+        primitiveId: 'new-text',
+        primitiveKind: 'text',
+        property: {
+          x: 1,
+          y: 2,
+          content: 'test',
+          extra: scenario === 'snapshot-too-large' ? 'x'.repeat(2 * 1024 * 1024) : '',
+        },
+      };
+      let exists = false;
+      let reads = 0;
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'system.getStatus') return verifiedDrawingStatus();
+        if (method === 'api.read') return verifiedSchematicFocus(method, params);
+        if (method === 'schematic.listPrimitiveIds')
+          return {
+            primitiveKind: 'text',
+            inventoryVerified: true,
+            primitiveIds: exists ? ['new-text'] : [],
+          };
+        if (method === 'schematic.addText') {
+          exists = true;
+          return drawingAck('new-text');
+        }
+        if (method === 'schematic.getPrimitiveSnapshot') {
+          if (!exists) throw primitiveNotFound('new-text');
+          reads++;
+          if (scenario === 'changed-after-ack' && reads >= 2)
+            return { ...snapshot, property: { ...snapshot.property, content: 'foreign edit' } };
+          return structuredClone(snapshot);
+        }
+        if (method === 'schematic.deletePrimitive') {
+          expect(params).toMatchObject({
+            primitiveIds: ['new-text'],
+            expectedProjectUuid: 'project-1',
+            expectedSchematicPageUuid: 'page-1',
+            expectedPrimitiveSnapshot: snapshot,
+          });
+          exists = false;
+          return { deleted: ['new-text'], notFound: [] };
+        }
+        throw new Error('Unexpected method ' + method);
+      });
+      const result = await registry.get('easyeda_schematic_batch_write')?.handler(context, {
+        projectId: 'project-1',
+        atomic: true,
+        confirmWrite: true,
+        operations: [
+          {
+            operationId: 'text',
+            action: 'create',
+            primitiveKind: 'text',
+            x: 1,
+            y: 2,
+            content: 'test',
+          },
+        ],
+      });
+      const compensated = scenario === 'snapshot-too-large';
+      expect(result).toMatchObject({ success: false, committed: false, rolled_back: compensated });
+      expect(exists).toBe(!compensated);
+      expect(
+        bridgeCall.mock.calls.filter(([method]) => method === 'schematic.deletePrimitive'),
+      ).toHaveLength(compensated ? 1 : 0);
     },
   );
 

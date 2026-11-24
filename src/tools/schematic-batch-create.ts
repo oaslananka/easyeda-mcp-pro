@@ -100,6 +100,7 @@ function nativeReturnedId(result: unknown, scope: NativeSchematicScope): string 
   const response = record(result);
   const target = record(response.targetDocument);
   if (
+    response.success === false ||
     response.verifiedDrawingCreate !== true ||
     typeof response.primitiveId !== 'string' ||
     !response.primitiveId ||

@@ -34,7 +34,7 @@ export function requireDrawingCreateTarget(
 
 /** Never use a generic UUID or a newly visible inventory entry as the native return ID. */
 function returnedDrawingId(value: unknown): string | undefined {
-  if (!isRecord(value) || Array.isArray(value)) return undefined;
+  if (!isRecord(value) || Array.isArray(value) || value.success === false) return undefined;
   const ids: unknown[] = [value.primitiveId, value.PrimitiveId];
   try {
     if (typeof value.getState_PrimitiveId === 'function')
