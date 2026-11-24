@@ -185,6 +185,8 @@ Normal stable releases are prepared by merging the Release Please PR and publish
 
 ### Incomplete stable publication recovery
 
+If npm accepted publication but the shared visibility budget expires, the release may be partially available. The pending stage (metadata, channel dist-tag or canonical tarball) is reported separately; a cached 404 is not evidence that publishing failed. Check exact version/source/integrity, intended dist-tag and actual canonical tarball independently before any retry. See [solo-maintainer recovery](SOLO_MAINTAINER_RECOVERY.md#immutable-release-tags). Do not republish an accepted but still-invisible version or claim full availability based only on npm metadata.
+
 If npm and the immutable GitHub Release were successfully published but the MCP Registry rejects the just-published npm version with `status: 404`, use the **current** `Publish Release` workflow on `main` to recover the existing immutable tag. The publisher retries only the exact missing-version registry error (8 attempts, 15 seconds apart); authentication, package-ownership and other errors still fail immediately.
 
 The recovery verifies that the rebuilt extension is byte-identical to the immutable GitHub Release extension and cryptographically verifies the **already published** extension and SBOM against the existing portable Sigstore bundle, the audited source commit and the release workflow signer. It does not clobber signed assets when newly generated provenance differs. It skips an already-correct npm dist-tag and resumes MCP Registry then GHCR and final published-release verification.
