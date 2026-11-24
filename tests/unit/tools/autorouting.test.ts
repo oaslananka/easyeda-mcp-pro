@@ -353,6 +353,136 @@ describe('Autorouting Tools', () => {
       },
     );
 
+    it.each([{ connected: false }, { registryMismatch: true }, { extensionVersionMismatch: true }])(
+      'refuses an incompatible or disconnected bridge (%j)',
+      async (bridgeState) => {
+        const result = await registry.get('easyeda_pcb_autoroute')?.handler(
+          { ...context, bridge: { ...context.bridge, ...bridgeState } },
+          {
+            projectId: 'proj-1',
+            confirmWrite: true,
+            gateMode: 'warn',
+            boardData: passingBoardData(),
+          },
+        );
+        expect(result).toMatchObject({ success: false, overall_verdict: 'blocked' });
+        expect(bridgeCall.mock.calls.some(([method]) => method === 'api.call')).toBe(false);
+      },
+    );
+
+    it('blocks when guard capability discovery fails', async () => {
+      bridgeCall.mockRejectedValue(new Error('native status unavailable'));
+      const result = await registry.get('easyeda_pcb_autoroute')?.handler(context, {
+        projectId: 'proj-1',
+        confirmWrite: true,
+        gateMode: 'warn',
+        boardData: passingBoardData(),
+      });
+      expect(result).toMatchObject({ success: false, overall_verdict: 'blocked' });
+      expect(bridgeCall.mock.calls).toEqual([['system.getStatus', {}]]);
+    });
+
+    it.each([{}, null, 'unavailable', { not_available: true }])(
+      'withholds absent or malformed native DRC evidence (%j)',
+      async (drc) => {
+        mockFocusedBridge(async (method) => {
+          if (method === 'api.call') return { result: { success: true } };
+          if (method === 'design.drc') return drc;
+          return {};
+        });
+        const result = await registry.get('easyeda_pcb_autoroute')?.handler(context, {
+          projectId: 'proj-1',
+          confirmWrite: true,
+          gateMode: 'warn',
+          boardData: passingBoardData(),
+        });
+        expect(result).toMatchObject({
+          success: true,
+          overall_verdict: 'partial',
+          post_route_drc: undefined,
+        });
+        expect(bridgeCall.mock.calls.filter(([method]) => method === 'api.call')).toHaveLength(1);
+      },
+    );
+
+    it('derives DRC counts from the native violations when explicit counts are absent', async () => {
+      mockFocusedBridge(async (method) => {
+        if (method === 'api.call') return { result: { success: true } };
+        if (method === 'design.drc')
+          return { violations: [{ severity: 'error' }, { severity: 'warning' }] };
+        return {};
+      });
+      const result = await registry.get('easyeda_pcb_autoroute')?.handler(context, {
+        projectId: 'proj-1',
+        confirmWrite: true,
+        gateMode: 'warn',
+        boardData: passingBoardData(),
+      });
+      expect(result).toMatchObject({
+        success: true,
+        overall_verdict: 'partial',
+        post_route_drc: {
+          passed: false,
+          total_violations: 2,
+          error_count: 1,
+          warning_count: 1,
+        },
+      });
+    });
+
+    it('does not retry native routing when post-route DRC throws', async () => {
+      mockFocusedBridge(async (method) => {
+        if (method === 'api.call') return { result: { success: true } };
+        if (method === 'design.drc') throw new Error('DRC unavailable');
+        return {};
+      });
+      const result = await registry.get('easyeda_pcb_autoroute')?.handler(context, {
+        projectId: 'proj-1',
+        confirmWrite: true,
+        boardData: passingBoardData(),
+      });
+      expect(result).toMatchObject({
+        success: true,
+        overall_verdict: 'partial',
+        post_route_drc: undefined,
+      });
+      expect(bridgeCall.mock.calls.filter(([method]) => method === 'api.call')).toHaveLength(1);
+    });
+
+    it('withholds constraint evidence when the post-route board read fails', async () => {
+      let routed = false;
+      let connectedReads = 0;
+      const bridge = {
+        ...context.bridge,
+        get connected() {
+          // After routing: focus, focus after DRC, board evidence, final focus.
+          if (routed && ++connectedReads === 3) throw new Error('board evidence unavailable');
+          return true;
+        },
+      };
+      mockFocusedBridge(async (method) => {
+        if (method === 'api.call') {
+          routed = true;
+          return { result: { success: true } };
+        }
+        if (method === 'design.drc') return { passed: true };
+        return {};
+      });
+      const result = await registry
+        .get('easyeda_pcb_autoroute')
+        ?.handler(
+          { ...context, bridge },
+          { projectId: 'proj-1', confirmWrite: true, boardData: passingBoardData() },
+        );
+      expect(result).toMatchObject({
+        success: true,
+        overall_verdict: 'partial',
+        post_route_drc: { passed: true },
+        post_route_constraint_report: undefined,
+      });
+      expect(bridgeCall.mock.calls.filter(([method]) => method === 'api.call')).toHaveLength(1);
+    });
+
     it('blocks when confirmWrite is not true, without any bridge calls', async () => {
       const tool = registry.get('easyeda_pcb_autoroute');
       const result = (await tool?.handler(context, { projectId: 'proj-1' })) as any;
