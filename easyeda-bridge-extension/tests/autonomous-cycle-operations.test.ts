@@ -375,6 +375,7 @@ describe('board.export3d', () => {
         callFirst,
         normalizeBinaryResult,
         createBridgeError,
+        readProjectScoped: async (_id: string, read: () => Promise<unknown>) => read(),
       } as never),
     };
   }

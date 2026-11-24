@@ -7,11 +7,21 @@ function makeOperations() {
   const createBridgeError = vi.fn(
     (_code: string, message: string, _suggestion: string) => new Error(message),
   );
+  const readProjectScoped = vi.fn(
+    async (_projectId: string, read: () => Promise<unknown>, _documentType?: number | null) =>
+      read(),
+  );
   return {
     callFirst,
     normalizeBinaryResult,
     createBridgeError,
-    operations: createExportOperations({ callFirst, normalizeBinaryResult, createBridgeError }),
+    readProjectScoped,
+    operations: createExportOperations({
+      callFirst,
+      normalizeBinaryResult,
+      createBridgeError,
+      readProjectScoped,
+    }),
   };
 }
 
@@ -126,7 +136,7 @@ describe('export operations', () => {
   ])(
     'exports the netlist for native document type %i using the correct API signature',
     async (type, path) => {
-      const { callFirst, normalizeBinaryResult, operations } = makeOperations();
+      const { callFirst, normalizeBinaryResult, readProjectScoped, operations } = makeOperations();
       callFirst.mockImplementation(async (paths) =>
         paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo'
           ? { documentType: type }
@@ -136,6 +146,7 @@ describe('export operations', () => {
       await operations.exportNetlist({ projectId: 'proj-123', format: 'altium' });
       expect(callFirst).toHaveBeenNthCalledWith(1, ['DMT_SelectControl.getCurrentDocumentInfo']);
       expect(callFirst).toHaveBeenNthCalledWith(2, [path], 'proj-123-netlist', 'Protel2');
+      expect(readProjectScoped).toHaveBeenCalledWith('proj-123', expect.any(Function), type);
       expect(normalizeBinaryResult).toHaveBeenCalledWith('native-result', 'netlist.altium');
     },
   );

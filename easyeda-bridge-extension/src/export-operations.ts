@@ -1,10 +1,12 @@
 import type { ApiRuntime, BridgeErrorFactory } from './api-runtime.js';
 import type { BinaryResultNormalizer } from './binary-result.js';
+import type { PcbReadOperations } from './pcb-read-operations.js';
 
 export interface ExportOperationDependencies {
   callFirst: ApiRuntime['callFirst'];
   normalizeBinaryResult: BinaryResultNormalizer;
   createBridgeError: BridgeErrorFactory;
+  readProjectScoped: PcbReadOperations['readProjectScoped'];
 }
 
 export interface ExportOperations {
@@ -21,6 +23,7 @@ export function createExportOperations({
   callFirst,
   normalizeBinaryResult,
   createBridgeError,
+  readProjectScoped,
 }: ExportOperationDependencies): ExportOperations {
   function requireProjectId(params: Record<string, unknown>, operation: string): string {
     const projectId = typeof params.projectId === 'string' ? params.projectId.trim() : '';
@@ -112,15 +115,24 @@ export function createExportOperations({
       );
     }
     const target = `${info.documentType === 1 ? 'SCH' : 'PCB'}_ManufactureData.getNetlistFile`;
-    const result = await callFirst([target], projectId + '-netlist', nativeType);
-    if (result == null) {
-      throw createBridgeError(
-        'NETLIST_NOT_AVAILABLE',
-        'EasyEDA did not return a netlist file for the active document.',
-        'Check the native document focus and try again.',
-      );
-    }
-    return normalizeBinaryResult(result, 'netlist.' + format);
+    // Native netlist generation uses the focused document, not the file-name argument.
+    // Never return bytes until the requested project and document identity have been
+    // verified before and after generation and binary normalization.
+    return readProjectScoped(
+      projectId,
+      async () => {
+        const result = await callFirst([target], projectId + '-netlist', nativeType);
+        if (result == null) {
+          throw createBridgeError(
+            'NETLIST_NOT_AVAILABLE',
+            'EasyEDA did not return a netlist file for the active document.',
+            'Check the native document focus and try again.',
+          );
+        }
+        return normalizeBinaryResult(result, 'netlist.' + format);
+      },
+      info.documentType,
+    );
   }
 
   // Beta EasyEDA ODB++ export; this is not manufacturing verification.
