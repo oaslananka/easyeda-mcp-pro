@@ -1802,6 +1802,92 @@ describe('schematic transaction operations', () => {
     expect(remove).toHaveBeenCalledWith(['rect-1']);
   });
 
+  describe('native component lookup errors for other primitive classes', () => {
+    const component = { primitiveId: 'component-1' };
+    function setup(ids: unknown, rows: unknown, version = '4.1.105', missingRows = false) {
+      let present = true;
+      const text = { primitiveId: 'text-1' };
+      const textDelete = vi.fn(async () => {
+        present = false;
+        return true;
+      });
+      const componentDelete = vi.fn();
+      const { operations } = createSubject(
+        {
+          SCH_PrimitiveComponent: {
+            get: vi.fn().mockRejectedValue(new Error('Native component lookup failed')),
+            getAllPrimitiveId: vi.fn().mockResolvedValue(ids),
+            ...(missingRows ? {} : { getAll: vi.fn().mockResolvedValue(rows) }),
+            delete: componentDelete,
+          },
+          SCH_PrimitiveText: {
+            get: vi.fn(async (id) => (id === 'text-1' && present ? text : undefined)),
+            getAll: vi.fn(async () => (present ? [text] : [])),
+            delete: textDelete,
+          },
+        },
+        { getEasyedaVersion: () => version },
+      );
+      return { operations, textDelete, componentDelete };
+    }
+
+    it('permits exact V4 text deletion only after both component inventories prove absence', async () => {
+      const { operations, textDelete, componentDelete } = setup(['component-1'], [component]);
+      await expect(operations.deletePrimitives(['text-1'])).resolves.toEqual({
+        success: true,
+        deleted: ['text-1'],
+        notFound: [],
+      });
+      expect(textDelete).toHaveBeenCalledExactlyOnceWith('text-1');
+      expect(componentDelete).not.toHaveBeenCalled();
+    });
+
+    it('does not extend the fallback to an unverified runtime', async () => {
+      const { operations, textDelete, componentDelete } = setup(
+        ['component-1'],
+        [component],
+        '3.2.209',
+      );
+      await expect(operations.deletePrimitives(['text-1'])).rejects.toMatchObject({
+        code: 'UNSUPPORTED_RUNTIME',
+      });
+      expect(textDelete).not.toHaveBeenCalled();
+      expect(componentDelete).not.toHaveBeenCalled();
+    });
+
+    it('refuses when the native object inventory getter is absent', async () => {
+      const { operations, textDelete, componentDelete } = setup(
+        ['component-1'],
+        [component],
+        '4.1.105',
+        true,
+      );
+      await expect(operations.deletePrimitives(['text-1'])).rejects.toMatchObject({
+        code: 'UNSUPPORTED_RUNTIME',
+      });
+      expect(textDelete).not.toHaveBeenCalled();
+      expect(componentDelete).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['target in both inventories', ['text-1'], [{ primitiveId: 'text-1' }]],
+      ['disagreement', ['component-1'], [{ primitiveId: 'different' }]],
+      ['unequal lengths', ['component-1'], []],
+      ['duplicate ids', ['component-1', 'component-1'], [component, component]],
+      ['malformed IDs', ['component-1', 42], [component]],
+      ['missing row identity', ['component-1'], [{}]],
+      ['unavailable inventory', null, [component]],
+      ['unavailable rows', ['component-1'], null],
+    ])('refuses ambiguous component ownership: %s', async (_name, ids, rows) => {
+      const { operations, textDelete, componentDelete } = setup(ids, rows);
+      await expect(operations.deletePrimitives(['text-1'])).rejects.toMatchObject({
+        code: 'UNSUPPORTED_RUNTIME',
+      });
+      expect(textDelete).not.toHaveBeenCalled();
+      expect(componentDelete).not.toHaveBeenCalled();
+    });
+  });
+
   it('refuses a deletion when native component ownership is unreadable', async () => {
     const { operations } = createSubject({
       SCH_PrimitiveComponent: {
