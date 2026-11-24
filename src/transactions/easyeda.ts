@@ -308,14 +308,20 @@ async function rollbackVerifiedCreatedPrimitive(
 
   // The document-local transaction lock does not fence GUI/Cloud editors.
   await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
-  const snapshot = await getPrimitiveSnapshot(bridge, operation.target.id, 'component');
+  const kind = (operation.afterSnapshot as PrimitiveSnapshotResult | undefined)?.primitiveKind;
+  if (
+    typeof kind !== 'string' ||
+    !['component', 'wire', 'text', 'rectangle', 'circle', 'polygon'].includes(kind)
+  )
+    throw new Error('Native created primitive kind is unverified; no delete');
+  const snapshot = await getPrimitiveSnapshot(bridge, operation.target.id, kind);
   if (
     snapshot.primitiveId !== operation.target.id ||
-    snapshot.primitiveKind !== 'component' ||
+    snapshot.primitiveKind !== kind ||
     !operation.afterHash ||
     stableHash(snapshot) !== operation.afterHash
   ) {
-    throw new Error('Native created component changed before rollback; no delete');
+    throw new Error('Native created primitive changed before rollback; no delete');
   }
   await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
   await deletePrimitiveExact(bridge, operation.target.id, scope, snapshot);
@@ -378,7 +384,14 @@ export async function rollbackEasyedaTransaction(
     },
     verify: async (operation, restoreResult) => {
       if (operation.kind === 'create') {
-        return !(await primitiveExists(bridge, operation.target.id));
+        const scope = operation.nativeSchematicScope;
+        const kind = scope
+          ? (operation.afterSnapshot as PrimitiveSnapshotResult | undefined)?.primitiveKind
+          : undefined;
+        if (scope) await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
+        const absent = !(await primitiveExists(bridge, operation.target.id, kind));
+        if (scope) await assertFocusedSchematicScope(bridge, scope.projectId, scope.documentId);
+        return absent;
       }
       const beforeSnapshot = requireBeforeSnapshot(operation);
       const pinSnapshot = asPinNoConnectSnapshot(beforeSnapshot);

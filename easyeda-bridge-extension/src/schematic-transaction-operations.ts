@@ -69,7 +69,12 @@ export interface SchematicTransactionOperations {
   listPrimitiveIds(
     primitiveKind: unknown,
     includeNativeParts?: boolean,
-  ): Promise<{ primitiveKind: SchematicPrimitiveSnapshotKind; primitiveIds: string[] }>;
+    requireVerifiedInventory?: boolean,
+  ): Promise<{
+    primitiveKind: SchematicPrimitiveSnapshotKind;
+    primitiveIds: string[];
+    inventoryVerified?: true;
+  }>;
   deletePrimitives(
     primitiveIds: unknown,
     expectedPrimitiveSnapshot?: unknown,
@@ -954,11 +959,46 @@ export function createSchematicTransactionOperations(
     return Array.from(new Set(primitiveIds));
   }
 
+  async function strictDrawingInventory(kind: SchematicPrimitiveSnapshotKind) {
+    const fail = () =>
+      newBridgeError(
+        'NATIVE_INVENTORY_UNVERIFIED',
+        'Strict native drawing inventory unavailable or malformed.',
+        'Inspect the intended schematic; do not create with an unverified inventory.',
+      );
+    if (kind === 'component' || kind === 'netflag' || kind === 'netport') throw fail();
+    const owner = readFirstPath<any>(schematicPrimitiveClassPaths(kind));
+    if (!owner || typeof owner.getAllPrimitiveId !== 'function') throw fail();
+    let raw: unknown;
+    try {
+      raw = await owner.getAllPrimitiveId();
+    } catch {
+      throw fail();
+    }
+    if (
+      !Array.isArray(raw) ||
+      raw.some((id) => typeof id !== 'string' || !id || id.trim() !== id) ||
+      new Set(raw).size !== raw.length
+    )
+      throw fail();
+    return {
+      primitiveKind: kind,
+      primitiveIds: [...raw].sort((a, b) => a.localeCompare(b)),
+      inventoryVerified: true as const,
+    };
+  }
+
   async function listSchematicPrimitiveIds(
     kindInput: unknown,
     includeNativeParts = false,
-  ): Promise<{ primitiveKind: SchematicPrimitiveSnapshotKind; primitiveIds: string[] }> {
+    requireVerifiedInventory = false,
+  ): Promise<{
+    primitiveKind: SchematicPrimitiveSnapshotKind;
+    primitiveIds: string[];
+    inventoryVerified?: true;
+  }> {
     const primitiveKind = parseSchematicPrimitiveKind(kindInput);
+    if (requireVerifiedInventory) return strictDrawingInventory(primitiveKind);
     const primitiveClass = readFirstPath<any>(schematicPrimitiveClassPaths(primitiveKind));
     if (!primitiveClass) return { primitiveKind, primitiveIds: [] };
 

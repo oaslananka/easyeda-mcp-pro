@@ -11,6 +11,7 @@ function makeDispatcher(focusedUuid: string, type = 3) {
   const deleteLine = vi.fn(async () => true);
   const autoRouting = vi.fn(async () => ({ success: true }));
   const modifySchematic = vi.fn(async () => true);
+  const createText = vi.fn(async () => ({ getState_PrimitiveId: () => 'new-text' }));
   const getCurrentDocumentInfo = vi.fn(async () => ({
     uuid: focusedUuid,
     documentType: type,
@@ -32,6 +33,7 @@ function makeDispatcher(focusedUuid: string, type = 3) {
     PCB_PrimitiveLine: { create: mutateTrack, delete: deleteLine },
     PCB_Document: { autoRouting },
     SCH_PrimitiveComponent: { modify: modifySchematic },
+    SCH_PrimitiveText: { create: createText },
   };
   const toolkit: DispatcherToolkit = {
     getEda: () => global,
@@ -49,6 +51,7 @@ function makeDispatcher(focusedUuid: string, type = 3) {
     deleteLine,
     autoRouting,
     modifySchematic,
+    createText,
     getCurrentDocumentInfo,
     getCurrentProjectInfo,
     getCurrentPcbInfo,
@@ -67,6 +70,61 @@ const addTrack = {
 };
 
 describe('target document guard #946', () => {
+  it('acknowledges only a native returned drawing ID with exact target evidence', async () => {
+    const { dispatcher, createText } = makeDispatcher('page-1', 1);
+    await expect(
+      dispatcher.dispatch('schematic.addText', {
+        expectedProjectUuid: 'project-1',
+        expectedSchematicPageUuid: 'page-1',
+        verifiedDrawingCreate: true,
+        x: 10,
+        y: 20,
+        content: 'test',
+      }),
+    ).resolves.toMatchObject({
+      primitiveId: 'new-text',
+      verifiedDrawingCreate: true,
+      targetDocument: { uuid: 'page-1', projectUuid: 'project-1', documentType: 'schematic' },
+    });
+    expect(createText).toHaveBeenCalledOnce();
+  });
+
+  it('refuses strict drawing creation without both target identifiers', async () => {
+    const { dispatcher, createText } = makeDispatcher('page-1', 1);
+    await expect(
+      dispatcher.dispatch('schematic.addText', {
+        verifiedDrawingCreate: true,
+        x: 10,
+        y: 20,
+        content: 'test',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+    expect(createText).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { value: undefined },
+    { value: { uuid: 'generic-uuid' } },
+    { value: { primitiveId: 'new-text', getState_PrimitiveId: () => 'another' } },
+  ])(
+    'does not convert an ambiguous native result into verified ownership (%j)',
+    async ({ value }) => {
+      const { dispatcher, createText } = makeDispatcher('page-1', 1);
+      createText.mockResolvedValueOnce(value as any);
+      await expect(
+        dispatcher.dispatch('schematic.addText', {
+          expectedProjectUuid: 'project-1',
+          expectedSchematicPageUuid: 'page-1',
+          verifiedDrawingCreate: true,
+          x: 10,
+          y: 20,
+          content: 'test',
+        }),
+      ).rejects.toMatchObject({ code: 'NATIVE_CREATE_UNVERIFIED' });
+      expect(createText).toHaveBeenCalledOnce();
+    },
+  );
+
   it('refuses wrong focused PCB even when primitive IDs are identical', async () => {
     const { dispatcher, mutateTrack, deleteLine } = makeDispatcher('production-board');
     await expect(dispatcher.dispatch('pcb.addTrack', addTrack)).rejects.toMatchObject({

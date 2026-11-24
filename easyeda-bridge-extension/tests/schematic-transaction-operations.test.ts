@@ -1606,6 +1606,42 @@ describe('schematic transaction operations', () => {
     });
   });
 
+  it.each([undefined, null, ['duplicate', 'duplicate'], [''], [123]].map((ids) => ({ ids })))(
+    'rejects unavailable or malformed strict drawing inventory (%j)',
+    async ({ ids }) => {
+      const { operations } = createSubject({
+        SCH_PrimitiveText: { getAllPrimitiveId: vi.fn().mockResolvedValue(ids) },
+      });
+      await expect(operations.listPrimitiveIds('text', false, true)).rejects.toMatchObject({
+        code: 'NATIVE_INVENTORY_UNVERIFIED',
+      });
+    },
+  );
+
+  it('never interprets missing class, rejected read or untyped component inventory as verified drawings', async () => {
+    const { operations } = createSubject({
+      SCH_PrimitiveCircle: {
+        getAllPrimitiveId: vi.fn().mockRejectedValue(new Error('read failed')),
+      },
+    });
+    for (const kind of ['text', 'circle', 'component']) {
+      await expect(operations.listPrimitiveIds(kind, false, true)).rejects.toMatchObject({
+        code: 'NATIVE_INVENTORY_UNVERIFIED',
+      });
+    }
+  });
+
+  it('returns explicit verified inventory only from a successful native exact ID read', async () => {
+    const { operations } = createSubject({
+      SCH_PrimitiveText: { getAllPrimitiveId: vi.fn().mockResolvedValue(['b', 'a']) },
+    });
+    await expect(operations.listPrimitiveIds('text', false, true)).resolves.toEqual({
+      primitiveKind: 'text',
+      primitiveIds: ['a', 'b'],
+      inventoryVerified: true,
+    });
+  });
+
   it('returns an empty inventory when the requested primitive class is unavailable', async () => {
     const { operations } = createSubject();
     await expect(operations.listPrimitiveIds('circle')).resolves.toEqual({
