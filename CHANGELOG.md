@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.18.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.18.0...easyeda-mcp-pro-v1.18.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **pcb:** bind autoroute to the verified native project and PCB ([#1122](https://github.com/oaslananka/easyeda-mcp-pro/issues/1122)) ([e48e909](https://github.com/oaslananka/easyeda-mcp-pro/commit/e48e909f2adbea2a4b31eadc25175cbeaaacb2ac))
+* **schematic:** verify batch drawing create ownership before rollback ([#1125](https://github.com/oaslananka/easyeda-mcp-pro/issues/1125)) ([06219bd](https://github.com/oaslananka/easyeda-mcp-pro/commit/06219bd993512eacf7c618ddafc74ab58d1f7f11))
+
 ## [1.18.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.17.0...easyeda-mcp-pro-v1.18.0) (2026-11-24)
 
 
