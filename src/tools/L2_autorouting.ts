@@ -17,6 +17,11 @@ import {
   type PcbConstraintInput,
 } from '../pcb-constraints/index.js';
 import { pcbBoardDataSchema, fetchBoardDataFromBridge } from './L1_pcb_constraints.js';
+import {
+  prepareAutorouteTarget,
+  readAutorouteTarget,
+  hasAutorouteTargetEvidence,
+} from './pcb-autoroute-target.js';
 
 const pointSchema = z.object({ x: z.number(), y: z.number() });
 
@@ -202,7 +207,7 @@ function computeOverallVerdict(
   constraintVerdict: string | undefined,
 ): 'success' | 'partial' | 'failed' {
   if (!autorouteStarted) return 'failed';
-  if ((drcPassed ?? true) && constraintVerdict === 'approved') return 'success';
+  if (drcPassed === true && constraintVerdict === 'approved') return 'success';
   return 'partial';
 }
 
@@ -210,7 +215,7 @@ function summaryForVerdict(verdict: 'success' | 'partial' | 'failed'): string {
   if (verdict === 'success')
     return 'Autoroute completed and post-route DRC/constraint checks passed.';
   if (verdict === 'partial') {
-    return 'Autoroute completed but post-route checks found issues requiring review.';
+    return 'Autoroute completed but post-route checks found issues or lack verified evidence; review required.';
   }
   return 'Autoroute did not complete successfully.';
 }
@@ -326,13 +331,76 @@ function preflightBlockSummary(summary: AutoroutePreflightSummary): string {
   );
 }
 
+function blockedAutorouteTarget(projectId: string) {
+  return {
+    success: false,
+    project_id: projectId,
+    overall_verdict: 'blocked' as const,
+    blocked_by_preflight: false,
+    summary: 'Autoroute refused: the requested focused project and PCB could not be verified.',
+    error:
+      'Focus the intended PCB in the requested project and use an extension supporting project and document guards. No autoroute attempted.',
+  };
+}
+
+async function readRouteDrc(ctx: ToolContext, projectId: string) {
+  try {
+    const data = (await ctx.bridge.call('design.drc', { projectId })) as {
+      violations?: Array<{ severity?: string }>;
+      totalViolations?: number;
+      errorCount?: number;
+      warningCount?: number;
+      passed?: boolean;
+    };
+    if (
+      typeof data.passed !== 'boolean' &&
+      typeof data.errorCount !== 'number' &&
+      !Array.isArray(data.violations)
+    )
+      return undefined;
+    const violations = data.violations ?? [];
+    const errorCount = data.errorCount ?? violations.filter((v) => v.severity === 'error').length;
+    return {
+      passed: data.passed !== false && errorCount === 0,
+      total_violations: data.totalViolations ?? violations.length,
+      error_count: errorCount,
+      warning_count: data.warningCount ?? violations.filter((v) => v.severity === 'warning').length,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+async function readRouteConstraintReport(ctx: ToolContext, projectId: string) {
+  try {
+    const input = await fetchBoardDataFromBridge(ctx, projectId);
+    const report = buildConstraintReport(input, validatePcbConstraints(input));
+    return {
+      verdict: report.verdict,
+      manual_review_required_count: report.manualReviewRequired.length,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Focus continuity is required for post-route observations, not a saved-revision proof. */
+async function readPostRouteEvidence(ctx: ToolContext, projectId: string, pcbUuid: string) {
+  if (!(await readAutorouteTarget(ctx, projectId, pcbUuid))) return {};
+  const drcSummary = await readRouteDrc(ctx, projectId);
+  if (!(await readAutorouteTarget(ctx, projectId, pcbUuid))) return {};
+  const constraintReportSummary = await readRouteConstraintReport(ctx, projectId);
+  if (!(await readAutorouteTarget(ctx, projectId, pcbUuid))) return {};
+  return { drcSummary, constraintReportSummary };
+}
+
 function registerAutorouteTool(registry: { register: (def: ToolDefinition) => void }) {
   registry.register({
     name: 'easyeda_pcb_autoroute',
     title: 'Run EasyEDA Pro autorouting with pre-flight and post-route checks',
     description:
       "Drive EasyEDA Pro's native autorouter (PCB_Document.autoRouting, @beta) after a pre-flight " +
-      'check (boardData merged over bridge evidence; errors block, unknown checks block unless ' +
+      'check on the verified focused project and PCB (boardData merged over bridge evidence; errors block, unknown checks block unless ' +
       "gateMode is 'warn'), then attach DRC and a constraint report (confirmWrite required).",
     profile: 'pro',
     evidence: ['pro-api-types'],
@@ -406,6 +474,8 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
     handler: async (ctx: ToolContext, params: unknown) => {
       const p = params as {
         projectId: string;
+        expectedPcbUuid?: string;
+        expectedSchematicPageUuid?: string;
         routingNets?: 'selected' | 'selectedComponents' | string[];
         cornerStyle?: '45' | '90';
         existingPrimitiveMode?: 'keep' | 'remove';
@@ -429,9 +499,17 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
         };
       }
 
+      const target =
+        p.expectedSchematicPageUuid === undefined
+          ? await prepareAutorouteTarget(ctx, p.projectId, p.expectedPcbUuid)
+          : undefined;
+      if (!target) return blockedAutorouteTarget(p.projectId);
+
       const preflight = await runAutoroutePreflight(ctx, p.projectId, p.boardData, gateMode);
       if (preflight.response) return preflight.response;
       const preflightSummary = preflight.summary;
+      if (!(await readAutorouteTarget(ctx, p.projectId, target.expectedPcbUuid)))
+        return blockedAutorouteTarget(p.projectId);
 
       let autorouteStarted: boolean;
       let autorouteResult:
@@ -456,9 +534,13 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
         };
         const result = await ctx.bridge.call(
           'api.call',
-          { path: 'PCB_Document.autoRouting', args: [props] },
+          { path: 'PCB_Document.autoRouting', args: [props], ...target },
           { timeoutMs: AUTOROUTE_TIMEOUT_MS },
         );
+        if (!hasAutorouteTargetEvidence(result, target))
+          throw new Error(
+            'Native autoroute target evidence is missing or mismatched; outcome unverified. Inspect the intended PCB before retrying.',
+          );
         const data = result as { result?: Record<string, unknown> };
         const inner = (data.result ?? data) as {
           success?: boolean;
@@ -467,7 +549,7 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
           failedNets?: string[];
           duration?: number;
         };
-        autorouteStarted = inner.success !== false;
+        autorouteStarted = inner.success === true;
         autorouteResult = {
           started: autorouteStarted,
           total_nets_count: inner.totalNetsCount,
@@ -484,53 +566,17 @@ function registerAutorouteTool(registry: { register: (def: ToolDefinition) => vo
           blocked_by_preflight: false,
           preflight: { passed: true, ...preflightSummary },
           summary:
-            'Autoroute call failed. PCB_Document.autoRouting is a @beta EasyEDA Pro API and may ' +
-            'not be available in every EasyEDA Pro version — check easyeda_api_inventory.',
+            'Autoroute could not be verified. The native API is version-sensitive; inspect the intended PCB before any retry because a write may have occurred.',
           not_available: true,
           error: autorouteError,
         };
       }
 
-      let drcSummary:
-        | { passed: boolean; total_violations: number; error_count: number; warning_count: number }
-        | undefined;
-      try {
-        const drc = await ctx.bridge.call('design.drc', { projectId: p.projectId });
-        const data = drc as {
-          violations?: Array<{ severity?: string }>;
-          totalViolations?: number;
-          errorCount?: number;
-          warningCount?: number;
-          passed?: boolean;
-        };
-        const violations = data.violations ?? [];
-        const errorCount =
-          data.errorCount ?? violations.filter((v) => v.severity === 'error').length;
-        const warningCount =
-          data.warningCount ?? violations.filter((v) => v.severity === 'warning').length;
-        drcSummary = {
-          passed: data.passed ?? errorCount === 0,
-          total_violations: data.totalViolations ?? violations.length,
-          error_count: errorCount,
-          warning_count: warningCount,
-        };
-      } catch {
-        drcSummary = undefined;
-      }
-
-      let constraintReportSummary:
-        { verdict: string; manual_review_required_count: number } | undefined;
-      try {
-        const postRouteInput = await fetchBoardDataFromBridge(ctx, p.projectId);
-        const postRouteResult = validatePcbConstraints(postRouteInput);
-        const report = buildConstraintReport(postRouteInput, postRouteResult);
-        constraintReportSummary = {
-          verdict: report.verdict,
-          manual_review_required_count: report.manualReviewRequired.length,
-        };
-      } catch {
-        constraintReportSummary = undefined;
-      }
+      const { drcSummary, constraintReportSummary } = await readPostRouteEvidence(
+        ctx,
+        p.projectId,
+        target.expectedPcbUuid,
+      );
 
       const overallVerdict = computeOverallVerdict(
         autorouteStarted,

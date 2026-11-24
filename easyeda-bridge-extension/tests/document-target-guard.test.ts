@@ -9,6 +9,7 @@ import type { DispatcherToolkit } from '../src/toolkit.js';
 function makeDispatcher(focusedUuid: string, type = 3) {
   const mutateTrack = vi.fn(async () => ({ getState_PrimitiveId: () => 'new-track' }));
   const deleteLine = vi.fn(async () => true);
+  const autoRouting = vi.fn(async () => ({ success: true }));
   const modifySchematic = vi.fn(async () => true);
   const getCurrentDocumentInfo = vi.fn(async () => ({
     uuid: focusedUuid,
@@ -29,6 +30,7 @@ function makeDispatcher(focusedUuid: string, type = 3) {
       getCurrentSchematicPageInfo: async () => ({ uuid: focusedUuid, name: 'Schematic page' }),
     },
     PCB_PrimitiveLine: { create: mutateTrack, delete: deleteLine },
+    PCB_Document: { autoRouting },
     SCH_PrimitiveComponent: { modify: modifySchematic },
   };
   const toolkit: DispatcherToolkit = {
@@ -45,6 +47,7 @@ function makeDispatcher(focusedUuid: string, type = 3) {
     dispatcher: createDispatcher(toolkit),
     mutateTrack,
     deleteLine,
+    autoRouting,
     modifySchematic,
     getCurrentDocumentInfo,
     getCurrentProjectInfo,
@@ -78,6 +81,45 @@ describe('target document guard #946', () => {
     ).rejects.toMatchObject({ code: 'TARGET_DOCUMENT_MISMATCH' });
     expect(mutateTrack).not.toHaveBeenCalled();
     expect(deleteLine).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['foreign-board', 'project-1', 'TARGET_DOCUMENT_MISMATCH'],
+    ['board-copy', 'foreign-project', 'TARGET_PROJECT_MISMATCH'],
+  ])(
+    'blocks guarded native autoroute at the extension boundary (%s, %s)',
+    async (pcb, project, code) => {
+      const { dispatcher, autoRouting } = makeDispatcher(pcb);
+      await expect(
+        dispatcher.dispatch('api.call', {
+          path: 'PCB_Document.autoRouting',
+          args: [{}],
+          expectedPcbUuid: 'board-copy',
+          expectedProjectUuid: project,
+        }),
+      ).rejects.toMatchObject({ code });
+      expect(autoRouting).not.toHaveBeenCalled();
+    },
+  );
+
+  it('calls the matching native autorouter once and returns the exact scoped evidence', async () => {
+    const { dispatcher, autoRouting } = makeDispatcher('board-copy');
+    const result = await dispatcher.dispatch('api.call', {
+      path: 'PCB_Document.autoRouting',
+      args: [{}],
+      expectedPcbUuid: 'board-copy',
+      expectedProjectUuid: 'project-1',
+    });
+    expect(autoRouting).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({
+      result: { success: true },
+      targetDocument: {
+        uuid: 'board-copy',
+        projectUuid: 'project-1',
+        documentType: 'pcb',
+        name: 'Production PCB',
+      },
+    });
   });
 
   it('names the actual focused PCB on wrong-target rejection when the selector lacks a name', async () => {

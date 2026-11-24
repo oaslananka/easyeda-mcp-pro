@@ -55,7 +55,6 @@
     "src/tools/L1_drc_erc.ts": [20],
     "src/tools/L1_schematic_read.ts": [21, 16],
     "src/tools/L1_schematic_write.ts": [16, 16],
-    "src/tools/L2_autorouting.ts": [18],
     "src/tools/L2_schematic_layout.ts": [16],
     "src/tools/L2_workflows.ts": [26],
     "src/tools/schematic-helpers.ts": [29],
