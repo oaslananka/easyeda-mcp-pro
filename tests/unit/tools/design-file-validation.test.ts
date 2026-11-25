@@ -88,6 +88,13 @@ describe('validateDesignFile', () => {
     ['test points without delimiter', 'test_points', Buffer.from('just one column\n')],
     ['whitespace-only PCB info', 'pcb_info', Buffer.from('   \n\n  ')],
     ['HTML as SVG', 'schematic_svg', Buffer.from('<html><svg></svg></html>')],
+    ['unclosed SVG comment', 'schematic_svg', Buffer.from('<!-- page <svg></svg>')],
+    ['incomplete XML declaration', 'schematic_svg', Buffer.from('<?xml version="1.0"><svg></svg>')],
+    [
+      'long preamble with non-SVG root',
+      'schematic_svg',
+      Buffer.from('<!-- page -->'.repeat(250) + '<other></other>'),
+    ],
     ['ZIP with non-SVG entry', 'schematic_svg', zip(['P1.svg', 'readme.txt'])],
     ['ZIP with only directories', 'schematic_svg', zip(['pages/'])],
     ['truncated ZIP', 'schematic_svg', zip(['P1.svg']).subarray(0, -10)],
