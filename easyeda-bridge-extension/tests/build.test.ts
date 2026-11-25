@@ -503,7 +503,7 @@ describe('build.mjs hot-swap define', () => {
     });
 
     vm.runInContext(bundle, context);
-    (context as any).edaEsbuildExportName.connectRemoteRelay(
+    await (context as any).edaEsbuildExportName.connectRemoteRelay(
       'hosted',
       'wss://relay.example/session',
       '123456',

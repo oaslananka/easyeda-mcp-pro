@@ -94,7 +94,7 @@ interface EasyedaGlobal {
     mode?: Exclude<RemoteRelayMode, 'disabled'>,
     relayUrl?: string,
     pairingCode?: string,
-  ) => void;
+  ) => Promise<void>;
   disconnectRemoteRelay?: () => void;
   showRemoteRelayStatus?: () => void;
   connectCustomRemote?: () => Promise<void>;
@@ -746,6 +746,9 @@ async function readRemoteActiveProject(mode: RemoteRelayMode) {
 let selectedConnectionMode: 'local' | 'remote' = 'local';
 
 let connectionPromptGeneration = 0;
+// A late startup callback must not restore earlier trust after an explicit
+// connection choice in this runtime. A fresh extension process starts anew.
+let startupTrustSuppressed = false;
 
 /** EasyEDA's main extension sandbox does not expose browser prompt(). */
 async function promptConnectionValue(message: string, initialValue = ''): Promise<string | null> {
@@ -821,7 +824,7 @@ async function connectHostedCloudInternal(): Promise<void> {
   }
   const remember = await requestTrustedDeviceConsent();
   if (generation !== connectionPromptGeneration) return;
-  if (!remember && trustedHostedDevice.read()) void trustedHostedDevice.forget();
+  if (!(await prepareExplicitRemoteConnection(generation))) return;
   connectRemoteRelayInternal('hosted', OFFICIAL_HOSTED_RELAY_URL, code, remember);
 }
 
@@ -850,7 +853,43 @@ async function connectCustomRemoteInternal(): Promise<void> {
     showToast('Custom Cloud requires a valid EDA-XXXXXXXX pairing code.');
     return;
   }
+  if (!(await prepareExplicitRemoteConnection(generation))) return;
   connectRemoteRelayInternal('self_hosted', relayUrl, code);
+}
+
+/** Do not start a new account or mode while previous device trust can survive. */
+async function prepareExplicitRemoteConnection(generation: number): Promise<boolean> {
+  if (generation !== connectionPromptGeneration) return false;
+  // Stop old rotations before queuing the clear behind pending storage writes.
+  startupTrustSuppressed = true;
+  remoteRelayClient?.disconnect('replaced');
+  selectedConnectionMode = 'local';
+  const cleared = await trustedHostedDevice.clearForNewConnection();
+  if (generation !== connectionPromptGeneration) return false;
+  if (!cleared) {
+    showToast(
+      'Could not forget the previous Cloud device. Revoke its Cloud access and clear its saved trust before reconnecting. Local MCP remains available.',
+    );
+  }
+  return cleared;
+}
+
+async function connectRemoteRelayCommandInternal(
+  mode: Exclude<RemoteRelayMode, 'disabled'> = 'hosted',
+  relayUrl?: string,
+  pairingCode?: string,
+): Promise<void> {
+  const generation = ++connectionPromptGeneration;
+  if (relayUrl !== undefined) {
+    try {
+      relayUrl = validateCustomRemoteRelayUrl(relayUrl);
+    } catch (error) {
+      showToast(`Remote Relay: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
+  }
+  if (!(await prepareExplicitRemoteConnection(generation))) return;
+  connectRemoteRelayInternal(mode, relayUrl, pairingCode);
 }
 
 function forgetTrustedHostedDevice(): void {
@@ -861,6 +900,7 @@ function forgetTrustedHostedDevice(): void {
 
 /** An explicit Local/disconnect choice also applies after a failed Cloud startup. */
 function leaveRemoteMode(): void {
+  startupTrustSuppressed = true;
   const client = remoteRelayClient;
   const hosted = client?.getStatus().mode === 'hosted';
   client?.disconnect('user_disabled');
@@ -900,9 +940,6 @@ function connectRemoteRelayInternal(
       'Remote Relay requires EasyEDA WebSocket and External Interactions permission; Local is still available.',
     );
     return;
-  }
-  if (mode === 'self_hosted' && trustedHostedDevice.read()) {
-    void trustedHostedDevice.forget();
   }
   disconnectInternal(false);
   selectedConnectionMode = 'remote';
@@ -1762,7 +1799,7 @@ async function handleActivate(): Promise<void> {
   activationStarted = true;
   // A previous explicit trusted-device choice restores only the owner pairing,
   // never selected project, OAuth scope, or native write/export approvals.
-  const trustedCredential = trustedHostedDevice.read();
+  const trustedCredential = startupTrustSuppressed ? undefined : trustedHostedDevice.read();
   if (trustedCredential) {
     connectRemoteRelayInternal(
       'hosted',
@@ -1811,7 +1848,7 @@ interface PersistentRuntime {
   enableAutoConnect: typeof enableAutoConnectInternal;
   disableAutoConnect: typeof disableAutoConnectInternal;
   toggleAutoConnect: typeof toggleAutoConnectInternal;
-  connectRemoteRelay: typeof connectRemoteRelayInternal;
+  connectRemoteRelay: typeof connectRemoteRelayCommandInternal;
   connectCustomRemote: typeof connectCustomRemoteInternal;
   connectHostedCloud: typeof connectHostedCloudInternal;
   disconnectRemoteRelay: typeof disconnectRemoteRelayInternal;
@@ -1837,7 +1874,7 @@ function getPersistentRuntime(): PersistentRuntime {
     enableAutoConnect: enableAutoConnectInternal,
     disableAutoConnect: disableAutoConnectInternal,
     toggleAutoConnect: toggleAutoConnectInternal,
-    connectRemoteRelay: connectRemoteRelayInternal,
+    connectRemoteRelay: connectRemoteRelayCommandInternal,
     connectCustomRemote: connectCustomRemoteInternal,
     connectHostedCloud: connectHostedCloudInternal,
     disconnectRemoteRelay: disconnectRemoteRelayInternal,
@@ -1881,12 +1918,12 @@ export async function toggleAutoConnect(): Promise<void> {
   await persistentRuntime.toggleAutoConnect();
 }
 
-export function connectRemoteRelay(
+export async function connectRemoteRelay(
   mode: Exclude<RemoteRelayMode, 'disabled'> = 'hosted',
   relayUrl?: string,
   pairingCode?: string,
-): void {
-  persistentRuntime.connectRemoteRelay(mode, relayUrl, pairingCode);
+): Promise<void> {
+  await persistentRuntime.connectRemoteRelay(mode, relayUrl, pairingCode);
 }
 
 export async function connectCustomRemote(): Promise<void> {
