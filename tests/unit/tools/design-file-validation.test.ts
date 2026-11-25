@@ -70,6 +70,21 @@ describe('validateDesignFile', () => {
       'image/svg+xml',
     ],
     ['schematic_svg', zip(['P1.svg', 'pages/', 'pages/P2.SVG']), 'zip', 'application/zip'],
+    [
+      'pads_layout',
+      // Entry layout of the native EasyEDA Pro 3.2.209 PADS export.
+      zip([
+        'R-Com dongle/',
+        'R-Com dongle/Board1/',
+        'R-Com dongle/Board1/Schematic1/',
+        'R-Com dongle/Board1/Schematic1/Schematic1.txt',
+        'R-Com dongle/Board1/PCB1.asc',
+        'R-Com dongle/R-Com dongle.c',
+        'R-Com dongle/R-Com dongle.d',
+      ]),
+      'zip',
+      'application/zip',
+    ],
   ])('accepts a well-formed %s payload', (kind, buffer, extension, mimeType) => {
     expect(validateDesignFile(kind, buffer)).toEqual({ ok: true, format: { extension, mimeType } });
   });
@@ -98,7 +113,9 @@ describe('validateDesignFile', () => {
     ['ZIP with non-SVG entry', 'schematic_svg', zip(['P1.svg', 'readme.txt'])],
     ['ZIP with only directories', 'schematic_svg', zip(['pages/'])],
     ['truncated ZIP', 'schematic_svg', zip(['P1.svg']).subarray(0, -10)],
-    ['ZIP for PADS', 'pads_layout', zip(['layout.asc'])],
+    ['PADS ZIP without .asc layout', 'pads_layout', zip(['proj/Schematic1.txt', 'proj/lib.c'])],
+    ['PADS ZIP with foreign entry', 'pads_layout', zip(['proj/PCB1.asc', 'proj/run.exe'])],
+    ['truncated PADS ZIP', 'pads_layout', zip(['proj/PCB1.asc']).subarray(0, -10)],
     ['ZIP for IPC-2581', 'ipc2581', zip(['a.xml'])],
   ])('rejects %s', (_label, kind, buffer) => {
     const result = validateDesignFile(kind, buffer);

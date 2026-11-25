@@ -128,9 +128,27 @@ function validateIpcD356(text: string | undefined): DesignFileValidation {
   return accept('ipc', 'text/plain');
 }
 
-/** PADS ASCII layout: the file header record starts with !PADS-. */
-function validatePadsLayout(text: string | undefined): DesignFileValidation {
-  if (!text) return reject('PADS layout export is not a text file.');
+/** Entry types EasyEDA Pro 3.2.209 writes into its native PADS archive. */
+const PADS_ARCHIVE_EXTENSIONS = ['.asc', '.txt', '.c', '.d'];
+
+/**
+ * PADS: EasyEDA Pro returns a ZIP holding the PowerPCB layout (`<PCB>.asc`), the
+ * PADS Logic schematic (`.txt`) and the schematic/PCB decal libraries (`.c`, `.d`).
+ * A bare PADS ASCII layout (header record starting with !PADS-) is also accepted.
+ */
+function validatePadsLayout(buffer: Buffer, text: string | undefined): DesignFileValidation {
+  const names = zipEntryNames(buffer);
+  if (names) {
+    const files = names.filter((name) => !name.endsWith('/')).map((name) => name.toLowerCase());
+    if (!files.some((name) => name.endsWith('.asc'))) {
+      return reject('PADS archive contains no .asc layout file.');
+    }
+    if (!files.every((name) => PADS_ARCHIVE_EXTENSIONS.some((ext) => name.endsWith(ext)))) {
+      return reject('PADS archive contains entries that are not PADS design files.');
+    }
+    return accept('zip', 'application/zip');
+  }
+  if (!text) return reject('PADS layout export is neither a ZIP archive nor a text file.');
   if (!head(text).trimStart().startsWith('!PADS-')) {
     return reject('PADS layout export has no !PADS- header record.');
   }
@@ -209,7 +227,7 @@ export function validateDesignFile(kind: DesignFileKind, buffer: Buffer): Design
     case 'test_points':
       return validateTestPoints(text);
     case 'pads_layout':
-      return validatePadsLayout(text);
+      return validatePadsLayout(buffer, text);
     case 'schematic_svg':
       return validateSchematicSvg(buffer, text);
   }
