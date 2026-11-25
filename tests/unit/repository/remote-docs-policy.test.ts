@@ -51,6 +51,9 @@ describe('Remote Relay documentation policy', () => {
     const guide = read('docs/guide/cloud-ai-connectors.md');
 
     expect(status).not.toContain('not-yet-released');
+    expect(status).toContain('Hosted Cloud 1.19.0');
+    expect(status).toContain('issuecomment-7148198015');
+    expect(status).toContain('Earlier owner-pilot native acceptance (2026-11-21)');
     expect(status).toContain('Hosted Cloud 1.17.0');
     expect(status).toContain('issuecomment-7051285101');
     expect(status).toContain('public rollout #850 remains HOLD');

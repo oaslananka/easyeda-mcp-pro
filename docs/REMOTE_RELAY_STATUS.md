@@ -6,14 +6,25 @@
 
 `MCP_BRIDGE_BACKEND=remote_relay` is an implemented, explicitly selected runtime path. It is not the default and is not yet advertised as Beta or production-ready. Local bridge mode remains the supported default.
 
-## Latest recorded owner-pilot acceptance (2026-11-21)
+## Latest recorded owner-pilot deployment (2026-11-24 UTC)
 
-**Experimental; public rollout #850 remains HOLD.** Hosted Cloud 1.17.0
-was deployed to the existing owner-restricted pilot on 2026-11-20. This is
-the last recorded deployed release in the acceptance issue, not a claim
-that the hosted service always runs the latest npm or Local MCP release.
+**Experimental; public rollout #850 remains HOLD.** Hosted Cloud 1.19.0
+was deployed in place to the existing owner-restricted pilot from the
+immutable published release image. The running version and local health,
+single SQLite writer, database integrity, public OAuth discovery, unchanged
+public JWKS, unauthenticated MCP rejection, and preservation of the existing
+authenticated workspace were verified. See the
+[deployment evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/850#issuecomment-7148198015).
 
-On 2026-11-21, actual EasyEDA Pro 4.1.105 and MCP Pro Bridge 1.17.0
+This is a dated deployment observation, not a guarantee that Hosted always
+runs the latest npm or Local MCP release. Authenticated MCP health reported
+no authorized editor ready, and the subsequent isolated native launch
+failed before pairing. No new native end-to-end or independent-user
+acceptance was established for 1.19.0.
+
+## Earlier owner-pilot native acceptance (2026-11-21)
+
+On Hosted Cloud 1.17.0, actual EasyEDA Pro 4.1.105 and MCP Pro Bridge 1.17.0
 completed a bounded owner-authorized workflow on a disposable schematic:
 
 - Session-only native pairing and explicit document selection, followed by
