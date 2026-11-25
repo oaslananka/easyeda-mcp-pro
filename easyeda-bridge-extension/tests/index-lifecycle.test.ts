@@ -249,7 +249,7 @@ describe('extension loader lifecycle source', () => {
     await extension.connectCustomRemote();
     expect(toasts).toContain('EasyEDA input dialog is unavailable. Local MCP remains available.');
 
-    extension.connectRemoteRelay('hosted');
+    await extension.connectRemoteRelay('hosted');
     expect(toasts.join(' | ')).toContain(
       'Remote Relay requires EasyEDA WebSocket and External Interactions permission; Local is still available.',
     );
@@ -794,7 +794,7 @@ describe('extension loader lifecycle source', () => {
         },
       },
     });
-    extension.connectRemoteRelay('self_hosted', 'wss://relay.example/session', '123456');
+    await extension.connectRemoteRelay('self_hosted', 'wss://relay.example/session', '123456');
     const socket = latestRemoteSocket();
     socket.open();
     socket.receive(approvalRequest());
@@ -828,7 +828,7 @@ describe('extension loader lifecycle source', () => {
         },
       },
     });
-    extension.connectRemoteRelay('self_hosted', 'wss://relay.example/session', '123456');
+    await extension.connectRemoteRelay('self_hosted', 'wss://relay.example/session', '123456');
     const socket = latestRemoteSocket();
     socket.open();
     socket.receive(approvalRequest());
@@ -854,7 +854,7 @@ describe('extension loader lifecycle source', () => {
           callback?.(false),
       },
     });
-    extension.connectRemoteRelay('hosted', 'wss://relay.example/session');
+    await extension.connectRemoteRelay('hosted', 'wss://relay.example/session');
     const socket = latestRemoteSocket();
     socket.open();
     socket.receive(approvalRequest());
@@ -876,7 +876,7 @@ describe('extension loader lifecycle source', () => {
     await extension.connect();
     const localSocket = HarnessSocket.instances[0];
 
-    extension.connectRemoteRelay('self_hosted', 'wss://relay.example/session', '123456');
+    await extension.connectRemoteRelay('self_hosted', 'wss://relay.example/session', '123456');
     const remoteSocket = latestRemoteSocket();
     remoteSocket.open();
     await flushMicrotasks();
@@ -1055,6 +1055,190 @@ describe('opt-in Hosted Cloud device trust across real extension lifecycle bound
     await extension.connect();
     await flushMicrotasks();
     expect(trustedSettings.has(TRUST_KEY)).toBe(false);
+  });
+
+  it.each(['hosted', 'custom', 'command', 'remember'] as const)(
+    'does not start a new %s connection when prior remembered trust cannot be cleared',
+    async (mode) => {
+      const trustedSettings = new Map<string, unknown>([
+        [TRUST_KEY, { version: 1, credential: firstCredential, expiresAt: Date.now() + 60_000 }],
+      ]);
+      const prompts =
+        mode === 'custom' ? ['wss://relay.example/remote/relay', 'EDA-ABCDEF12'] : ['EDA-ABCDEF12'];
+      const { extension, toasts } = await loadExtension({
+        withWebSocket: true,
+        trustedSettings,
+        prompt: () => prompts.shift() ?? null,
+        dialog: {
+          showConfirmationMessage: (_text, _title, _yes, _no, cb) => cb?.(mode === 'remember'),
+        },
+      });
+      const storage = (globalThis as any).sys_Storage;
+      storage.deleteExtensionUserConfig = vi.fn(async () => false);
+      storage.setExtensionUserConfig = vi.fn(async () => false);
+
+      if (mode === 'command') await extension.connectRemoteRelay('hosted');
+      else if (mode === 'custom') await extension.connectCustomRemote();
+      else await extension.connectHostedCloud();
+      await flushMicrotasks();
+
+      expect(
+        HarnessSocket.instances.filter((socket) => socket.url.startsWith('wss://')),
+      ).toHaveLength(0);
+      expect(trustedSettings.has(TRUST_KEY)).toBe(true);
+      expect(toasts.join(' | ')).toContain('Revoke its Cloud access');
+      expect(JSON.stringify(toasts)).not.toContain(firstCredential);
+    },
+  );
+
+  it('waits for a pending remembered-device save before clearing it and switching Cloud modes', async () => {
+    const prompts = ['EDA-ABCDEF12', 'wss://relay.example/remote/relay', 'EDA-AABBCCDD'];
+    const { extension, trustedSettings } = await loadExtension({
+      withWebSocket: true,
+      prompt: () => prompts.shift() ?? null,
+      dialog: { showConfirmationMessage: (_text, _title, _yes, _no, cb) => cb?.(true) },
+    });
+    let releaseSave: (() => void) | undefined;
+    const storage = (globalThis as any).sys_Storage;
+    storage.setExtensionUserConfig = vi.fn(async (key: string, value: unknown) => {
+      await new Promise<void>((resolve) => {
+        releaseSave = resolve;
+      });
+      trustedSettings.set(key, value);
+      return true;
+    });
+    await extension.connectHostedCloud();
+    const first = latestRemoteSocket();
+    first.open();
+    await flushMicrotasks();
+    first.receive({
+      protocolVersion: '2026-07-remote-relay-v1',
+      messageId: 'pending_trust_save',
+      type: 'session_registered',
+      timestamp: new Date().toISOString(),
+      paired: true,
+      sessionId: 'sess_owner',
+      resumeCredential: firstCredential,
+    });
+    await flushMicrotasks();
+    expect(releaseSave).toBeDefined();
+    expect(trustedSettings.has(TRUST_KEY)).toBe(false);
+
+    const switching = extension.connectCustomRemote();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(first.closeCalls).toBeGreaterThan(0);
+    expect(
+      HarnessSocket.instances.filter((socket) => socket.url.startsWith('wss://')),
+    ).toHaveLength(1);
+    releaseSave?.();
+    await switching;
+    expect(trustedSettings.has(TRUST_KEY)).toBe(false);
+    expect(latestRemoteSocket().url).toBe('wss://relay.example/remote/relay');
+    expect(
+      HarnessSocket.instances.filter((socket) => socket.url.startsWith('wss://')),
+    ).toHaveLength(2);
+  });
+
+  it('does not open a delayed Cloud connection after the user explicitly disconnects', async () => {
+    const trustedSettings = new Map<string, unknown>([
+      [TRUST_KEY, { version: 1, credential: firstCredential, expiresAt: Date.now() + 60_000 }],
+    ]);
+    const { extension } = await loadExtension({
+      withWebSocket: true,
+      trustedSettings,
+      prompt: () => 'EDA-ABCDEF12',
+    });
+    let releaseDelete: (() => void) | undefined;
+    const storage = (globalThis as any).sys_Storage;
+    storage.deleteExtensionUserConfig = vi
+      .fn(async (key: string) => {
+        trustedSettings.delete(key);
+        return true;
+      })
+      .mockImplementationOnce(async (key: string) => {
+        await new Promise<void>((resolve) => {
+          releaseDelete = resolve;
+        });
+        trustedSettings.delete(key);
+        return true;
+      });
+    const connecting = extension.connectHostedCloud();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(releaseDelete).toBeDefined();
+    extension.disconnectRemoteRelay();
+    releaseDelete?.();
+    await connecting;
+    await flushMicrotasks();
+    expect(trustedSettings.has(TRUST_KEY)).toBe(false);
+    expect(
+      HarnessSocket.instances.filter((socket) => socket.url.startsWith('wss://')),
+    ).toHaveLength(0);
+  });
+
+  it('does not resume previous device trust if startup arrives during an explicit pairing switch', async () => {
+    const trustedSettings = new Map<string, unknown>([
+      [TRUST_KEY, { version: 1, credential: firstCredential, expiresAt: Date.now() + 60_000 }],
+    ]);
+    const { extension } = await loadExtension({
+      withWebSocket: true,
+      trustedSettings,
+      prompt: () => 'EDA-ABCDEF12',
+    });
+    let releaseDelete: (() => void) | undefined;
+    const storage = (globalThis as any).sys_Storage;
+    storage.deleteExtensionUserConfig = vi.fn(async (key: string) => {
+      await new Promise<void>((resolve) => {
+        releaseDelete = resolve;
+      });
+      trustedSettings.delete(key);
+      return true;
+    });
+    const connecting = extension.connectHostedCloud();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(releaseDelete).toBeDefined();
+    await extension.activate('onStartupFinished');
+    const premature = HarnessSocket.instances.filter((socket) =>
+      socket.url.startsWith('wss://'),
+    ).length;
+    releaseDelete?.();
+    await connecting;
+    expect(premature).toBe(0);
+    expect(
+      HarnessSocket.instances.filter((socket) => socket.url.startsWith('wss://')),
+    ).toHaveLength(1);
+  });
+
+  it('clears old trust before a new explicit session-only pairing and does not resume it on restart', async () => {
+    const trustedSettings = new Map<string, unknown>([
+      [TRUST_KEY, { version: 1, credential: firstCredential, expiresAt: Date.now() + 60_000 }],
+    ]);
+    const { extension } = await loadExtension({
+      withWebSocket: true,
+      trustedSettings,
+      prompt: () => 'EDA-ABCDEF12',
+    });
+    await extension.connectHostedCloud();
+    expect(trustedSettings.has(TRUST_KEY)).toBe(false);
+    const socket = latestRemoteSocket();
+    socket.open();
+    await flushMicrotasks();
+    socket.receive({
+      protocolVersion: '2026-07-remote-relay-v1',
+      messageId: 'new_session_only',
+      type: 'session_registered',
+      timestamp: new Date().toISOString(),
+      paired: true,
+      resumeCredential: rotatedCredential,
+    });
+    await flushMicrotasks();
+    expect(trustedSettings.has(TRUST_KEY)).toBe(false);
+    extension.deactivate();
+    HarnessSocket.instances = [];
+    const restarted = await loadExtension({ withWebSocket: true, trustedSettings });
+    await restarted.extension.activate('onStartupFinished');
+    expect(
+      HarnessSocket.instances.filter((socket) => socket.url.startsWith('wss://')),
+    ).toHaveLength(0);
   });
 
   it('defaults to session-only when a native remember choice is refused', async () => {

@@ -88,20 +88,46 @@ export class HostedDeviceTrust {
   forget(): Promise<boolean> {
     return this.enqueue(async () => {
       const storage = this.getStorage();
-      if (!storage) return false;
-      if (typeof storage.deleteExtensionUserConfig === 'function') {
-        try {
-          if ((await storage.deleteExtensionUserConfig(HOSTED_DEVICE_TRUST_KEY)) === true)
-            return true;
-        } catch {
-          // Some EasyEDA runtimes expose delete but reject its invocation.
-        }
-      }
-      // Set an invalid sentinel if this build lacks native delete.
-      return typeof storage.setExtensionUserConfig === 'function'
-        ? (await storage.setExtensionUserConfig(HOSTED_DEVICE_TRUST_KEY, null)) === true
-        : false;
+      return storage ? this.removeStoredTrust(storage) : false;
     });
+  }
+
+  /**
+   * Serialize a new explicit connection with any pending trust save/rotation.
+   * Absence of native storage permits session-only use; an unreadable or
+   * uncleared existing record does not permit a silent account/mode switch.
+   */
+  clearForNewConnection(): Promise<boolean> {
+    return this.enqueue(async () => {
+      const storage = this.getStorage();
+      if (!storage) return true;
+      const current = storage.getExtensionUserConfig(HOSTED_DEVICE_TRUST_KEY);
+      if (current === undefined || current === null) return true;
+      return this.removeStoredTrust(storage);
+    });
+  }
+
+  private async removeStoredTrust(storage: HostedDeviceTrustStorage): Promise<boolean> {
+    const isCleared = (): boolean => {
+      const value = storage.getExtensionUserConfig(HOSTED_DEVICE_TRUST_KEY);
+      return value === undefined || value === null;
+    };
+    if (typeof storage.deleteExtensionUserConfig === 'function') {
+      try {
+        if (
+          (await storage.deleteExtensionUserConfig(HOSTED_DEVICE_TRUST_KEY)) === true &&
+          isCleared()
+        )
+          return true;
+      } catch {
+        // Some EasyEDA runtimes expose delete but reject its invocation.
+      }
+    }
+    // Set an invalid sentinel if this build lacks a working native delete.
+    return typeof storage.setExtensionUserConfig === 'function'
+      ? (await storage.setExtensionUserConfig(HOSTED_DEVICE_TRUST_KEY, null)) === true &&
+          isCleared()
+      : false;
   }
 
   private enqueue(action: () => Promise<boolean>): Promise<boolean> {

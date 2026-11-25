@@ -135,6 +135,25 @@ describe('explicit trusted Hosted Cloud device recovery', () => {
     expect(await trusted.forget()).toBe(false);
   });
 
+  it('does not accept a native clear acknowledgement when the old credential is still readable', async () => {
+    const { records, storage } = makeStorage();
+    const trust = new HostedDeviceTrust(() => storage);
+    expect(await trust.remember(TOKEN, true)).toBe(true);
+    storage.deleteExtensionUserConfig.mockResolvedValue(true);
+    storage.setExtensionUserConfig.mockResolvedValue(true);
+    expect(await trust.clearForNewConnection()).toBe(false);
+    expect(records.get(HOSTED_DEVICE_TRUST_KEY)).toMatchObject({ credential: TOKEN });
+  });
+
+  it('allows session-only connection without native storage, but rejects an unreadable record', async () => {
+    const { storage } = makeStorage();
+    expect(await new HostedDeviceTrust(() => undefined).clearForNewConnection()).toBe(true);
+    storage.getExtensionUserConfig.mockImplementation(() => {
+      throw new Error('native storage unavailable');
+    });
+    expect(await new HostedDeviceTrust(() => storage).clearForNewConnection()).toBe(false);
+  });
+
   it('serializes delayed save and subsequent disconnect so old credentials cannot reappear', async () => {
     const { records, storage } = makeStorage();
     let releaseSave: (() => void) | undefined;
