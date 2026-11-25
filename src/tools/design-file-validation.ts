@@ -156,12 +156,30 @@ function validatePcbInfo(text: string | undefined): DesignFileValidation {
 }
 
 function isSvgText(text: string | undefined): boolean {
-  return (
-    !!text &&
-    /^(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*|<!DOCTYPE[^>]*>\s*)*<svg[\s>]/i.test(
-      head(text).trimStart(),
-    )
-  );
+  if (!text) return false;
+  const input = head(text).trimStart();
+  let cursor = 0;
+  const skipWhitespace = () => {
+    while (/\s/.test(input.charAt(cursor))) cursor++;
+  };
+
+  if (input.slice(0, 5).toLowerCase() === '<?xml') {
+    const end = input.indexOf('?>', 5);
+    if (end < 0) return false;
+    cursor = end + 2;
+    skipWhitespace();
+  }
+  while (true) {
+    const comment = input.startsWith('<!--', cursor);
+    const doctype = input.slice(cursor, cursor + 9).toLowerCase() === '<!doctype';
+    if (!comment && !doctype) break;
+    const marker = comment ? '-->' : '>';
+    const end = input.indexOf(marker, cursor + (comment ? 4 : 9));
+    if (end < 0) return false;
+    cursor = end + marker.length;
+    skipWhitespace();
+  }
+  return /^<svg[\s>]/i.test(input.slice(cursor, cursor + 5));
 }
 
 /** Schematic SVG: one SVG document, or (multi-page) a ZIP that contains only SVG pages. */
