@@ -9,6 +9,12 @@ import { validatePcbConstraints } from '../pcb-constraints/index.js';
 import type { PcbConstraintInput } from '../pcb-constraints/types.js';
 import { generateProductionQaArtifacts } from '../production-qa/index.js';
 import { evaluateQuoteWorkflow } from '../quote-gating/index.js';
+import {
+  DESIGN_FILE_KIND_IDS,
+  type DesignFileFormat,
+  type DesignFileKind,
+  validateDesignFile,
+} from './design-file-validation.js';
 
 interface BinaryBridgeResult {
   base64?: string;
@@ -21,28 +27,8 @@ const EXPORT_3D_TIMEOUT_MS = 5 * 60 * 1000;
 /** IPC-2581 generation of a dense board can also exceed an ordinary bridge call. */
 const DESIGN_FILE_TIMEOUT_MS = 5 * 60 * 1000;
 
-/**
- * Documented EasyEDA manufacture-data files reachable through `export.designFile`.
- * Keep in lockstep with DESIGN_FILE_SPECS in easyeda-bridge-extension/src/export-operations.ts.
- */
-const DESIGN_FILE_KINDS = {
-  ipc2581: { extension: 'xml' },
-  ipc_d356: { extension: 'ipc' },
-  pcb_info: { extension: 'txt' },
-  test_points: { extension: 'csv' },
-  pads_layout: { extension: 'asc' },
-  schematic_svg: { extension: 'svg' },
-} as const;
-type DesignFileKind = keyof typeof DESIGN_FILE_KINDS;
-const DESIGN_FILE_KIND_VALUES = Object.keys(DESIGN_FILE_KINDS) as [
-  DesignFileKind,
-  ...DesignFileKind[],
-];
-
-/** Extension for the artifact name; multi-page schematic SVG arrives as a ZIP. */
-function designFileExtension(kind: DesignFileKind, buffer: Buffer): string {
-  return isZipArchive(buffer) ? 'zip' : DESIGN_FILE_KINDS[kind].extension;
-}
+/** Inline (hosted) delivery returns bytes in the MCP response, so keep it bounded. */
+const DESIGN_FILE_INLINE_MAX_BYTES = 1024 * 1024;
 
 interface WriteExportResult {
   ok: boolean;
@@ -165,6 +151,103 @@ function writeExportPayload(
   }
   fs.writeFileSync(target, buffer);
   return { ok: true, filePath: target, byteLength: buffer.byteLength };
+}
+
+type DesignFileDelivery = 'file' | 'inline';
+type Failure = { error: string };
+interface DesignFilePayload {
+  base64: string;
+  buffer: Buffer;
+  format: DesignFileFormat;
+}
+
+interface DesignFileDelivered {
+  delivery: DesignFileDelivery;
+  file_name: string;
+  mime_type: string;
+  sha256: string;
+  byte_length?: number;
+  file_path?: string;
+  content_base64?: string;
+}
+
+const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+
+/** Hosted Cloud can only deliver inline; inline never takes a server-side path. */
+function resolveDesignFileDelivery(
+  ctx: ToolContext,
+  requested: DesignFileDelivery | undefined,
+  filePath: string | undefined,
+): { delivery: DesignFileDelivery } | Failure {
+  const isHosted = ctx.config.MCP_BRIDGE_BACKEND === 'remote_relay';
+  const delivery = requested ?? (isHosted ? 'inline' : 'file');
+  if (delivery === 'file' && isHosted) {
+    return {
+      error:
+        'Hosted Cloud cannot write files for the client on the MCP server; use inline delivery.',
+    };
+  }
+  if (delivery === 'inline' && filePath) {
+    return {
+      error: 'Inline delivery does not accept filePath; save the returned content on the client.',
+    };
+  }
+  return { delivery };
+}
+
+/** Decode the bridge result and apply the bounded per-kind format check. */
+function decodeDesignFilePayload(
+  kind: DesignFileKind,
+  result: unknown,
+): DesignFilePayload | Failure {
+  const base64 = (result as BinaryBridgeResult | null)?.base64;
+  if (typeof base64 !== 'string' || base64.length === 0 || !BASE64_PATTERN.test(base64)) {
+    return { error: `Bridge returned an empty or invalid ${kind} payload.` };
+  }
+  const buffer = Buffer.from(base64, 'base64');
+  const validation = validateDesignFile(kind, buffer);
+  return validation.ok ? { base64, buffer, format: validation.format } : validation;
+}
+
+/** Return the validated bytes inline, or write them inside ARTIFACT_DIR. */
+function deliverDesignFile(
+  ctx: ToolContext,
+  delivery: DesignFileDelivery,
+  payload: DesignFilePayload,
+  projectId: string,
+  kind: DesignFileKind,
+  filePath: string | undefined,
+): DesignFileDelivered | Failure {
+  const sha256 = createHash('sha256').update(payload.buffer).digest('hex');
+  const safeId = projectId.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64) || 'project';
+  // Name by project and kind; native names collide (e.g. schematic.zip for SVG and PNG).
+  const fileName = `${safeId}-${kind}.${payload.format.extension}`;
+  const common = { mime_type: payload.format.mimeType, sha256 };
+  if (delivery === 'inline') {
+    if (payload.buffer.byteLength > DESIGN_FILE_INLINE_MAX_BYTES) {
+      return {
+        error: `${kind} file exceeds the 1 MiB inline delivery limit; use a local file export.`,
+      };
+    }
+    return {
+      delivery,
+      file_name: fileName,
+      content_base64: payload.base64,
+      byte_length: payload.buffer.byteLength,
+      ...common,
+    };
+  }
+  const written = writeExportPayload(ctx, { base64: payload.base64 }, filePath, fileName);
+  if (!written.ok || !written.filePath) {
+    return { error: written.error ?? 'Export could not be written.' };
+  }
+  return {
+    delivery,
+    file_path: written.filePath,
+    file_name: path.basename(written.filePath),
+    byte_length: written.byteLength,
+    ...common,
+  };
 }
 
 /** Parse native TSV fields, including quoted tabs/newlines and doubled quotes. */
@@ -1133,11 +1216,10 @@ function registerExportTools(
     name: 'easyeda_export_design_file',
     title: 'Export an additional design data file',
     description:
-      'Export a documented EasyEDA manufacture-data file (beta APIs) from the focused document: ' +
-      'IPC-2581C XML, IPC-D-356A netlist, PCB information, test points CSV, PADS ASCII layout ' +
-      '(PCB focused) or schematic SVG (schematic focused; ZIP for multi-page). For design review ' +
-      'and interchange, not fabrication approval.',
-    profile: 'pro',
+      'Experimental: export IPC-2581C, IPC-D-356A, PCB info, test points or PADS (PCB focused) ' +
+      'or schematic SVG (schematic focused) via beta EasyEDA APIs. Payloads are format-checked; ' +
+      'file delivery writes to the server ARTIFACT_DIR, inline (Cloud) returns up to 1 MiB.',
+    profile: 'experimental',
     evidence: ['official-docs'],
     risk: 'low',
     confirmWrite: false,
@@ -1151,8 +1233,19 @@ function registerExportTools(
     },
     inputSchema: z.object({
       projectId: z.string().trim().min(1),
-      kind: z.enum(DESIGN_FILE_KIND_VALUES),
-      filePath: z.string().optional(),
+      kind: z.enum(DESIGN_FILE_KIND_IDS),
+      filePath: z
+        .string()
+        .optional()
+        .describe('File delivery only: destination inside the MCP server ARTIFACT_DIR.'),
+      delivery: z
+        .enum(['file', 'inline'])
+        .optional()
+        .describe(
+          'file writes on the MCP server host (local default); inline returns base64 content ' +
+            'in the response (hosted Cloud default and only option there). Inline content is ' +
+            'not saved automatically on the client device.',
+        ),
       unit: z.enum(['mm', 'inch']).default('mm').describe('IPC-2581 only: output unit.'),
       oemNumber: z
         .enum(['Device', 'Manufacturer Part', 'Supplier Part', 'Comment'])
@@ -1162,7 +1255,11 @@ function registerExportTools(
     outputSchema: z.object({
       project_id: z.string(),
       kind: z.string(),
+      delivery: z.enum(['file', 'inline']).optional(),
       file_path: z.string().optional(),
+      file_name: z.string().optional(),
+      mime_type: z.string().optional(),
+      content_base64: z.string().optional(),
       byte_length: z.number().int().nonnegative().optional(),
       sha256: z.string().optional(),
       exported: z.boolean(),
@@ -1170,10 +1267,11 @@ function registerExportTools(
       error: z.string().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { projectId, kind, filePath, unit, oemNumber } = params as {
+      const { projectId, kind, filePath, delivery, unit, oemNumber } = params as {
         projectId: string;
         kind: DesignFileKind;
         filePath?: string;
+        delivery?: DesignFileDelivery;
         unit: 'mm' | 'inch';
         oemNumber: string;
       };
@@ -1184,43 +1282,27 @@ function registerExportTools(
         not_available: true,
         error,
       });
+      // Decide the delivery contract before asking EasyEDA to generate anything.
+      const target = resolveDesignFileDelivery(ctx, delivery, filePath);
+      if ('error' in target) return failure(target.error);
       try {
         const result = await ctx.bridge.call(
           'export.designFile',
           { projectId, kind, fileName: `${projectId}-${kind}`, unit, oemNumber },
           { timeoutMs: DESIGN_FILE_TIMEOUT_MS },
         );
-        const base64 = (result as BinaryBridgeResult | null)?.base64;
-        if (
-          typeof base64 !== 'string' ||
-          base64.length === 0 ||
-          !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64)
-        ) {
-          return failure(`Bridge returned an empty or invalid ${kind} payload.`);
-        }
-        const buffer = Buffer.from(base64, 'base64');
-        // EasyEDA documents a 2-byte empty file (without an error) when IPC-2581 generation fails.
-        if (buffer.byteLength < 3) {
-          return failure(`Bridge returned an empty ${kind} file.`);
-        }
-        // Name the artifact by project and kind; native names collide (e.g. schematic.zip).
-        const written = writeExportPayload(
+        const payload = decodeDesignFilePayload(kind, result);
+        if ('error' in payload) return failure(payload.error);
+        const delivered = deliverDesignFile(
           ctx,
-          { base64 },
-          filePath,
-          `${projectId}-${kind}.${designFileExtension(kind, buffer)}`,
-        );
-        if (!written.ok) {
-          return failure(written.error ?? 'Export could not be written.');
-        }
-        return {
-          project_id: projectId,
+          target.delivery,
+          payload,
+          projectId,
           kind,
-          file_path: written.filePath,
-          byte_length: written.byteLength,
-          sha256: createHash('sha256').update(buffer).digest('hex'),
-          exported: true,
-        };
+          filePath,
+        );
+        if ('error' in delivered) return failure(delivered.error);
+        return { project_id: projectId, kind, ...delivered, exported: true };
       } catch (err) {
         return failure(err instanceof Error ? err.message : String(err));
       }

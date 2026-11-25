@@ -868,6 +868,12 @@ produce export data and write the resulting payload only inside `ARTIFACT_DIR`; 
 schematic or PCB state and therefore do not require the local design-mutation parameter
 `confirmWrite=true`.
 
+`easyeda_export_design_file` (experimental; beta native APIs) additionally validates each payload
+with a bounded per-kind format check before anything is published, and supports `delivery:
+"inline"`. Inline delivery returns the validated bytes in the MCP response (at most 1 MiB) instead of
+writing to the MCP server host, and is the only delivery mode in hosted Cloud, where the server's
+`ARTIFACT_DIR` is not the client's filesystem.
+
 This does not make remote exports silent. Remote Relay maps `artifact-write` to the `export` risk
 class, requires the `easyeda.export` scope, and binds a human approval to the identity, session, tool,
 input hash, and expiry before dispatch. Reviewed local artifact exports may then reuse

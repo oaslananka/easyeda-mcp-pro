@@ -34,7 +34,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_engineering_review`                       | `core`         | `low`    | Read PCB inspection evidence and summarize existing constraint rules with stable findings, source provenance and explicit unknowns. Does not execute ERC, DRC, design writes or exports, and cannot approve fabrication.                                                                                                      |
 | `easyeda_erc_run`                                  | `core`         | `medium` | Run native schematic ERC and supplement aggregate counts with inferred_floating_pins. Requires a focused schematic. Explicit focused is supported; page/all_pages fail closed on EasyEDA Pro 3.2.149. Native counts remain authoritative; unavailable focus returns not_available.                                            |
 | `easyeda_export_3d`                                | `pro`          | `low`    | Export the focused PCB as STEP or OBJ (PCB_ManufactureData.get3DFile, beta) for mechanical integration. Only component models imported as STEP appear; others can be boxed by height.                                                                                                                                         |
-| `easyeda_export_design_file`                       | `pro`          | `low`    | Export a documented EasyEDA manufacture-data file (beta APIs) from the focused document: IPC-2581C XML, IPC-D-356A netlist, PCB information, test points CSV, PADS ASCII layout (PCB focused) or schematic SVG (schematic focused; ZIP for multi-page). For design review and interchange, not fabrication approval.          |
+| `easyeda_export_design_file`                       | `experimental` | `low`    | Experimental: export IPC-2581C, IPC-D-356A, PCB info, test points or PADS (PCB focused) or schematic SVG (schematic focused) via beta EasyEDA APIs. Payloads are format-checked; file delivery writes to the server ARTIFACT_DIR, inline (Cloud) returns up to 1 MiB.                                                         |
 | `easyeda_export_gerbers`                           | `core`         | `medium` | Export PCB design to Gerber files for PCB fabrication.                                                                                                                                                                                                                                                                        |
 | `easyeda_export_netlist`                           | `pro`          | `low`    | Export the schematic netlist in a specified EDA tool format (PADS, Allegro, or Altium).                                                                                                                                                                                                                                       |
 | `easyeda_export_odb`                               | `experimental` | `low`    | Experimental ODB++ archive export using EasyEDA Pro BETA API. Returns an archive for inspection, not verified fabrication data. Do not use in production.                                                                                                                                                                     |
@@ -1059,19 +1059,20 @@ Returns a JSON object matching the schema:
 
 ## `easyeda_export_design_file`
 
-**Profile:** `pro` | **Risk Level:** `low`
+**Profile:** `experimental` | **Risk Level:** `low`
 
-> Export a documented EasyEDA manufacture-data file (beta APIs) from the focused document: IPC-2581C XML, IPC-D-356A netlist, PCB information, test points CSV, PADS ASCII layout (PCB focused) or schematic SVG (schematic focused; ZIP for multi-page). For design review and interchange, not fabrication approval.
+> Experimental: export IPC-2581C, IPC-D-356A, PCB info, test points or PADS (PCB focused) or schematic SVG (schematic focused) via beta EasyEDA APIs. Payloads are format-checked; file delivery writes to the server ARTIFACT_DIR, inline (Cloud) returns up to 1 MiB.
 
 ### Input Parameters
 
-| Parameter   | Type                                                                                                   | Required | Description                                                     |
-| ----------- | ------------------------------------------------------------------------------------------------------ | -------- | --------------------------------------------------------------- |
-| `projectId` | `string`                                                                                               | Yes      |                                                                 |
-| `kind`      | `'ipc2581'` \| `'ipc_d356'` \| `'pcb_info'` \| `'test_points'` \| `'pads_layout'` \| `'schematic_svg'` | Yes      |                                                                 |
-| `filePath`  | `string (optional)`                                                                                    | No       |                                                                 |
-| `unit`      | `'mm'` \| `'inch'`                                                                                     | Yes      | IPC-2581 only: output unit.                                     |
-| `oemNumber` | `'Device'` \| `'Manufacturer Part'` \| `'Supplier Part'` \| `'Comment'`                                | Yes      | IPC-2581 only: component attribute used as the OEM part number. |
+| Parameter   | Type                                                                                                   | Required | Description                                                                                                                                                                                                     |
+| ----------- | ------------------------------------------------------------------------------------------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `projectId` | `string`                                                                                               | Yes      |                                                                                                                                                                                                                 |
+| `kind`      | `'ipc2581'` \| `'ipc_d356'` \| `'pcb_info'` \| `'test_points'` \| `'pads_layout'` \| `'schematic_svg'` | Yes      |                                                                                                                                                                                                                 |
+| `filePath`  | `string (optional)`                                                                                    | No       | File delivery only: destination inside the MCP server ARTIFACT_DIR.                                                                                                                                             |
+| `delivery`  | `'file'` \| `'inline' (optional)`                                                                      | No       | file writes on the MCP server host (local default); inline returns base64 content in the response (hosted Cloud default and only option there). Inline content is not saved automatically on the client device. |
+| `unit`      | `'mm'` \| `'inch'`                                                                                     | Yes      | IPC-2581 only: output unit.                                                                                                                                                                                     |
+| `oemNumber` | `'Device'` \| `'Manufacturer Part'` \| `'Supplier Part'` \| `'Comment'`                                | Yes      | IPC-2581 only: component attribute used as the OEM part number.                                                                                                                                                 |
 
 ### Output Format
 
@@ -1081,7 +1082,11 @@ Returns a JSON object matching the schema:
 {
   project_id: string;
   kind: string;
+  delivery: 'file' | 'inline'(optional);
   file_path: string(optional);
+  file_name: string(optional);
+  mime_type: string(optional);
+  content_base64: string(optional);
   byte_length: number(optional);
   sha256: string(optional);
   exported: boolean;

@@ -16,6 +16,40 @@ const VALID_ZIP = Buffer.from(
   'base64',
 );
 
+/** Minimal stored ZIP with the given entry names (for format checks only). */
+function zipWithEntries(names: string[]): Buffer {
+  const locals: Buffer[] = [];
+  const centrals: Buffer[] = [];
+  let offset = 0;
+  for (const name of names) {
+    const nameBuf = Buffer.from(name);
+    const data = Buffer.from('x');
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt32LE(1, 18);
+    local.writeUInt32LE(1, 22);
+    local.writeUInt16LE(nameBuf.length, 26);
+    const localEntry = Buffer.concat([local, nameBuf, data]);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt32LE(1, 20);
+    central.writeUInt32LE(1, 24);
+    central.writeUInt16LE(nameBuf.length, 28);
+    central.writeUInt32LE(offset, 42);
+    centrals.push(Buffer.concat([central, nameBuf]));
+    locals.push(localEntry);
+    offset += localEntry.length;
+  }
+  const directory = Buffer.concat(centrals);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(names.length, 8);
+  eocd.writeUInt16LE(names.length, 10);
+  eocd.writeUInt32LE(directory.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, directory, eocd]);
+}
+
 describe('Export Tools', () => {
   let registry: ToolRegistry;
   let context: ToolContext;
@@ -580,19 +614,30 @@ describe('Export Tools', () => {
 
   describe('easyeda_export_design_file', () => {
     const ipcText =
-      'P  JOB   dongle\n317GND     U1 -1 PA0300D0  PA X+001000Y+002000X0600Y0600R000 S0\n';
+      'C  IPC-D-356A netlist\nP  JOB   proj-123\n317GND     U1 -1 PA0300D0  PA X+001000Y+002000X0600Y0600R000 S0\n999\n';
+    const ipc2581 = '<?xml version="1.0"?>\n<IPC-2581 revision="C"><Content/></IPC-2581>\n';
+    const b64 = (text: string | Buffer) => Buffer.from(text).toString('base64');
+    const parse = (input: Record<string, unknown>) =>
+      registry.get('easyeda_export_design_file')!.inputSchema.parse(input);
+    const run = (input: Record<string, unknown>, ctx: ToolContext = context) =>
+      registry.get('easyeda_export_design_file')!.handler(ctx, parse(input));
+    const hostedContext = () =>
+      ({
+        ...context,
+        config: { ...context.config, MCP_BRIDGE_BACKEND: 'remote_relay' },
+      }) as unknown as ToolContext;
+
+    it('is an experimental artifact-write tool (beta native APIs)', () => {
+      const tool = registry.get('easyeda_export_design_file');
+      expect(tool?.profile).toBe('experimental');
+      expect(tool?.sideEffect).toBe('artifact-write');
+      expect(tool?.confirmWrite).toBe(false);
+    });
 
     it('writes the IPC-D-356A file named by project and kind with a long timeout', async () => {
-      const tool = registry.get('easyeda_export_design_file')!;
-      bridgeCall.mockResolvedValue({
-        base64: Buffer.from(ipcText).toString('base64'),
-        fileName: 'proj-123-ipc_d356',
-      });
+      bridgeCall.mockResolvedValue({ base64: b64(ipcText), fileName: 'proj-123-ipc_d356' });
 
-      const result = await tool.handler(
-        context,
-        tool.inputSchema.parse({ projectId: 'proj-123', kind: 'ipc_d356' }),
-      );
+      const result = await run({ projectId: 'proj-123', kind: 'ipc_d356' });
 
       expect(bridgeCall).toHaveBeenCalledWith(
         'export.designFile',
@@ -605,25 +650,26 @@ describe('Export Tools', () => {
         },
         { timeoutMs: 5 * 60 * 1000 },
       );
-      expect(result).toMatchObject({ exported: true, kind: 'ipc_d356' });
+      expect(result).toMatchObject({
+        exported: true,
+        kind: 'ipc_d356',
+        delivery: 'file',
+        mime_type: 'text/plain',
+      });
       expect(result?.file_path).toBe(path.join(tmpArtifactDir, 'proj-123-ipc_d356.ipc'));
       expect(fs.readFileSync(result!.file_path!, 'utf-8')).toBe(ipcText);
       expect(result?.sha256).toMatch(/^[0-9a-f]{64}$/);
     });
 
     it('passes IPC-2581 unit and OEM number options through', async () => {
-      const tool = registry.get('easyeda_export_design_file')!;
-      bridgeCall.mockResolvedValue({ base64: Buffer.from('<IPC-2581/>').toString('base64') });
+      bridgeCall.mockResolvedValue({ base64: b64(ipc2581) });
 
-      const result = await tool.handler(
-        context,
-        tool.inputSchema.parse({
-          projectId: 'proj-123',
-          kind: 'ipc2581',
-          unit: 'inch',
-          oemNumber: 'Supplier Part',
-        }),
-      );
+      const result = await run({
+        projectId: 'proj-123',
+        kind: 'ipc2581',
+        unit: 'inch',
+        oemNumber: 'Supplier Part',
+      });
 
       expect(bridgeCall.mock.calls[0][1]).toMatchObject({
         unit: 'inch',
@@ -633,71 +679,127 @@ describe('Export Tools', () => {
     });
 
     it('saves a multi-page schematic SVG archive with a .zip extension', async () => {
-      const tool = registry.get('easyeda_export_design_file')!;
-      bridgeCall.mockResolvedValue({
-        base64: VALID_ZIP.toString('base64'),
-        fileName: 'schematic.zip',
-      });
+      const zip = zipWithEntries(['Sheet_1.svg', 'Sheet_2.svg']);
+      bridgeCall.mockResolvedValue({ base64: zip.toString('base64'), fileName: 'schematic.zip' });
 
-      const result = await tool.handler(
-        context,
-        tool.inputSchema.parse({ projectId: 'proj-123', kind: 'schematic_svg' }),
-      );
+      const result = await run({ projectId: 'proj-123', kind: 'schematic_svg' });
 
+      expect(result).toMatchObject({ exported: true, mime_type: 'application/zip' });
       expect(result?.file_path).toBe(path.join(tmpArtifactDir, 'proj-123-schematic_svg.zip'));
     });
 
     it.each([
-      ['missing payload', null],
-      ['empty base64', { base64: '' }],
-      ['invalid base64', { base64: 'not*base64' }],
-      ['2-byte empty IPC-2581 file', { base64: Buffer.from('{}').toString('base64') }],
-    ])('refuses %s and writes nothing', async (_label, reply) => {
-      const tool = registry.get('easyeda_export_design_file')!;
+      ['missing payload', 'ipc2581', null],
+      ['empty base64', 'ipc2581', { base64: '' }],
+      ['invalid base64', 'ipc2581', { base64: 'not*base64' }],
+      ['2-byte empty IPC-2581 file', 'ipc2581', { base64: b64('{}') }],
+      [
+        'HTML error page as IPC-2581',
+        'ipc2581',
+        { base64: b64('<html><body>error</body></html>') },
+      ],
+      ['IPC-D-356A content as IPC-2581', 'ipc2581', { base64: b64(ipcText) }],
+      ['IPC-2581 XML as IPC-D-356A', 'ipc_d356', { base64: b64(ipc2581) }],
+      [
+        'truncated IPC-D-356A without 999',
+        'ipc_d356',
+        { base64: b64(ipcText.replace('999\n', '')) },
+      ],
+      [
+        'ZIP for a non-SVG kind',
+        'pads_layout',
+        { base64: zipWithEntries(['a.asc']).toString('base64') },
+      ],
+      [
+        'ZIP with non-SVG entries',
+        'schematic_svg',
+        { base64: zipWithEntries(['a.png']).toString('base64') },
+      ],
+      ['binary data as test points', 'test_points', { base64: b64(Buffer.from([0, 1, 2, 3, 4])) }],
+    ])('refuses %s and creates no artifact', async (_label, kind, reply) => {
       bridgeCall.mockResolvedValue(reply);
 
-      const result = await tool.handler(
-        context,
-        tool.inputSchema.parse({ projectId: 'proj-123', kind: 'ipc2581' }),
-      );
+      const result = await run({ projectId: 'proj-123', kind });
 
-      expect(result).toMatchObject({ exported: false, not_available: true, kind: 'ipc2581' });
+      expect(result).toMatchObject({ exported: false, not_available: true, kind });
       expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
     });
 
     it('refuses a target path outside the artifact directory', async () => {
-      const tool = registry.get('easyeda_export_design_file')!;
-      bridgeCall.mockResolvedValue({ base64: Buffer.from(ipcText).toString('base64') });
+      bridgeCall.mockResolvedValue({ base64: b64(ipcText) });
 
-      const result = await tool.handler(
-        context,
-        tool.inputSchema.parse({
-          projectId: 'proj-123',
-          kind: 'ipc_d356',
-          filePath: path.join(os.tmpdir(), 'outside.ipc'),
-        }),
-      );
+      const result = await run({
+        projectId: 'proj-123',
+        kind: 'ipc_d356',
+        filePath: path.join(os.tmpdir(), 'outside.ipc'),
+      });
 
       expect(result).toMatchObject({ exported: false, not_available: true });
       expect(result?.error).toMatch(/inside the artifact directory/);
     });
 
+    it('returns validated bytes inline without touching the artifact directory', async () => {
+      bridgeCall.mockResolvedValue({ base64: b64(ipcText) });
+
+      const result = await run({ projectId: 'proj/123', kind: 'ipc_d356', delivery: 'inline' });
+
+      expect(result).toMatchObject({
+        exported: true,
+        delivery: 'inline',
+        file_name: 'proj_123-ipc_d356.ipc',
+        mime_type: 'text/plain',
+        content_base64: b64(ipcText),
+        byte_length: Buffer.byteLength(ipcText),
+      });
+      expect(result?.file_path).toBeUndefined();
+      expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
+    });
+
+    it('defaults to inline delivery in hosted Cloud mode', async () => {
+      bridgeCall.mockResolvedValue({ base64: b64(ipcText) });
+
+      const result = await run({ projectId: 'proj-123', kind: 'ipc_d356' }, hostedContext());
+
+      expect(result).toMatchObject({ exported: true, delivery: 'inline' });
+      expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
+    });
+
+    it.each([
+      ['file delivery in hosted Cloud', { delivery: 'file' }, true],
+      ['filePath with inline delivery', { delivery: 'inline', filePath: 'x.ipc' }, false],
+    ])('rejects %s before generating', async (_label, extra, hosted) => {
+      const result = await run(
+        { projectId: 'proj-123', kind: 'ipc_d356', ...extra },
+        hosted ? hostedContext() : context,
+      );
+
+      expect(result).toMatchObject({ exported: false, not_available: true });
+      expect(bridgeCall).not.toHaveBeenCalled();
+      expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
+    });
+
+    it('refuses inline payloads above 1 MiB', async () => {
+      const big = '<?xml version="1.0"?><IPC-2581 revision="C">' + 'x'.repeat(1024 * 1024);
+      bridgeCall.mockResolvedValue({ base64: b64(big) });
+
+      const result = await run({ projectId: 'p', kind: 'ipc2581', delivery: 'inline' });
+
+      expect(result).toMatchObject({ exported: false, not_available: true });
+      expect(result?.error).toMatch(/1 MiB/);
+    });
+
     it('reports a bridge failure as not_available', async () => {
-      const tool = registry.get('easyeda_export_design_file')!;
       bridgeCall.mockRejectedValue(
         new Error('ipc_d356 export requires the PCB document to be focused.'),
       );
 
-      const result = await tool.handler(
-        context,
-        tool.inputSchema.parse({ projectId: 'proj-123', kind: 'ipc_d356' }),
-      );
+      const result = await run({ projectId: 'proj-123', kind: 'ipc_d356' });
 
       expect(result).toMatchObject({ exported: false, not_available: true });
       expect(result?.error).toMatch(/PCB document/);
     });
 
-    it('rejects unknown kinds and blank project IDs at the schema boundary', () => {
+    it('rejects unknown kinds, blank project IDs and unknown options at the schema boundary', () => {
       const tool = registry.get('easyeda_export_design_file')!;
       expect(tool.inputSchema.safeParse({ projectId: 'p', kind: 'placePcbOrder' }).success).toBe(
         false,
@@ -705,6 +807,9 @@ describe('Export Tools', () => {
       expect(tool.inputSchema.safeParse({ projectId: ' ', kind: 'ipc_d356' }).success).toBe(false);
       expect(
         tool.inputSchema.safeParse({ projectId: 'p', kind: 'ipc2581', unit: 'mil' }).success,
+      ).toBe(false);
+      expect(
+        tool.inputSchema.safeParse({ projectId: 'p', kind: 'ipc2581', delivery: 'email' }).success,
       ).toBe(false);
     });
   });
