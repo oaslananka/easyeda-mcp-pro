@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "kind": "source-matched-native-pad-associated-line-chain-observation",
+  "recordedAtUtc": "2026-11-25T23:19:26Z",
+  "issue": "https://github.com/oaslananka/easyeda-mcp-pro/issues/842",
+  "source": {
+    "commit": "93660347be34fd601387c20e2b637c344b0ab47c",
+    "packageVersion": "1.19.1",
+    "publishedRelease": false,
+    "extensionPackageSha256": "031acccff1f75935debbed5031b960e2ffb59b0867d75c2d2ce72b88ff1f436b",
+    "extensionPackageBytes": 241970,
+    "postCommitRebuildMatched": true
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-43-generic",
+    "nodeVersion": "24.22.3",
+    "pnpmVersion": "11.28.11",
+    "nativeEditorVersion": "4.1.105.0339a6cd"
+  },
+  "runtimeIdentity": {
+    "health": "ok",
+    "serverVersion": "1.19.1",
+    "extensionVersion": "1.19.1",
+    "registryMismatch": false,
+    "versionMismatch": false,
+    "connected": true,
+    "bridgeVersion": "1.0.0",
+    "easyedaVersion": "4.1.105",
+    "methodRegistryHash": "65fd93d02a8f89c5",
+    "methodCount": 85,
+    "dispatcher": "dd5dex42e0x722b",
+    "source": "loader_status",
+    "devMode": false
+  },
+  "acceptance": {
+    "installationExit": 0,
+    "initialTestExit": 7,
+    "initialTestLimitation": "QA used core profile with diagnostic tools requiring full/dev. No chain invocation was reached; corrected test selected dev and checked tool availability.",
+    "correctedTestExit": 0,
+    "fixture": {
+      "disposable": true,
+      "readOnly": true,
+      "sha256BeforeAndAfter": "2323f091461c734df748474fa6cc68a99ebce9d7a50a0e0da7fb494613d9899e",
+      "originalUnchanged": true,
+      "components": 33,
+      "tracks": 148,
+      "vias": 0,
+      "observedComponentPads": 82
+    },
+    "findings": [
+      {
+        "relation": "switching-loop",
+        "first": "DC1.1",
+        "second": "U1.2",
+        "net": "VCC_IN",
+        "padDistance": 29.320226806762594,
+        "firstContacts": 1,
+        "secondContacts": 2,
+        "chain": {
+          "evidence": "observed_associated_endpoint_chain",
+          "selection": "fewest_segments",
+          "primitive_ids": ["e17", "e15", "e5", "e6", "e27", "e8", "e10"],
+          "native_layer": 1,
+          "observed_full_segment_length_mm": 41.195129950015364,
+          "reasons": [
+            "Native reported pad associations anchor an exact line-endpoint chain. Full segment length is not pad-to-pad path length; physical pad contact, pours, via continuity, return-current path and engineering sign-off remain unverified."
+          ],
+          "electrical_continuity_status": "UNKNOWN"
+        },
+        "loop": "UNKNOWN"
+      },
+      {
+        "relation": "decoupling",
+        "first": "U3.8",
+        "second": "C5.1",
+        "net": "VCC",
+        "padDistance": 33.30854206695332,
+        "firstContacts": 2,
+        "secondContacts": 3,
+        "chain": {
+          "evidence": "unavailable",
+          "selection": "unavailable",
+          "primitive_ids": [],
+          "reasons": [
+            "No exact same-net/same-layer endpoint chain joins the reported pad-associated lines; missing evidence does not prove disconnection."
+          ],
+          "electrical_continuity_status": "UNKNOWN"
+        },
+        "loop": "UNKNOWN"
+      },
+      {
+        "relation": "decoupling",
+        "first": "U3.4",
+        "second": "C5.2",
+        "net": "GND",
+        "padDistance": 43.88305926530191,
+        "firstContacts": 1,
+        "secondContacts": 2,
+        "chain": {
+          "evidence": "unavailable",
+          "selection": "unavailable",
+          "primitive_ids": [],
+          "reasons": [
+            "No exact same-net/same-layer endpoint chain joins the reported pad-associated lines; missing evidence does not prove disconnection."
+          ],
+          "electrical_continuity_status": "UNKNOWN"
+        },
+        "loop": "UNKNOWN"
+      }
+    ],
+    "independentVerification": "Compared native component-owned pad primitive IDs and direct association IDs, exact same-net/layer line endpoint continuity and full segment length against independently collected native line primitives. Native inventory and focus unchanged after read.",
+    "cleanupVerified": true,
+    "engineeringSignOff": false
+  },
+  "automatedVerification": {
+    "serverTestsPassed": 3712,
+    "extensionTestsPassed": 1519,
+    "fullVerifyExit": 0
+  },
+  "privateCaptureSha256": {
+    "expected.json": "a0487ab511c690219d613dcc116bf53875d7a24dc0422d013fd3fc83cc30b7a6",
+    "install-run.log": "546ea19062e23443a2538b92d04ec950bbcab70e50ab9eb3f325d2952198cfd4",
+    "accept-run.log": "ec0cb57d61007ad579b50096a279baa0aa21612520427a0c30cd157f31405798",
+    "dev-diagnostics/accept-run.log": "80385e4b2f672a48f753c7ef08a1c0d8c8a0f07a0770fb30dc19e4798aa2b1ae",
+    "dev-diagnostics/findings.json": "57675ce9675889a8af262f6a1384d2ad04d22ea8e5450d2aa7e74d27ddb4a3b3",
+    "dev-diagnostics/route-review.json": "d908185746ebdb528105b7be770b275aa6129443b964b8604e34f1c3659a38e4",
+    "dev-diagnostics/runtime-identity.json": "5dd77d86d095644f6b33ff97d09aef87abd4c58db7f66bae797395cec104a4c2",
+    "dev-diagnostics/before-contacts.json": "7cfe163eef7401bdf49835dc8209b837141700b6c2a52d7469636e38915ea1cc",
+    "archived-review.json": "ef3cadfe88b5c2ce392300096460f89c43d3225d8768827811301f2bf79cc17e"
+  },
+  "limitations": [
+    "This is a source-built local candidate, not a new published 1.19.1 package or 1.20.0 release acceptance.",
+    "Pad-associated line chain is not a complete electrical path, pad-body contact, plane/pour continuity, via plating/span, return-current loop, or manufacturing/EMI signoff.",
+    "Only one isolated PCB and runtime; no new real buck topology, crystal, ESD or mixed-side hardware acceptance. The VCC_IN pair is a fixture-specific relationship observation, not a verified switching topology.",
+    "Separate native reads are not atomic. Unavailable paths do not establish disconnection.",
+    "No change to release-gate compatibility configuration or private release candidate. No support or external action."
+  ]
+}

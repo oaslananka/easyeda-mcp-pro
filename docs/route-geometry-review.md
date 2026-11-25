@@ -484,25 +484,28 @@ circuit. Electrical continuity and engineering sign-off remain unverified.
 
 There is no edit/save/export and no general API execution capability.
 
-The current isolated EasyEDA Pro test profile has an old 1.11.2
-extension, while the current server is 1.12.0. This new
-adapter has not yet been accepted end-to-end on a disposable board
-using a matching current-source extension. Deterministic tests are
-not a replacement for that native acceptance.
+### Source-matched native observation (November 2026)
 
-The real, isolated EasyEDA Pro 3.2.209/Z480 disposable read-only
-acceptance performed with the matching v1.11.2 source measured
-U3-8/C5-1 `VCC` pad centers at 33.31 mm and U3-4/C5-2 `GND` pad
-centers at 43.88 mm. The historical disposable sample also reported
-a separate `Netlist Error / Import Changes`; **no schematic or PCB was
-modified**. Those observations are native pad geometry, not an
-electrical or DRC PASS. On the same archived native snapshot, the new
-pure endpoint-chain evaluator returned `unavailable` for both VCC and
-GND pin pairs: neither exact-centerline route chain was established.
-This is NOT proof of disconnection, and is not an end-to-end current
-v1.12.0 tool/extension acceptance. The new endpoint-chain implementation
-requires a separately verified matching-version live acceptance;
-deterministic fixtures do not substitute for that milestone.
+A disposable PCB in EasyEDA Pro 4.1.105 was read with a source-built
+1.19.1 server and matching extension (85 native methods). The exact
+source and artifact identities, measured observations, and test
+limitations are recorded in the [native acceptance evidence](evidence/easyeda-live/2026-11-25-ubuntu-24-04-easyeda-4.1.105-source-9366034-native-842-contact-chain.json).
+The read-only tool observed 33 components, 148 lines, zero vias and
+82 independently read component pads. The VCC_IN relationship
+DC1.1 / U1.2 returned seven exact associated line segments on layer 1
+(41.195 mm full segment length; 29.320 mm pad-center distance).
+The U3.8 / C5.1 VCC and U3.4 / C5.2 GND relationships returned
+33.309 mm and 43.883 mm pad-center distances respectively; no exact
+associated endpoint chain was observed for either pair. Independent
+native pad identities, association IDs and positive chain geometry
+matched the tool output. No design changed.
+
+These are fixture-specific observations, not device datasheet
+conformance, a closed buck loop, electrical disconnection, or a
+production sign-off. The earlier 3.2.209 observations are historical;
+no cross-version geometry equivalence is implied. The source-built
+package is not a published release. Real current-return, via and
+filled-plane connectivity remain unverified.
 
 The EasyEDA native component pad and line getter APIs are still
 [beta](https://prodocs.easyeda.com/en/api/reference/pro-api.pcb_primitivecomponent.getallpinsbyprimitiveid.html)
