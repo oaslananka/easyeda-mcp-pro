@@ -76,6 +76,10 @@ function createDependencies() {
         params,
       })),
       exportOdb: vi.fn(async (params: Record<string, unknown>) => ({ method: 'odb', params })),
+      exportDesignFile: vi.fn(async (params: Record<string, unknown>) => ({
+        method: 'design-file',
+        params,
+      })),
     },
     designRuleCheckOperations: {
       runDrc: vi.fn(async () => 'drc'),
@@ -276,6 +280,7 @@ const expectedMethods = [
   'design.erc',
   'design.ruleCheck',
   'document.activate',
+  'export.designFile',
   'export.netlist',
   'export.odb',
   'export.pdf',
@@ -500,6 +505,10 @@ describe('createDispatcherDomainRouter', () => {
     await expect(router.tryDispatch('export.odb', params)).resolves.toMatchObject({
       handled: true,
       value: { method: 'odb', params },
+    });
+    await expect(router.tryDispatch('export.designFile', params)).resolves.toMatchObject({
+      handled: true,
+      value: { method: 'design-file', params },
     });
 
     await expect(router.tryDispatch('design.ruleCheck', params)).resolves.toEqual({

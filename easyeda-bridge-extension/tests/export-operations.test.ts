@@ -309,3 +309,132 @@ describe('PCB geometry preview export', () => {
     },
   );
 });
+
+describe('design file export', () => {
+  function designOperations(documentType: number | undefined, result: unknown) {
+    const callFirst = vi.fn(async (paths: string[]) =>
+      paths[0] === 'DMT_SelectControl.getCurrentDocumentInfo' ? { documentType } : result,
+    );
+    const normalizeBinaryResult = vi.fn(async (value, fileName) => ({ value, fileName }));
+    const createBridgeError = vi.fn((code: string, message: string, _suggestion: string) =>
+      Object.assign(new Error(message), { code }),
+    );
+    const readProjectScoped = vi.fn(
+      async (_projectId: string, read: () => Promise<unknown>, _documentType?: number | null) =>
+        read(),
+    );
+    return {
+      callFirst,
+      normalizeBinaryResult,
+      readProjectScoped,
+      operations: createExportOperations({
+        callFirst,
+        normalizeBinaryResult,
+        createBridgeError,
+        readProjectScoped,
+      }),
+    };
+  }
+  const file = new Blob(['IPC data']);
+
+  it.each([
+    ['ipc_d356', 3, 'PCB_ManufactureData.getIpcD356AFile', ['p-ipc_d356'], 'ipc-d-356a.ipc'],
+    ['pcb_info', 3, 'PCB_ManufactureData.getPcbInfoFile', ['p-pcb_info'], 'pcb-info.txt'],
+    [
+      'test_points',
+      3,
+      'PCB_ManufactureData.getTestPointFile',
+      ['p-test_points', 'csv'],
+      'test-points.csv',
+    ],
+    ['pads_layout', 3, 'PCB_ManufactureData.getPadsFile', ['p-pads_layout'], 'pads-layout.asc'],
+    ['schematic_svg', 1, 'SCH_ManufactureData.getSvgFile', ['p-schematic_svg'], 'schematic.svg'],
+  ])(
+    'exports %s from the focused document type %i inside the project scope',
+    async (kind, documentType, method, args, fallback) => {
+      const { callFirst, normalizeBinaryResult, readProjectScoped, operations } = designOperations(
+        documentType,
+        file,
+      );
+      await expect(operations.exportDesignFile({ projectId: 'p', kind })).resolves.toEqual({
+        value: file,
+        fileName: fallback,
+      });
+      expect(callFirst).toHaveBeenLastCalledWith([method], ...args);
+      expect(normalizeBinaryResult).toHaveBeenCalledWith(file, fallback);
+      expect(readProjectScoped).toHaveBeenCalledWith('p', expect.any(Function), documentType);
+    },
+  );
+
+  it('passes IPC-2581 unit and OEM number, falling back to safe defaults', async () => {
+    const { callFirst, operations } = designOperations(3, file);
+    await operations.exportDesignFile({
+      projectId: 'p',
+      kind: 'ipc2581',
+      unit: 'inch',
+      oemNumber: 'Supplier Part',
+    });
+    expect(callFirst).toHaveBeenLastCalledWith(
+      ['PCB_ManufactureData.getIpc2581CFile'],
+      'p-ipc2581',
+      'xml',
+      'inch',
+      'Supplier Part',
+    );
+    await operations.exportDesignFile({
+      projectId: 'p',
+      kind: 'ipc2581',
+      unit: 'furlong',
+      oemNumber: 'anything',
+    });
+    expect(callFirst).toHaveBeenLastCalledWith(
+      ['PCB_ManufactureData.getIpc2581CFile'],
+      'p-ipc2581',
+      'xml',
+      'mm',
+      'Manufacturer Part',
+    );
+  });
+
+  it.each(['', 'placePcbOrder', 'toString', '__proto__', undefined])(
+    'rejects unsupported kind %j before any native call',
+    async (kind) => {
+      const { callFirst, operations } = designOperations(3, file);
+      await expect(operations.exportDesignFile({ projectId: 'p', kind })).rejects.toThrow(
+        /unsupported design file kind/i,
+      );
+      expect(callFirst).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects a blank projectId before any native call', async () => {
+    const { callFirst, operations } = designOperations(3, file);
+    await expect(operations.exportDesignFile({ projectId: ' ', kind: 'ipc_d356' })).rejects.toThrow(
+      /non-empty projectId/i,
+    );
+    expect(callFirst).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['ipc2581', 1],
+    ['schematic_svg', 3],
+    ['ipc_d356', undefined],
+  ])('rejects %s when the wrong document (%s) is focused', async (kind, documentType) => {
+    const { callFirst, operations } = designOperations(documentType, file);
+    await expect(operations.exportDesignFile({ projectId: 'p', kind })).rejects.toMatchObject({
+      code: 'DOCUMENT_NOT_FOCUSED',
+    });
+    expect(callFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([undefined, null, {}, 'text', new Blob([]), new Blob(['{}'])])(
+    'rejects missing or empty native output %#',
+    async (result) => {
+      const { normalizeBinaryResult, operations } = designOperations(3, result);
+      await expect(
+        operations.exportDesignFile({ projectId: 'p', kind: 'ipc2581' }),
+      ).rejects.toMatchObject({ code: 'EXPORT_NOT_AVAILABLE' });
+      expect(normalizeBinaryResult).not.toHaveBeenCalled();
+    },
+  );
+});

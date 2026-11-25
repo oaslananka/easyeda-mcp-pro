@@ -18,6 +18,32 @@ interface BinaryBridgeResult {
 /** Building a STEP/OBJ model of the board takes longer than an ordinary bridge call. */
 const EXPORT_3D_TIMEOUT_MS = 5 * 60 * 1000;
 
+/** IPC-2581 generation of a dense board can also exceed an ordinary bridge call. */
+const DESIGN_FILE_TIMEOUT_MS = 5 * 60 * 1000;
+
+/**
+ * Documented EasyEDA manufacture-data files reachable through `export.designFile`.
+ * Keep in lockstep with DESIGN_FILE_SPECS in easyeda-bridge-extension/src/export-operations.ts.
+ */
+const DESIGN_FILE_KINDS = {
+  ipc2581: { extension: 'xml' },
+  ipc_d356: { extension: 'ipc' },
+  pcb_info: { extension: 'txt' },
+  test_points: { extension: 'csv' },
+  pads_layout: { extension: 'asc' },
+  schematic_svg: { extension: 'svg' },
+} as const;
+type DesignFileKind = keyof typeof DESIGN_FILE_KINDS;
+const DESIGN_FILE_KIND_VALUES = Object.keys(DESIGN_FILE_KINDS) as [
+  DesignFileKind,
+  ...DesignFileKind[],
+];
+
+/** Extension for the artifact name; multi-page schematic SVG arrives as a ZIP. */
+function designFileExtension(kind: DesignFileKind, buffer: Buffer): string {
+  return isZipArchive(buffer) ? 'zip' : DESIGN_FILE_KINDS[kind].extension;
+}
+
 interface WriteExportResult {
   ok: boolean;
   filePath?: string;
@@ -1099,6 +1125,104 @@ function registerExportTools(
           not_available: true,
           error: err instanceof Error ? err.message : String(err),
         };
+      }
+    },
+  });
+
+  registry.register({
+    name: 'easyeda_export_design_file',
+    title: 'Export an additional design data file',
+    description:
+      'Export a documented EasyEDA manufacture-data file (beta APIs) from the focused document: ' +
+      'IPC-2581C XML, IPC-D-356A netlist, PCB information, test points CSV, PADS ASCII layout ' +
+      '(PCB focused) or schematic SVG (schematic focused; ZIP for multi-page). For design review ' +
+      'and interchange, not fabrication approval.',
+    profile: 'pro',
+    evidence: ['official-docs'],
+    risk: 'low',
+    confirmWrite: false,
+    sideEffect: 'artifact-write',
+    group: 'export',
+    version: '1.0.0',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    inputSchema: z.object({
+      projectId: z.string().trim().min(1),
+      kind: z.enum(DESIGN_FILE_KIND_VALUES),
+      filePath: z.string().optional(),
+      unit: z.enum(['mm', 'inch']).default('mm').describe('IPC-2581 only: output unit.'),
+      oemNumber: z
+        .enum(['Device', 'Manufacturer Part', 'Supplier Part', 'Comment'])
+        .default('Manufacturer Part')
+        .describe('IPC-2581 only: component attribute used as the OEM part number.'),
+    }),
+    outputSchema: z.object({
+      project_id: z.string(),
+      kind: z.string(),
+      file_path: z.string().optional(),
+      byte_length: z.number().int().nonnegative().optional(),
+      sha256: z.string().optional(),
+      exported: z.boolean(),
+      not_available: z.boolean().optional(),
+      error: z.string().optional(),
+    }),
+    handler: async (ctx: ToolContext, params: unknown) => {
+      const { projectId, kind, filePath, unit, oemNumber } = params as {
+        projectId: string;
+        kind: DesignFileKind;
+        filePath?: string;
+        unit: 'mm' | 'inch';
+        oemNumber: string;
+      };
+      const failure = (error: string) => ({
+        project_id: projectId,
+        kind,
+        exported: false,
+        not_available: true,
+        error,
+      });
+      try {
+        const result = await ctx.bridge.call(
+          'export.designFile',
+          { projectId, kind, fileName: `${projectId}-${kind}`, unit, oemNumber },
+          { timeoutMs: DESIGN_FILE_TIMEOUT_MS },
+        );
+        const base64 = (result as BinaryBridgeResult | null)?.base64;
+        if (
+          typeof base64 !== 'string' ||
+          base64.length === 0 ||
+          !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64)
+        ) {
+          return failure(`Bridge returned an empty or invalid ${kind} payload.`);
+        }
+        const buffer = Buffer.from(base64, 'base64');
+        // EasyEDA documents a 2-byte empty file (without an error) when IPC-2581 generation fails.
+        if (buffer.byteLength < 3) {
+          return failure(`Bridge returned an empty ${kind} file.`);
+        }
+        // Name the artifact by project and kind; native names collide (e.g. schematic.zip).
+        const written = writeExportPayload(
+          ctx,
+          { base64 },
+          filePath,
+          `${projectId}-${kind}.${designFileExtension(kind, buffer)}`,
+        );
+        if (!written.ok) {
+          return failure(written.error ?? 'Export could not be written.');
+        }
+        return {
+          project_id: projectId,
+          kind,
+          file_path: written.filePath,
+          byte_length: written.byteLength,
+          sha256: createHash('sha256').update(buffer).digest('hex'),
+          exported: true,
+        };
+      } catch (err) {
+        return failure(err instanceof Error ? err.message : String(err));
       }
     },
   });

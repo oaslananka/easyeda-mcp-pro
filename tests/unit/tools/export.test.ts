@@ -69,6 +69,7 @@ describe('Export Tools', () => {
       'easyeda_export_pdf',
       'easyeda_export_netlist',
       'easyeda_export_odb',
+      'easyeda_export_design_file',
     ]) {
       const tool = registry.get(name);
       expect(tool?.sideEffect, name).toBe('artifact-write');
@@ -574,6 +575,137 @@ describe('Export Tools', () => {
       exported: false,
       not_available: true,
       error: 'Method not found: export.odb',
+    });
+  });
+
+  describe('easyeda_export_design_file', () => {
+    const ipcText =
+      'P  JOB   dongle\n317GND     U1 -1 PA0300D0  PA X+001000Y+002000X0600Y0600R000 S0\n';
+
+    it('writes the IPC-D-356A file named by project and kind with a long timeout', async () => {
+      const tool = registry.get('easyeda_export_design_file')!;
+      bridgeCall.mockResolvedValue({
+        base64: Buffer.from(ipcText).toString('base64'),
+        fileName: 'proj-123-ipc_d356',
+      });
+
+      const result = await tool.handler(
+        context,
+        tool.inputSchema.parse({ projectId: 'proj-123', kind: 'ipc_d356' }),
+      );
+
+      expect(bridgeCall).toHaveBeenCalledWith(
+        'export.designFile',
+        {
+          projectId: 'proj-123',
+          kind: 'ipc_d356',
+          fileName: 'proj-123-ipc_d356',
+          unit: 'mm',
+          oemNumber: 'Manufacturer Part',
+        },
+        { timeoutMs: 5 * 60 * 1000 },
+      );
+      expect(result).toMatchObject({ exported: true, kind: 'ipc_d356' });
+      expect(result?.file_path).toBe(path.join(tmpArtifactDir, 'proj-123-ipc_d356.ipc'));
+      expect(fs.readFileSync(result!.file_path!, 'utf-8')).toBe(ipcText);
+      expect(result?.sha256).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('passes IPC-2581 unit and OEM number options through', async () => {
+      const tool = registry.get('easyeda_export_design_file')!;
+      bridgeCall.mockResolvedValue({ base64: Buffer.from('<IPC-2581/>').toString('base64') });
+
+      const result = await tool.handler(
+        context,
+        tool.inputSchema.parse({
+          projectId: 'proj-123',
+          kind: 'ipc2581',
+          unit: 'inch',
+          oemNumber: 'Supplier Part',
+        }),
+      );
+
+      expect(bridgeCall.mock.calls[0][1]).toMatchObject({
+        unit: 'inch',
+        oemNumber: 'Supplier Part',
+      });
+      expect(result?.file_path).toBe(path.join(tmpArtifactDir, 'proj-123-ipc2581.xml'));
+    });
+
+    it('saves a multi-page schematic SVG archive with a .zip extension', async () => {
+      const tool = registry.get('easyeda_export_design_file')!;
+      bridgeCall.mockResolvedValue({
+        base64: VALID_ZIP.toString('base64'),
+        fileName: 'schematic.zip',
+      });
+
+      const result = await tool.handler(
+        context,
+        tool.inputSchema.parse({ projectId: 'proj-123', kind: 'schematic_svg' }),
+      );
+
+      expect(result?.file_path).toBe(path.join(tmpArtifactDir, 'proj-123-schematic_svg.zip'));
+    });
+
+    it.each([
+      ['missing payload', null],
+      ['empty base64', { base64: '' }],
+      ['invalid base64', { base64: 'not*base64' }],
+      ['2-byte empty IPC-2581 file', { base64: Buffer.from('{}').toString('base64') }],
+    ])('refuses %s and writes nothing', async (_label, reply) => {
+      const tool = registry.get('easyeda_export_design_file')!;
+      bridgeCall.mockResolvedValue(reply);
+
+      const result = await tool.handler(
+        context,
+        tool.inputSchema.parse({ projectId: 'proj-123', kind: 'ipc2581' }),
+      );
+
+      expect(result).toMatchObject({ exported: false, not_available: true, kind: 'ipc2581' });
+      expect(fs.readdirSync(tmpArtifactDir)).toEqual([]);
+    });
+
+    it('refuses a target path outside the artifact directory', async () => {
+      const tool = registry.get('easyeda_export_design_file')!;
+      bridgeCall.mockResolvedValue({ base64: Buffer.from(ipcText).toString('base64') });
+
+      const result = await tool.handler(
+        context,
+        tool.inputSchema.parse({
+          projectId: 'proj-123',
+          kind: 'ipc_d356',
+          filePath: path.join(os.tmpdir(), 'outside.ipc'),
+        }),
+      );
+
+      expect(result).toMatchObject({ exported: false, not_available: true });
+      expect(result?.error).toMatch(/inside the artifact directory/);
+    });
+
+    it('reports a bridge failure as not_available', async () => {
+      const tool = registry.get('easyeda_export_design_file')!;
+      bridgeCall.mockRejectedValue(
+        new Error('ipc_d356 export requires the PCB document to be focused.'),
+      );
+
+      const result = await tool.handler(
+        context,
+        tool.inputSchema.parse({ projectId: 'proj-123', kind: 'ipc_d356' }),
+      );
+
+      expect(result).toMatchObject({ exported: false, not_available: true });
+      expect(result?.error).toMatch(/PCB document/);
+    });
+
+    it('rejects unknown kinds and blank project IDs at the schema boundary', () => {
+      const tool = registry.get('easyeda_export_design_file')!;
+      expect(tool.inputSchema.safeParse({ projectId: 'p', kind: 'placePcbOrder' }).success).toBe(
+        false,
+      );
+      expect(tool.inputSchema.safeParse({ projectId: ' ', kind: 'ipc_d356' }).success).toBe(false);
+      expect(
+        tool.inputSchema.safeParse({ projectId: 'p', kind: 'ipc2581', unit: 'mil' }).success,
+      ).toBe(false);
     });
   });
 });

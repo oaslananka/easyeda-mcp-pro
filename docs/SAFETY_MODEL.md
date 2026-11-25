@@ -862,7 +862,8 @@ expected outcome (`available: false`) rather than a tool failure.
 ### 1.4 Artifact exports
 
 `easyeda_export_gerbers`, `easyeda_export_pick_place`, `easyeda_export_pdf`,
-`easyeda_export_netlist`, and `easyeda_export_3d` are explicitly classified as `artifact-write`. They call the bridge to
+`easyeda_export_netlist`, `easyeda_export_3d`, and `easyeda_export_design_file` are explicitly classified as
+`artifact-write`. They call the bridge to
 produce export data and write the resulting payload only inside `ARTIFACT_DIR`; they do not alter
 schematic or PCB state and therefore do not require the local design-mutation parameter
 `confirmWrite=true`.
