@@ -16,9 +16,78 @@ export interface ExportOperations {
   exportPdf(params: Record<string, unknown>): Promise<unknown>;
   exportNetlist(params: Record<string, unknown>): Promise<unknown>;
   exportOdb(params: Record<string, unknown>): Promise<unknown>;
+  exportDesignFile(params: Record<string, unknown>): Promise<unknown>;
   preview3d(params: Record<string, unknown>): Promise<unknown>;
   export3d(params: Record<string, unknown>): Promise<unknown>;
 }
+
+/** Native document types reported by DMT_SelectControl.getCurrentDocumentInfo. */
+const SCHEMATIC_DOCUMENT = 1;
+const PCB_DOCUMENT = 3;
+
+interface DesignFileSpec {
+  /** Document that must be focused, because the native export reads the focused document. */
+  documentType: typeof SCHEMATIC_DOCUMENT | typeof PCB_DOCUMENT;
+  method: string;
+  fallbackFileName: string;
+  args: (fileName: string, params: Record<string, unknown>) => unknown[];
+}
+
+const IPC2581_OEM_NUMBERS = ['Device', 'Manufacturer Part', 'Supplier Part', 'Comment'];
+
+/**
+ * Reviewed allowlist of documented (beta) manufacture-data file exports. Only these
+ * native methods are reachable through export.designFile; ordering methods and other
+ * PCB_ManufactureData members are deliberately absent.
+ */
+export const DESIGN_FILE_SPECS: Readonly<Record<string, DesignFileSpec>> = {
+  ipc2581: {
+    documentType: PCB_DOCUMENT,
+    method: 'PCB_ManufactureData.getIpc2581CFile',
+    fallbackFileName: 'ipc-2581c.xml',
+    args: (fileName, params) => [
+      fileName,
+      'xml',
+      params.unit === 'inch' ? 'inch' : 'mm',
+      IPC2581_OEM_NUMBERS.includes(params.oemNumber as string)
+        ? params.oemNumber
+        : 'Manufacturer Part',
+    ],
+  },
+  ipc_d356: {
+    documentType: PCB_DOCUMENT,
+    method: 'PCB_ManufactureData.getIpcD356AFile',
+    fallbackFileName: 'ipc-d-356a.ipc',
+    args: (fileName) => [fileName],
+  },
+  pcb_info: {
+    documentType: PCB_DOCUMENT,
+    method: 'PCB_ManufactureData.getPcbInfoFile',
+    fallbackFileName: 'pcb-info.txt',
+    args: (fileName) => [fileName],
+  },
+  test_points: {
+    documentType: PCB_DOCUMENT,
+    method: 'PCB_ManufactureData.getTestPointFile',
+    fallbackFileName: 'test-points.csv',
+    args: (fileName) => [fileName, 'csv'],
+  },
+  pads_layout: {
+    documentType: PCB_DOCUMENT,
+    method: 'PCB_ManufactureData.getPadsFile',
+    fallbackFileName: 'pads-layout.asc',
+    args: (fileName) => [fileName],
+  },
+  schematic_svg: {
+    documentType: SCHEMATIC_DOCUMENT,
+    method: 'SCH_ManufactureData.getSvgFile',
+    fallbackFileName: 'schematic.svg',
+    args: (fileName) => [fileName],
+  },
+};
+
+/** getIpc2581CFile documents a 2-byte empty file (no error) on failure; treat tiny files as failures. */
+const MIN_DESIGN_FILE_BYTES = 3;
 
 export function createExportOperations({
   callFirst,
@@ -151,6 +220,55 @@ export function createExportOperations({
     );
   }
 
+  // Additional documented manufacture-data files (IPC-2581C, IPC-D-356A, ...). Each is
+  // generated from the focused document, so require the matching document type and keep
+  // the project identity stable across generation before returning any bytes.
+  async function exportDesignFile(params: Record<string, unknown>): Promise<unknown> {
+    const projectId = requireProjectId(params, 'Design file export');
+    const kind = typeof params.kind === 'string' ? params.kind : '';
+    const spec = Object.prototype.hasOwnProperty.call(DESIGN_FILE_SPECS, kind)
+      ? DESIGN_FILE_SPECS[kind]
+      : undefined;
+    if (!spec) {
+      throw createBridgeError(
+        'INVALID_PARAMS',
+        `Unsupported design file kind: ${kind || '(missing)'}.`,
+        `Choose one of: ${Object.keys(DESIGN_FILE_SPECS).join(', ')}.`,
+      );
+    }
+    const info = (await callFirst(['DMT_SelectControl.getCurrentDocumentInfo'])) as
+      { documentType?: number } | undefined;
+    if (info?.documentType !== spec.documentType) {
+      const label = spec.documentType === PCB_DOCUMENT ? 'PCB' : 'schematic';
+      throw createBridgeError(
+        'DOCUMENT_NOT_FOCUSED',
+        `${kind} export requires the ${label} document to be focused.`,
+        `Activate the ${label} document, then retry.`,
+      );
+    }
+    const fileName =
+      (typeof params.fileName === 'string' && params.fileName.trim()) || `${projectId}-${kind}`;
+    return readProjectScoped(
+      projectId,
+      async () => {
+        const result = await callFirst([spec.method], ...spec.args(fileName, params));
+        if (
+          !isBlobLike(result) ||
+          !Number.isSafeInteger(result.size) ||
+          result.size < MIN_DESIGN_FILE_BYTES
+        ) {
+          throw createBridgeError(
+            'EXPORT_NOT_AVAILABLE',
+            `EasyEDA did not return a ${kind} file for the focused document.`,
+            'Check the document content and EasyEDA version, then retry.',
+          );
+        }
+        return normalizeBinaryResult(result, spec.fallbackFileName);
+      },
+      spec.documentType,
+    );
+  }
+
   const ELEMENTS_3D = ['Component Model', 'Via', 'Silkscreen', 'Wire In Signal Layer'];
 
   // 3D model of the focused PCB (PCB_ManufactureData.get3DFile, beta). Only component models
@@ -260,5 +378,6 @@ export function createExportOperations({
     exportPdf,
     exportNetlist,
     exportOdb,
+    exportDesignFile,
   };
 }

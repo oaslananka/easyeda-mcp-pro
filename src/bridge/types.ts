@@ -61,6 +61,7 @@ export const EasyedaApiMethodSchema = z.enum([
   'export.pdf',
   'export.netlist',
   'export.odb',
+  'export.designFile',
   'pcb.addTrack',
   'pcb.addVia',
   'pcb.addZone',

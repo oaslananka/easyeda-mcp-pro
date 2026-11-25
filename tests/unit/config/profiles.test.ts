@@ -52,6 +52,6 @@ describe('PROFILE_DEFINITIONS', () => {
 
   it('should have accurate approxToolCount for dev and experimental', () => {
     expect(PROFILE_DEFINITIONS.dev.approxToolCount).toBe('136');
-    expect(PROFILE_DEFINITIONS.experimental.approxToolCount).toBe('137');
+    expect(PROFILE_DEFINITIONS.experimental.approxToolCount).toBe('138');
   });
 });

@@ -862,10 +862,17 @@ expected outcome (`available: false`) rather than a tool failure.
 ### 1.4 Artifact exports
 
 `easyeda_export_gerbers`, `easyeda_export_pick_place`, `easyeda_export_pdf`,
-`easyeda_export_netlist`, and `easyeda_export_3d` are explicitly classified as `artifact-write`. They call the bridge to
+`easyeda_export_netlist`, `easyeda_export_3d`, and `easyeda_export_design_file` are explicitly classified as
+`artifact-write`. They call the bridge to
 produce export data and write the resulting payload only inside `ARTIFACT_DIR`; they do not alter
 schematic or PCB state and therefore do not require the local design-mutation parameter
 `confirmWrite=true`.
+
+`easyeda_export_design_file` (experimental; beta native APIs) additionally validates each payload
+with a bounded per-kind format check before anything is published, and supports `delivery:
+"inline"`. Inline delivery returns the validated bytes in the MCP response (at most 1 MiB) instead of
+writing to the MCP server host, and is the only delivery mode in hosted Cloud, where the server's
+`ARTIFACT_DIR` is not the client's filesystem.
 
 This does not make remote exports silent. Remote Relay maps `artifact-write` to the `export` risk
 class, requires the `easyeda.export` scope, and binds a human approval to the identity, session, tool,

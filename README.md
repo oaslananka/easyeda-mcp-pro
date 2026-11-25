@@ -113,7 +113,7 @@ Counts below are generated from the active registry, not copied from a release c
 | `pro`          |              114 |
 | `full`         |              131 |
 | `dev`          |              136 |
-| `experimental` |              137 |
+| `experimental` |              138 |
 
 <!-- capability-counts:end -->
 

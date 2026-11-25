@@ -92,6 +92,7 @@ export function createDispatcherDomainRouter(
     'design.drc': () => dependencies.designRuleCheckOperations.runDrc(),
     'design.erc': () => dependencies.designRuleCheckOperations.runErc(),
     'design.ruleCheck': () => dependencies.designRuleCheckOperations.runRuleCheck(),
+    'export.designFile': (params) => dependencies.exportOperations.exportDesignFile(params),
     'export.netlist': (params) => dependencies.exportOperations.exportNetlist(params),
     'export.odb': (params) => dependencies.exportOperations.exportOdb(params),
     'export.pdf': (params) => dependencies.exportOperations.exportPdf(params),

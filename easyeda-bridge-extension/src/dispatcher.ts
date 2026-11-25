@@ -94,6 +94,7 @@ const METHOD_LIST: readonly string[] = [
   'design.erc',
   'design.ruleCheck',
   'document.activate',
+  'export.designFile',
   'export.netlist',
   'export.odb',
   'export.pdf',
