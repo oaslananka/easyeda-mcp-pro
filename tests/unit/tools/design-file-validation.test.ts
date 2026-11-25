@@ -57,6 +57,18 @@ describe('validateDesignFile', () => {
       'image/svg+xml',
     ],
     ['schematic_svg', Buffer.from('<!-- page --><svg width="1"></svg>'), 'svg', 'image/svg+xml'],
+    [
+      'schematic_svg',
+      Buffer.from('<?xml version="1.0"?>\n<!-- page -->\n<!DOCTYPE svg>\n<svg></svg>'),
+      'svg',
+      'image/svg+xml',
+    ],
+    [
+      'schematic_svg',
+      Buffer.from('<!-- page -->'.repeat(250) + '<svg></svg>'),
+      'svg',
+      'image/svg+xml',
+    ],
     ['schematic_svg', zip(['P1.svg', 'pages/', 'pages/P2.SVG']), 'zip', 'application/zip'],
   ])('accepts a well-formed %s payload', (kind, buffer, extension, mimeType) => {
     expect(validateDesignFile(kind, buffer)).toEqual({ ok: true, format: { extension, mimeType } });
