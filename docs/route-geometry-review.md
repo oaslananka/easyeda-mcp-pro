@@ -467,6 +467,21 @@ of it. Native-local associations do **not** prove copper-fill/plane
 contact, via plating/spans, return-current paths, EMC, DRC or
 manufacturing readiness. More than four requested pairs returns
 `unavailable` without making additional beta API calls.
+When the native pad associations explicitly report `Line` and resolve to inventoried line IDs with
+matching nets and copper layers, the optional
+`native_pad_associations.associated_route_chain` reports a deterministic
+fewest-segment, exact same-layer endpoint chain. Unlike
+`route_chain`, it is anchored by the reported pad-associated lines rather
+than requiring pad centers to coincide with line endpoints.
+`observed_full_segment_length_mm` sums entire selected line segments;
+it is **not** a pad-to-pad distance or actual current path length.
+The component-pad primitive IDs must agree across the two native getters,
+and the focused PCB UUID is checked before collection and around the pad
+and association reads. Separate reads are not atomic. Incomplete or
+contradictory inventory, unresolved contacts, unmatched endpoints, and
+cross-layer paths remain unavailable; absence does not prove an open
+circuit. Electrical continuity and engineering sign-off remain unverified.
+
 There is no edit/save/export and no general API execution capability.
 
 The current isolated EasyEDA Pro test profile has an old 1.11.2

@@ -67,7 +67,7 @@ function padRoutePoint(point: NativePadRoutePoint): boolean {
   );
 }
 
-function validTrack(track: NativeTrack): boolean {
+function validTrack(track: NativeTrack): track is Required<NativeTrack> {
   return (
     exactText(track.primitiveId) &&
     exactText(track.net) &&
@@ -81,6 +81,18 @@ function validTrack(track: NativeTrack): boolean {
     track.width > 0 &&
     track.width <= MAX_COORDINATE_MIL &&
     (track.startX !== track.endX || track.startY !== track.endY)
+  );
+}
+
+export function validNativeRouteInventory(
+  tracks: NativeTrack[],
+  complete: boolean,
+): tracks is Required<NativeTrack>[] {
+  return (
+    complete &&
+    tracks.length <= MAX_TRACKS &&
+    tracks.every(validTrack) &&
+    new Set(tracks.map((track) => track.primitiveId)).size === tracks.length
   );
 }
 
@@ -179,10 +191,7 @@ export function observeNativePadRouteChain(
   ) {
     return unavailable('Both pad centers must have trustworthy native geometry and one exact net.');
   }
-  if (
-    !tracks.every(validTrack) ||
-    new Set(tracks.map((track) => track.primitiveId)).size !== tracks.length
-  ) {
+  if (!validNativeRouteInventory(tracks, collectionComplete)) {
     return unavailable('At least one native track primitive is malformed or duplicated.');
   }
   const source = key(first.x, first.y);
