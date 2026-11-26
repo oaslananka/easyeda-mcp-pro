@@ -1,3 +1,4 @@
+import { createPourAnnulusGeometryReader } from './pcb-pour-annulus-operations.js';
 import type { ApiRuntime } from './api-runtime.js';
 import { createViaLineAdjacencyReader } from './pcb-via-adjacency-operations.js';
 import { createComponentPadConnectionReader } from './pcb-pad-connection-operations.js';
@@ -35,6 +36,7 @@ export interface PcbReadOperations {
     padNumber: string,
     onlyCentreConnection?: unknown,
   ): Promise<unknown>;
+  listPourAnnulusGeometry(declaration: unknown): Promise<unknown>;
   listViaLineAdjacency(viaPrimitiveId: string, expectedNet: string): Promise<unknown>;
   deletePrimitives(primitiveIds: string[]): Promise<{ deleted: string[]; notFound: string[] }>;
 }
@@ -538,6 +540,11 @@ export function createPcbReadOperations({
     listTracks,
     listVias,
     listComponentPadConnections,
+    listPourAnnulusGeometry: createPourAnnulusGeometryReader({
+      requireActivePcbContext,
+      readFirstPath,
+      readState,
+    }),
     listViaLineAdjacency: createViaLineAdjacencyReader({
       requireActivePcbContext,
       readFirstPath,
