@@ -1,3 +1,5 @@
+import type { NativePadPairFinding } from './placement-pad-evidence.js';
+import { nativeCopperLayerCode } from './route-review.js';
 import type { PowerTreeIssue } from '../power-tree/index.js';
 import type { PlacementFinding, PlacementKind } from './placement-evidence.js';
 
@@ -24,6 +26,7 @@ export interface PlacementPriority {
   constraint_source_kind: ConstraintSourceKind;
   power_context: PlacementPowerIssue[];
   width_deviations?: WidthDeviation[];
+  line_path_evidence?: LinePathEvidence[];
   next_step: string;
   electrical_loop_status: 'UNKNOWN';
 }
@@ -102,6 +105,93 @@ function widthDeviations(finding: PlacementFinding): WidthDeviation[] {
   });
 }
 
+interface LinePathEvidence {
+  first_pin: string;
+  second_pin: string;
+  expected_net: string;
+  native_pad_primitive_ids?: string[];
+  evidence:
+    'observed_exact_endpoint_chain' | 'native_reported' | 'native_reported_centre' | 'unavailable';
+  primitive_ids: string[];
+  native_layer?: number;
+  electrical_continuity_status: 'UNKNOWN';
+}
+
+function exactIdentity(id: string): boolean {
+  return id.length > 0 && id.trim() === id;
+}
+
+function distinctIdentities(ids: string[]): boolean {
+  return ids.length > 0 && ids.every(exactIdentity) && new Set(ids).size === ids.length;
+}
+
+function sourcedPadIdentities(p: NativePadPairFinding): string[] | undefined {
+  const ids = p.native_pad_primitive_ids;
+  return p.evidence === 'native_component_pads' &&
+    exactIdentity(p.expected_net) &&
+    p.native_first_net === p.expected_net &&
+    p.native_second_net === p.expected_net &&
+    ids?.length === 2 &&
+    distinctIdentities(ids)
+    ? ids
+    : undefined;
+}
+
+function observedLinePath(
+  base: LinePathEvidence,
+  evidence: LinePathEvidence['evidence'],
+  ids: string[],
+  layer: number | undefined,
+): LinePathEvidence {
+  if (ids.length > 1200 || !distinctIdentities(ids) || !nativeCopperLayerCode(layer)) return base;
+  return { ...base, evidence, primitive_ids: [...ids], native_layer: layer };
+}
+
+/** Summarizes already source-bound line evidence; never performs a second native read. */
+function linePathEvidence(p: NativePadPairFinding): LinePathEvidence {
+  const ids = sourcedPadIdentities(p);
+  const base: LinePathEvidence = {
+    first_pin: p.first_pin,
+    second_pin: p.second_pin,
+    expected_net: p.expected_net,
+    ...(ids ? { native_pad_primitive_ids: [...ids] } : {}),
+    evidence: 'unavailable',
+    primitive_ids: [],
+    electrical_continuity_status: 'UNKNOWN',
+  };
+  if (!ids) return base;
+  const exact = p.route_chain;
+  if (exact?.evidence === 'observed_exact_endpoint_chain') {
+    return observedLinePath(base, exact.evidence, exact.primitive_ids, exact.native_layer);
+  }
+  const association = p.native_pad_associations;
+  const chain = association?.associated_route_chain;
+  if (
+    association &&
+    association.evidence !== 'unavailable' &&
+    chain?.evidence === 'observed_associated_endpoint_chain'
+  ) {
+    return observedLinePath(base, association.evidence, chain.primitive_ids, chain.native_layer);
+  }
+  return base;
+}
+
+function priorityNextStep(
+  action: PlacementPriorityAction,
+  relation: PlacementKind,
+  paths: readonly LinePathEvidence[],
+): string {
+  const observed = paths.filter((p) => p.evidence !== 'unavailable').length;
+  let step = actionSteps[action];
+  if (action === 'collect-topology-evidence' && observed > 0) {
+    step =
+      observed === paths.length
+        ? 'Review the observed line chains and collect remaining physical contact and return-path evidence.'
+        : 'Review the observed line chains. Collect the missing line-chain evidence and remaining physical contact and return-path evidence.';
+  }
+  return step + ' ' + topologySteps[relation];
+}
+
 function selectAction(
   finding: PlacementFinding,
   sourceKind: ConstraintSourceKind,
@@ -143,6 +233,7 @@ export function rankPlacementReview(
       const context = correlatedPowerIssues(finding, issues);
       const widths = widthDeviations(finding);
       const action = selectAction(finding, sourceKind, context, widths);
+      const paths = (finding.pad_pairs ?? []).map(linePathEvidence);
       return {
         finding_id: finding.id,
         relation: finding.relation,
@@ -151,7 +242,8 @@ export function rankPlacementReview(
         constraint_source_kind: sourceKind,
         power_context: context,
         ...(widths.length ? { width_deviations: widths } : {}),
-        next_step: actionSteps[action] + ' ' + topologySteps[finding.relation],
+        ...(paths.length ? { line_path_evidence: paths } : {}),
+        next_step: priorityNextStep(action, finding.relation, paths),
         electrical_loop_status: 'UNKNOWN',
       };
     })

@@ -121,6 +121,140 @@ describe('placement review priorities (not electrical risk or sign-off)', () => 
     expect(result[3]?.width_deviations).toBeUndefined();
   });
 
+  const sourcedPad = { ...pad, native_pad_primitive_ids: ['pad-a', 'pad-b'] };
+  const exact = {
+    evidence: 'observed_exact_endpoint_chain' as const,
+    selection: 'fewest_segments' as const,
+    primitive_ids: ['exact-line'],
+    native_layer: 1,
+    observed_centerline_length_mm: 1,
+    reasons: [],
+    electrical_continuity_status: 'UNKNOWN' as const,
+  };
+  const associated = {
+    evidence: 'native_reported_centre' as const,
+    first_primitive_ids: ['start'],
+    second_primitive_ids: ['end'],
+    shared_primitive_ids: [],
+    reasons: [],
+    electrical_continuity_status: 'UNKNOWN' as const,
+    associated_route_chain: {
+      evidence: 'observed_associated_endpoint_chain' as const,
+      selection: 'fewest_segments' as const,
+      primitive_ids: ['start', 'end'],
+      native_layer: 1,
+      observed_full_segment_length_mm: 2,
+      reasons: [],
+      electrical_continuity_status: 'UNKNOWN' as const,
+    },
+  };
+  it('distinguishes existing native line-chain evidence from a missing pair without electrical PASS', () => {
+    const first = finding('observed', {
+      pad_pairs: [
+        { ...sourcedPad, route_chain: exact },
+        {
+          ...sourcedPad,
+          first_pin: '2',
+          second_pin: '2',
+          expected_net: 'GND',
+          native_first_net: 'GND',
+          native_second_net: 'GND',
+          native_pad_primitive_ids: ['pad-c', 'pad-d'],
+          native_pad_associations: associated,
+        },
+      ],
+    });
+    const mixed = finding('mixed', {
+      pad_pairs: [
+        { ...sourcedPad, native_pad_associations: associated },
+        {
+          ...sourcedPad,
+          first_pin: '2',
+          second_pin: '2',
+          expected_net: 'GND',
+          native_first_net: 'GND',
+          native_second_net: 'GND',
+          native_pad_primitive_ids: ['pad-c', 'pad-d'],
+        },
+      ],
+    });
+    const result = rankPlacementReview([first, mixed], new Map(), []);
+    expect(result[0]?.line_path_evidence).toEqual([
+      {
+        first_pin: '1',
+        second_pin: '1',
+        expected_net: 'VIN',
+        native_pad_primitive_ids: ['pad-a', 'pad-b'],
+        evidence: 'observed_exact_endpoint_chain',
+        primitive_ids: ['exact-line'],
+        native_layer: 1,
+        electrical_continuity_status: 'UNKNOWN',
+      },
+      {
+        first_pin: '2',
+        second_pin: '2',
+        expected_net: 'GND',
+        native_pad_primitive_ids: ['pad-c', 'pad-d'],
+        evidence: 'native_reported_centre',
+        primitive_ids: ['start', 'end'],
+        native_layer: 1,
+        electrical_continuity_status: 'UNKNOWN',
+      },
+    ]);
+    expect(result[0]?.next_step).toContain('Review the observed line chains');
+    expect(result[1]?.line_path_evidence?.map((p) => p.evidence)).toEqual([
+      'native_reported_centre',
+      'unavailable',
+    ]);
+    expect(result[1]?.next_step).toContain('Collect the missing line-chain evidence');
+    expect(
+      result.every(
+        (p) => p.action === 'collect-topology-evidence' && p.electrical_loop_status === 'UNKNOWN',
+      ),
+    ).toBe(true);
+  });
+
+  it('prefers exact chains and refuses to attribute incomplete or contradictory pad identities', () => {
+    const observed = { ...sourcedPad, route_chain: exact, native_pad_associations: associated };
+    const result = rankPlacementReview(
+      [
+        finding('exact', { pad_pairs: [observed] }),
+        finding('broad', {
+          pad_pairs: [
+            {
+              ...sourcedPad,
+              native_pad_associations: { ...associated, evidence: 'native_reported' },
+            },
+          ],
+        }),
+        finding('mismatch', { pad_pairs: [{ ...observed, native_second_net: 'OTHER' }] }),
+        finding('duplicate', {
+          pad_pairs: [{ ...observed, native_pad_primitive_ids: ['pad-a', 'pad-a'] }],
+        }),
+        finding('empty', {
+          pad_pairs: [{ ...observed, route_chain: { ...exact, primitive_ids: [] } }],
+        }),
+      ],
+      new Map(),
+      [],
+    );
+    const byId = new Map(result.map((r) => [r.finding_id, r]));
+    expect(byId.get('exact')?.line_path_evidence?.[0]?.evidence).toBe(
+      'observed_exact_endpoint_chain',
+    );
+    expect(byId.get('broad')?.line_path_evidence?.[0]?.evidence).toBe('native_reported');
+    for (const id of ['mismatch', 'duplicate', 'empty']) {
+      const p = byId.get(id)?.line_path_evidence?.[0];
+      expect(p).toMatchObject({
+        evidence: 'unavailable',
+        primitive_ids: [],
+        electrical_continuity_status: 'UNKNOWN',
+      });
+      expect(p?.native_layer).toBeUndefined();
+    }
+    expect(result[0]?.action).toBe('verify-net-mismatch');
+  });
+
   it('keeps advisory, unknown provenance and missing evidence distinct without physical risk scores', () => {
     const a = finding('advice', { status: 'WARNING', constraint_source: 'Layout example' });
     const b = finding('unknown');

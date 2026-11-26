@@ -274,6 +274,26 @@ const placementPrioritySchema = z.object({
     )
     .max(2)
     .optional(),
+  line_path_evidence: z
+    .array(
+      z.object({
+        first_pin: z.string(),
+        second_pin: z.string(),
+        expected_net: z.string(),
+        native_pad_primitive_ids: z.array(z.string()).length(2).optional(),
+        evidence: z.enum([
+          'observed_exact_endpoint_chain',
+          'native_reported',
+          'native_reported_centre',
+          'unavailable',
+        ]),
+        primitive_ids: z.array(z.string()).max(1200),
+        native_layer: z.number().int().optional(),
+        electrical_continuity_status: z.literal('UNKNOWN'),
+      }),
+    )
+    .max(2)
+    .optional(),
   next_step: z.string(),
   electrical_loop_status: z.literal('UNKNOWN'),
 });

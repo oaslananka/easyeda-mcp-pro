@@ -447,6 +447,20 @@ evidence. Equal action groups
 retain caller order. This is an inspection queue, not electrical severity,
 a universal layout threshold, or an EMI/current-loop pass.
 
+For declared pad pairs, the optional priority list also contains
+`line_path_evidence`: exact pin/net identity, matched native pad IDs when
+available, and the selected observed line chain (exact endpoint first, otherwise
+native broad or centre-only associated endpoint evidence). The selected
+native layer and ordered line IDs are included only when the source and
+chain identities are valid. A missing or contradictory observation remains
+`unavailable` with no selected line IDs. This distinction avoids asking the
+user to re-collect a line chain already observed: topology-collection advice
+differentiates all observed, mixed observed/missing, and missing-only cases.
+The action order and original findings do not change. This is a summary of
+the existing observation, not a new native read or a closed electrical path;
+all continuity statuses remain UNKNOWN. Relations without pad pairs omit
+the field.
+
 Optionally classify a relation's existing `constraintSource` using
 `constraintSourceKind: "datasheet-requirement"` or `"advisory"`. The
 classification is caller-declared, not independently authenticated;

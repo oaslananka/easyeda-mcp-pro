@@ -1912,6 +1912,55 @@ describe('native PCB route geometry review MCP contract', () => {
     },
   ];
 
+  it('summarizes source-bound observed and missing paths in the optional priority without extra reads', async () => {
+    const config = {
+      nativeContacts: true,
+      centreReply: true,
+      dualLegs: true,
+      emptyReturn: true,
+      tracks: decouplingTracks,
+    };
+    const args = { placementRelations: [decouplingRelation], nativePadContactMode: 'centre-only' };
+    mockNativePlacementPads(config);
+    bridgeCall.mockClear();
+    const legacy = await run(args);
+    const calls = [...bridgeCall.mock.calls];
+    expect(legacy.placement_review.review_priorities).toBeUndefined();
+    mockNativePlacementPads(config);
+    bridgeCall.mockClear();
+    const result = await run({ ...args, placementPriorityContext: {} });
+    expect(bridgeCall.mock.calls).toEqual(calls);
+    expect(result.placement_review.findings).toEqual(legacy.placement_review.findings);
+    expect(result.placement_review.review_priorities[0]).toMatchObject({
+      action: 'collect-topology-evidence',
+      electrical_loop_status: 'UNKNOWN',
+      line_path_evidence: [
+        {
+          first_pin: '8',
+          second_pin: '1',
+          expected_net: 'VCC',
+          native_pad_primitive_ids: ['native-u3/pad8', 'native-c5/pad1'],
+          evidence: 'native_reported_centre',
+          primitive_ids: ['shared-trace'],
+          native_layer: 1,
+          electrical_continuity_status: 'UNKNOWN',
+        },
+        {
+          first_pin: '7',
+          second_pin: '2',
+          expected_net: 'GND',
+          evidence: 'unavailable',
+          primitive_ids: [],
+          electrical_continuity_status: 'UNKNOWN',
+        },
+      ],
+    });
+    expect(result.placement_review.review_priorities[0].next_step).toContain(
+      'Collect the missing line-chain evidence',
+    );
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
   it('groups explicitly declared supply and return line chains without declaring a closed loop', async () => {
     mockNativePlacementPads({
       nativeContacts: true,
