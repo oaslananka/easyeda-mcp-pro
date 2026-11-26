@@ -12,7 +12,10 @@ import {
   reviewDifferentialPair,
   type DifferentialPairDeclaration,
 } from '../pcb-layout/differential-pair.js';
-import { reviewNativePlacementPadPair } from '../pcb-layout/placement-pad-evidence.js';
+import {
+  reviewNativePlacementPadPair,
+  type NativePadPairFinding,
+} from '../pcb-layout/placement-pad-evidence.js';
 import { type EnvConfig } from '../config/env.js';
 import { reviewNativeTraceCurrent } from '../pcb-layout/native-trace-current.js';
 import {
@@ -374,6 +377,7 @@ const placementReviewSchema = z.object({
               native_first_net: z.string().optional(),
               native_second_net: z.string().optional(),
               native_pad_layer_codes: z.array(z.number()).optional(),
+              native_pad_primitive_ids: z.array(z.string()).length(2).optional(),
               measured_pad_center_distance_mm: z.number().finite().nonnegative().optional(),
               declared_max_pad_center_distance_mm: z.number().finite().positive().optional(),
               reasons: z.array(z.string()),
@@ -384,6 +388,17 @@ const placementReviewSchema = z.object({
                   first_primitive_ids: z.array(z.string()),
                   second_primitive_ids: z.array(z.string()),
                   shared_primitive_ids: z.array(z.string()),
+                  associated_route_chain: z
+                    .object({
+                      evidence: z.enum(['observed_associated_endpoint_chain', 'unavailable']),
+                      selection: z.enum(['fewest_segments', 'unavailable']),
+                      primitive_ids: z.array(z.string()),
+                      native_layer: z.number().optional(),
+                      observed_full_segment_length_mm: z.number().finite().nonnegative().optional(),
+                      reasons: z.array(z.string()),
+                      electrical_continuity_status: z.literal('UNKNOWN'),
+                    })
+                    .optional(),
                   reasons: z.array(z.string()),
                   electrical_continuity_status: z.literal('UNKNOWN'),
                 })
@@ -607,6 +622,7 @@ async function readPlacementPadObservations(
   components: NativePlacement[],
   complete: boolean,
   errors: string[],
+  expectedPcbId?: string,
 ): Promise<Map<string, unknown>> {
   const data = new Map<string, unknown>();
   if (!complete || !ctx.bridge.connected) return data;
@@ -620,15 +636,20 @@ async function readPlacementPadObservations(
     const project = (projectResponse as { result?: { uuid?: string } }).result;
     const doc = (
       docResponse as {
-        result?: { documentType?: number; parentProjectUuid?: string };
+        result?: { uuid?: string; documentType?: number; parentProjectUuid?: string };
       }
     ).result;
-    return (
-      project?.uuid === projectId && doc?.documentType === 3 && doc.parentProjectUuid === projectId
-    );
+    return project?.uuid === projectId &&
+      doc?.documentType === 3 &&
+      doc.parentProjectUuid === projectId &&
+      typeof doc.uuid === 'string' &&
+      doc.uuid.length > 0
+      ? doc.uuid
+      : undefined;
   };
   try {
-    if (!(await projectAndDocMatch())) {
+    const before = await projectAndDocMatch();
+    if (!before || (expectedPcbId !== undefined && before !== expectedPcbId)) {
       errors.push('Native project or focused PCB does not match the requested pad review source.');
       return data;
     }
@@ -647,7 +668,7 @@ async function readPlacementPadObservations(
         errors.push('Native component pad getter unavailable: ' + String(error));
       }
     }
-    if (!(await projectAndDocMatch())) {
+    if ((await projectAndDocMatch()) !== before) {
       errors.push(
         'Native project or document changed during pad inventory; observations discarded.',
       );
@@ -660,32 +681,68 @@ async function readPlacementPadObservations(
   return data;
 }
 
-async function readNativePairAssociations(
-  ctx: ToolContext,
-  projectId: string,
-  ids: { first: string; second: string },
-  pair: { firstPin: string; secondPin: string; expectedNet: string },
-) {
-  if (!ctx.bridge.connected || ctx.bridge.registryMismatch || ctx.bridge.extensionVersionMismatch) {
-    return unknownNativePadAssociations('Native bridge version/source is not verified.');
-  }
-  const focusedDocument = async (): Promise<string | undefined> => {
+async function readFocusedPcbId(ctx: ToolContext, projectId: string): Promise<string | undefined> {
+  try {
     const response = (await ctx.bridge.call('api.read', {
       path: 'DMT_SelectControl.getCurrentDocumentInfo',
       args: [],
     })) as { result?: { uuid?: string; documentType?: number; parentProjectUuid?: string } };
     const doc = response?.result;
-    return doc?.documentType === 3 && doc.parentProjectUuid === projectId ? doc.uuid : undefined;
-  };
+    return doc?.documentType === 3 &&
+      doc.parentProjectUuid === projectId &&
+      typeof doc.uuid === 'string' &&
+      doc.uuid.length > 0
+      ? doc.uuid
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function capturePlacementSource(
+  ctx: ToolContext,
+  projectId: string,
+  relations: PlacementRelation[] | undefined,
+  includeNativePadContacts: boolean,
+  sourceMismatch: boolean,
+): Promise<string | undefined> {
+  if (
+    !includeNativePadContacts ||
+    sourceMismatch ||
+    !ctx.bridge.connected ||
+    !relations?.some((relation) => relation.padPairs?.length)
+  )
+    return;
+  return readFocusedPcbId(ctx, projectId);
+}
+
+async function readNativePairAssociations(
+  ctx: ToolContext,
+  projectId: string,
+  ids: { first: string; second: string },
+  found: NativePadPairFinding,
+  routeSource: { tracks: NativeTrack[]; complete: boolean; focusedPcbId?: string },
+) {
+  if (!ctx.bridge.connected || ctx.bridge.registryMismatch || ctx.bridge.extensionVersionMismatch) {
+    return unknownNativePadAssociations('Native bridge version/source is not verified.');
+  }
   try {
-    const before = await focusedDocument();
-    if (!before) return unknownNativePadAssociations('Focused PCB identity is unavailable.');
+    const before = await readFocusedPcbId(ctx, projectId);
+    if (
+      !before ||
+      before !== routeSource.focusedPcbId ||
+      !found.native_pad_primitive_ids ||
+      !found.native_pad_layer_codes
+    )
+      return unknownNativePadAssociations(
+        'Focused PCB or native pad identity is unavailable or changed since route inventory.',
+      );
     const first = await ctx.bridge.call(
       'pcb.listComponentPadConnections',
       {
         projectId,
         componentPrimitiveId: ids.first,
-        padNumber: pair.firstPin,
+        padNumber: found.first_pin,
       },
       { timeoutMs: 12000 },
     );
@@ -694,23 +751,34 @@ async function readNativePairAssociations(
       {
         projectId,
         componentPrimitiveId: ids.second,
-        padNumber: pair.secondPin,
+        padNumber: found.second_pin,
       },
       { timeoutMs: 12000 },
     );
-    const after = await focusedDocument();
+    const after = await readFocusedPcbId(ctx, projectId);
     if (!after || before !== after) {
       return unknownNativePadAssociations(
         'Focused PCB changed during native pad connection reads.',
       );
     }
-    return reviewNativePadAssociations(first, second, {
-      firstComponentId: ids.first,
-      secondComponentId: ids.second,
-      firstPin: pair.firstPin,
-      secondPin: pair.secondPin,
-      net: pair.expectedNet,
-    });
+    return reviewNativePadAssociations(
+      first,
+      second,
+      {
+        firstComponentId: ids.first,
+        secondComponentId: ids.second,
+        firstPin: found.first_pin,
+        secondPin: found.second_pin,
+        net: found.expected_net,
+        firstPadId: found.native_pad_primitive_ids[0],
+        secondPadId: found.native_pad_primitive_ids[1],
+      },
+      {
+        tracks: routeSource.tracks,
+        complete: routeSource.complete,
+        padLayers: found.native_pad_layer_codes,
+      },
+    );
   } catch {
     return unknownNativePadAssociations('Native beta pad connections getter unavailable.');
   }
@@ -723,7 +791,7 @@ async function enrichPlacementPadEvidence(
   components: NativePlacement[],
   placement: ReturnType<typeof reviewPlacementRelations>,
   errors: string[],
-  routeSource: { tracks: NativeTrack[]; complete: boolean },
+  routeSource: { tracks: NativeTrack[]; complete: boolean; focusedPcbId?: string },
   includeNativePadContacts: boolean,
 ) {
   if (!relations.some((r) => r.padPairs?.length)) return;
@@ -737,6 +805,7 @@ async function enrichPlacementPadEvidence(
     components,
     placement.input_evidence.collection_complete,
     errors,
+    routeSource.focusedPcbId,
   );
   for (const [index, relation] of relations.entries()) {
     const finding = placement.findings[index];
@@ -767,7 +836,7 @@ async function enrichPlacementPadEvidence(
               ? unknownNativePadAssociations(
                   'Native pad identity/net source unavailable, mismatched or contact read budget exceeded.',
                 )
-              : await readNativePairAssociations(ctx, projectId, ids, pair);
+              : await readNativePairAssociations(ctx, projectId, ids, found, routeSource);
         }
         return found;
       }),
@@ -839,6 +908,16 @@ export function registerPcbRouteReviewTools(
       } = inputSchema.parse(params);
       const sourceMismatch =
         ctx.bridge.registryMismatch === true || ctx.bridge.extensionVersionMismatch === true;
+      // Cross-correlate independent native inventories only when their observed
+      // document identity is anchored before the first collection. This does
+      // not make the separate reads atomic.
+      const focusedPcbId = await capturePlacementSource(
+        ctx,
+        projectId,
+        placementRelations,
+        includeNativePadContacts,
+        sourceMismatch,
+      );
       const route = await collectRouteEvidence(ctx, projectId, sourceMismatch);
       const { tracks, vias, trackCount, viaCount, tracksAvailable, viasAvailable, errors } = route;
       const componentEvidence = await collectPlacementEvidence(
@@ -895,7 +974,7 @@ export function registerPcbRouteReviewTools(
           placementComponents,
           placement,
           errors,
-          { tracks, complete: geometry.input_evidence.collection_complete },
+          { tracks, complete: geometry.input_evidence.collection_complete, focusedPcbId },
           includeNativePadContacts,
         );
       }

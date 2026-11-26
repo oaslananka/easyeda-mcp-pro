@@ -30,6 +30,7 @@ export interface NativePadPairFinding {
   native_first_net?: string;
   native_second_net?: string;
   native_pad_layer_codes?: number[];
+  native_pad_primitive_ids?: string[];
   measured_pad_center_distance_mm?: number;
   declared_max_pad_center_distance_mm?: number;
   reasons: string[];
@@ -173,6 +174,7 @@ export function reviewNativePlacementPadPair(
   base.native_first_net = a.net;
   base.native_second_net = b.net;
   base.native_pad_layer_codes = [a.layer, b.layer];
+  base.native_pad_primitive_ids = [a.primitiveId, b.primitiveId];
   base.measured_pad_center_distance_mm = Math.hypot(a.x - b.x, a.y - b.y) * MIL_TO_MM;
   if (declaration.maxCenterDistanceMm !== undefined) {
     base.declared_max_pad_center_distance_mm = declaration.maxCenterDistanceMm;

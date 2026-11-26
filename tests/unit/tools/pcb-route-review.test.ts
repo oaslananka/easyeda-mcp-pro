@@ -904,6 +904,8 @@ describe('native PCB route geometry review MCP contract', () => {
       tracks?: Array<Record<string, unknown>>;
       nativeContacts?: boolean;
       switchPcbDuringContacts?: boolean;
+      switchPcbBeforeContacts?: boolean;
+      mismatchedContactPad?: boolean;
     } = {},
   ) {
     const components = [
@@ -915,6 +917,7 @@ describe('native PCB route geometry review MCP contract', () => {
     ];
     let focusChecks = 0;
     let nativeContactReads = 0;
+    let docReads = 0;
     bridgeCall.mockImplementation(async (method: string, args: any) => {
       if (method === 'pcb.listVias') return { total: 0, items: [] };
       if (method === 'pcb.listTracks') {
@@ -929,14 +932,19 @@ describe('native PCB route geometry review MCP contract', () => {
         return {
           evidence: 'native_reported',
           componentPrimitiveId: args.componentPrimitiveId,
-          padPrimitiveId: first ? 'native-u3/pad8' : 'native-c5/pad1',
+          padPrimitiveId:
+            overrides.mismatchedContactPad && first
+              ? 'other-pad'
+              : first
+                ? 'native-u3/pad8'
+                : 'native-c5/pad1',
           padNumber: args.padNumber,
           net: 'VCC',
           connected: [
             {
               primitiveId: 'shared-trace',
               net: 'VCC',
-              nativeType: 3,
+              nativeType: 'Line',
               layer: 1,
             },
           ],
@@ -956,17 +964,20 @@ describe('native PCB route geometry review MCP contract', () => {
             },
           };
         }
-        if (args.path === 'DMT_SelectControl.getCurrentDocumentInfo')
+        if (args.path === 'DMT_SelectControl.getCurrentDocumentInfo') {
+          docReads++;
           return {
             result: {
               uuid:
-                overrides.switchPcbDuringContacts && nativeContactReads > 0
+                (overrides.switchPcbBeforeContacts && docReads > 1) ||
+                (overrides.switchPcbDuringContacts && nativeContactReads > 0)
                   ? 'other-pcb'
                   : 'focused-pcb',
               parentProjectUuid: 'project-1',
               documentType: 3,
             },
           };
+        }
         if (args.path === 'PCB_PrimitiveComponent.getAllPinsByPrimitiveId') {
           if (args.args[0] === overrides.failPad) throw new Error('beta pad getter unavailable');
           const first = args.args[0] === 'native-u3';
@@ -1154,6 +1165,62 @@ describe('native PCB route geometry review MCP contract', () => {
     expect(
       bridgeCall.mock.calls.filter(([m]) => m === 'pcb.listComponentPadConnections'),
     ).toHaveLength(2);
+  });
+
+  it('correlates native pad-associated lines even when endpoints do not equal pad centers', async () => {
+    const tracks = [
+      {
+        primitiveId: 'shared-trace',
+        net: 'VCC',
+        layer: 1,
+        startX: 20,
+        startY: 0,
+        endX: 80,
+        endY: 0,
+        width: 10,
+      },
+    ];
+    mockNativePlacementPads({ nativeContacts: true, tracks });
+    const result = await run({
+      placementRelations: [placementPadPair],
+      includeNativePadContacts: true,
+    });
+    const pair = result.placement_review.findings[0].pad_pairs[0];
+    expect(pair.route_chain.evidence).toBe('unavailable');
+    expect(pair.native_pad_associations.associated_route_chain).toMatchObject({
+      evidence: 'observed_associated_endpoint_chain',
+      primitive_ids: ['shared-trace'],
+      observed_full_segment_length_mm: 1.524,
+      electrical_continuity_status: 'UNKNOWN',
+    });
+    expect(pair.electrical_loop_status).toBe('UNKNOWN');
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('does not join observations across same-project PCB focus changes or conflicting pad identities', async () => {
+    const tracks = [
+      {
+        primitiveId: 'shared-trace',
+        net: 'VCC',
+        layer: 1,
+        startX: 20,
+        startY: 0,
+        endX: 80,
+        endY: 0,
+        width: 10,
+      },
+    ];
+    for (const flags of [{ switchPcbBeforeContacts: true }, { mismatchedContactPad: true }]) {
+      mockNativePlacementPads({ nativeContacts: true, tracks, ...flags });
+      const result = await run({
+        placementRelations: [placementPadPair],
+        includeNativePadContacts: true,
+      });
+      expect(
+        result.placement_review.findings[0].pad_pairs[0].native_pad_associations.evidence,
+      ).toBe('unavailable');
+      expect(result.engineering_sign_off).toBe(false);
+    }
   });
 
   it('fails closed on beta getter errors and focus changes during native association reads', async () => {
