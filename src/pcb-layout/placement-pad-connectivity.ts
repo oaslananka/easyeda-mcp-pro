@@ -1,3 +1,9 @@
+import {
+  observeNativePadContactChain,
+  type NativePadContactChain,
+} from './placement-pad-contact-chain.js';
+import type { NativeTrack } from './route-review.js';
+
 /**
  * Bounded, source-attributed beta EasyEDA pad associations.
  * API associations are evidence of what EasyEDA reported, never a copper,
@@ -12,6 +18,7 @@ export interface NativePadAssociationFinding {
   shared_primitive_ids: string[];
   reasons: string[];
   electrical_continuity_status: 'UNKNOWN';
+  associated_route_chain?: NativePadContactChain;
 }
 
 type NativePadAssociation = {
@@ -91,21 +98,47 @@ export function reviewNativePadAssociations(
     firstPin: string;
     secondPin: string;
     net: string;
+    firstPadId?: string;
+    secondPadId?: string;
   },
+  routeSource?: { tracks: NativeTrack[]; complete: boolean; padLayers: number[] },
 ): NativePadAssociationFinding {
   const first = decode(firstRaw, expected.firstComponentId, expected.firstPin, expected.net);
   const second = decode(secondRaw, expected.secondComponentId, expected.secondPin, expected.net);
-  if (!first || !second || first.padPrimitiveId === second.padPrimitiveId) {
+  if (
+    !first ||
+    !second ||
+    first.padPrimitiveId === second.padPrimitiveId ||
+    (expected.firstPadId !== undefined && first.padPrimitiveId !== expected.firstPadId) ||
+    (expected.secondPadId !== undefined && second.padPrimitiveId !== expected.secondPadId)
+  ) {
     return unavailable('Native focused pad association source is unavailable or inconsistent.');
   }
   const firstIds = first.connected.map((x) => x.primitiveId);
   const secondIds = second.connected.map((x) => x.primitiveId);
   const secondSet = new Set(secondIds);
+  const layerCompatible = (
+    contacts: NativePadAssociation['connected'],
+    layer: number | undefined,
+  ) => layer === 12 || contacts.every((contact) => contact.layer === layer);
+  const chain = routeSource
+    ? observeNativePadContactChain(
+        expected.net,
+        first.connected,
+        second.connected,
+        routeSource.tracks,
+        routeSource.complete &&
+          routeSource.padLayers.length === 2 &&
+          layerCompatible(first.connected, routeSource.padLayers[0]) &&
+          layerCompatible(second.connected, routeSource.padLayers[1]),
+      )
+    : undefined;
   return {
     evidence: 'native_reported',
     first_primitive_ids: firstIds,
     second_primitive_ids: secondIds,
     shared_primitive_ids: firstIds.filter((id) => secondSet.has(id)),
+    ...(chain ? { associated_route_chain: chain } : {}),
     reasons: [
       'Native beta getConnectedPrimitives(false) reports direct pad associations only. Missing associations do not prove disconnection; reported overlap does not prove a closed copper or reference-plane current path.',
     ],
