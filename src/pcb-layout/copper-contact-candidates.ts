@@ -495,3 +495,304 @@ export function reviewCopperPadCenterCandidates(
   output.candidates = output.pads.filter((item) => item.status === 'CENTER_OVERLAP_CANDIDATE');
   return output;
 }
+
+/** Independent, caller-declared round drill geometry. Never infer native hole units
+ * from the pad coordinate unit or a single fixture. */
+export interface CopperAnnulusDrillDeclaration {
+  primitiveId: string;
+  diameterMm: number;
+  nativeHoleMmPerUnit: number;
+  source: string;
+}
+
+export interface NativeCopperAnnulusInput extends NativeCopperCenterInput {
+  drills: unknown;
+}
+
+export interface CopperAnnulusOutcome {
+  primitiveId: string;
+  status: 'GEOMETRIC_OVERLAP_CANDIDATE' | 'UNKNOWN';
+  reason: string;
+  electrical_continuity_status: 'UNKNOWN';
+  fill_id?: string;
+  drill_source?: string;
+  drill_diameter_mm?: number;
+  native_hole_mm_per_unit?: number;
+  witness?: { x_mm: number; y_mm: number; minimum_margin_mm: number };
+}
+
+const ANNULUS_MIL_TO_MM = 0.0254;
+const MAX_ANNULUS_PADS = 8;
+const MAX_ANNULUS_VERTICES = 4096;
+// Numerical interior margin only, not a PCB design-rule threshold.
+const INTERIOR_MARGIN_MM = 0.001;
+const DRILL_COMPARISON_EPSILON_MM = 1e-6;
+
+function annulusRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function annulusId(value: unknown): value is string {
+  return (
+    typeof value === 'string' && value.length > 0 && value.length <= 128 && value.trim() === value
+  );
+}
+
+function annulusPositive(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 1_000_000;
+}
+
+function roundDiameter(shape: unknown, kind: string): number | undefined {
+  return Array.isArray(shape) &&
+    shape.length === 3 &&
+    shape[0] === kind &&
+    annulusPositive(shape[1]) &&
+    shape[1] === shape[2]
+    ? shape[1]
+    : undefined;
+}
+
+function closedLineContour(ring: unknown): Point[] | undefined {
+  if (
+    !Array.isArray(ring) ||
+    ring.length > MAX_ANNULUS_VERTICES * 2 + 1 ||
+    ring[2] !== 'L' ||
+    ring.length % 2 !== 1 ||
+    !ring.slice(3).every((v) => typeof v === 'number' && Number.isFinite(v))
+  )
+    return;
+  const vertices = parseContour(ring);
+  if (!vertices || vertices.length < 4) return;
+  const first = vertices[0],
+    last = vertices.at(-1);
+  return first && last && first.x === last.x && first.y === last.y ? vertices : undefined;
+}
+
+function singleAnnulusFill(regions: unknown): { id: string; vertices: Point[] } | undefined {
+  if (!Array.isArray(regions) || regions.length !== 1) return;
+  const region = annulusRecord(regions[0]);
+  if (!annulusId(region.id) || region.fill !== true || region.lineWidth !== 0) return;
+  const rings = annulusRecord(region.path).complexPolygon;
+  if (!Array.isArray(rings) || rings.length !== 1) return;
+  const vertices = closedLineContour(rings[0]);
+  return vertices ? { id: region.id, vertices } : undefined;
+}
+
+function annulusDrillIndex(
+  drills: unknown,
+): Map<string, CopperAnnulusDrillDeclaration> | undefined {
+  if (!Array.isArray(drills) || drills.length > MAX_ANNULUS_PADS) return;
+  const index = new Map<string, CopperAnnulusDrillDeclaration>();
+  for (const raw of drills) {
+    const d = annulusRecord(raw);
+    if (
+      !annulusId(d.primitiveId) ||
+      index.has(d.primitiveId) ||
+      !annulusPositive(d.diameterMm) ||
+      !annulusPositive(d.nativeHoleMmPerUnit) ||
+      typeof d.source !== 'string' ||
+      d.source.trim().length < 3 ||
+      d.source.length > 200
+    )
+      return;
+    index.set(d.primitiveId, {
+      primitiveId: d.primitiveId,
+      diameterMm: d.diameterMm,
+      nativeHoleMmPerUnit: d.nativeHoleMmPerUnit,
+      source: d.source,
+    });
+  }
+  return index;
+}
+
+function boundedAnnulusPoint(p: Point): boolean {
+  return (
+    Number.isFinite(p.x) &&
+    Number.isFinite(p.y) &&
+    Math.abs(p.x) <= 1_000_000 * ANNULUS_MIL_TO_MM &&
+    Math.abs(p.y) <= 1_000_000 * ANNULUS_MIL_TO_MM
+  );
+}
+
+function inNativePadMm(vertices: Point[], transform: CopperCenterTransform): Point[] | undefined {
+  const scale = ANNULUS_MIL_TO_MM / transform.scale;
+  const mapped = vertices.map((p) => ({
+    x: p.x * scale,
+    y: p.y * scale * (transform.invertY ? -1 : 1),
+  }));
+  return mapped.every(boundedAnnulusPoint) ? mapped : undefined;
+}
+
+/** Require agreement of even-odd and nonzero interpretations at the witness.
+ * Fractured source contours may repeat bridge edges. Do not claim to reproduce
+ * the native fill engine or infer topology from the contour. */
+function singleWinding(target: Point, ring: Point[]): boolean {
+  let winding = 0;
+  for (let i = 1; i < ring.length; i++) {
+    const a = ring[i - 1],
+      b = ring[i];
+    if (!a || !b) return false;
+    const cross = (b.x - a.x) * (target.y - a.y) - (target.x - a.x) * (b.y - a.y);
+    if (a.y <= target.y && b.y > target.y && cross > 0) winding++;
+    else if (a.y > target.y && b.y <= target.y && cross < 0) winding--;
+  }
+  return Math.abs(winding) === 1 && insideRing(target, ring);
+}
+
+function contourMargin(target: Point, ring: Point[]): number {
+  let margin = Number.POSITIVE_INFINITY;
+  for (let i = 1; i < ring.length; i++) {
+    const a = ring[i - 1],
+      b = ring[i];
+    if (!a || !b) return 0;
+    const distance =
+      a.x === b.x && a.y === b.y
+        ? Math.hypot(target.x - a.x, target.y - a.y)
+        : segmentDistance(target, a, b);
+    margin = Math.min(margin, distance);
+  }
+  return margin;
+}
+
+function annulusWitness(
+  center: Point,
+  inner: number,
+  outer: number,
+  ring: Point[],
+): CopperAnnulusOutcome['witness'] {
+  let best: CopperAnnulusOutcome['witness'];
+  for (const fraction of [0.25, 0.5, 0.75]) {
+    const radius = inner + (outer - inner) * fraction;
+    for (let degrees = 0; degrees < 360; degrees += 10) {
+      const angle = (degrees * Math.PI) / 180;
+      const target = {
+        x: center.x + radius * Math.cos(angle),
+        y: center.y + radius * Math.sin(angle),
+      };
+      if (!boundedAnnulusPoint(target) || !singleWinding(target, ring)) continue;
+      const margin = Math.min(radius - inner, outer - radius, contourMargin(target, ring));
+      if (
+        Number.isFinite(margin) &&
+        margin > INTERIOR_MARGIN_MM &&
+        (!best || margin > best.minimum_margin_mm)
+      ) {
+        best = { x_mm: target.x, y_mm: target.y, minimum_margin_mm: margin };
+      }
+    }
+  }
+  return best;
+}
+
+function plainConcentricPad(pad: Record<string, unknown>, net: string): boolean {
+  return (
+    annulusId(pad.primitiveId) &&
+    pad.net === net &&
+    pad.layer === 12 &&
+    pad.metallization === true &&
+    pad.heatWelding === null &&
+    pad.holeOffsetX === 0 &&
+    pad.holeOffsetY === 0 &&
+    (pad.specialPad === null || (Array.isArray(pad.specialPad) && pad.specialPad.length === 0))
+  );
+}
+
+function roundHoleDiameter(shape: unknown): number | undefined {
+  // Public API declares ROUND + diameter; observed native 4.1.105 also returns
+  // a repeated equal third entry. Reject all other tuple shapes.
+  return Array.isArray(shape) &&
+    shape.length === 2 &&
+    shape[0] === 'ROUND' &&
+    annulusPositive(shape[1])
+    ? shape[1]
+    : roundDiameter(shape, 'ROUND');
+}
+
+function reviewAnnulusPad(
+  pad: Record<string, unknown>,
+  input: NativeCopperAnnulusInput,
+  drill: CopperAnnulusDrillDeclaration | undefined,
+  fillId: string,
+  ring: Point[],
+): CopperAnnulusOutcome {
+  const primitiveId = typeof pad.primitiveId === 'string' ? pad.primitiveId : '';
+  const unknown = (reason: string): CopperAnnulusOutcome => ({
+    primitiveId,
+    status: 'UNKNOWN',
+    reason,
+    electrical_continuity_status: 'UNKNOWN',
+  });
+  if (!plainConcentricPad(pad, input.pourNet)) return unknown('UNVERIFIED_ROUND_PAD_IDENTITY');
+  const diameter = roundDiameter(pad.pad, 'ELLIPSE');
+  const hole = roundHoleDiameter(pad.hole);
+  const center = point(pad.x, pad.y);
+  if (!diameter || !hole || !center || !drill) return unknown('UNVERIFIED_ROUND_PAD_OR_DRILL');
+  const nativeCenter = { x: center.x * ANNULUS_MIL_TO_MM, y: center.y * ANNULUS_MIL_TO_MM };
+  const outer = (diameter * ANNULUS_MIL_TO_MM) / 2;
+  const observedHole = hole * drill.nativeHoleMmPerUnit;
+  if (
+    !boundedAnnulusPoint(nativeCenter) ||
+    Math.abs(observedHole - drill.diameterMm) > DRILL_COMPARISON_EPSILON_MM ||
+    drill.diameterMm / 2 >= outer
+  )
+    return unknown('ROUND_DRILL_SOURCE_MISMATCH');
+  const witness = annulusWitness(nativeCenter, drill.diameterMm / 2, outer, ring);
+  if (!witness) return unknown('NO_BOUNDED_INTERIOR_WITNESS');
+  return {
+    primitiveId,
+    status: 'GEOMETRIC_OVERLAP_CANDIDATE',
+    reason: 'BOUNDED_INTERIOR_GEOMETRY_ONLY',
+    electrical_continuity_status: 'UNKNOWN',
+    fill_id: fillId,
+    drill_source: drill.source,
+    drill_diameter_mm: drill.diameterMm,
+    native_hole_mm_per_unit: drill.nativeHoleMmPerUnit,
+    witness,
+  };
+}
+
+/** Bounded, non-exhaustive geometric screening. Neither a positive nor a
+ * missing witness establishes actual contact, plating or a shared return path. */
+export function reviewCopperAnnulusCandidates(input: NativeCopperAnnulusInput) {
+  const base = {
+    method: 'READ_ONLY_FILLED_COPPER_ROUND_ANNULUS_SCREEN' as const,
+    coordinate_frame: 'native_pad_mm' as const,
+    overall_status: 'UNKNOWN' as const,
+    engineering_sign_off: false as const,
+  };
+  const pads =
+    Array.isArray(input.pads) && input.pads.length <= MAX_ANNULUS_PADS
+      ? input.pads.map(annulusRecord)
+      : [];
+  const unavailable = (reason: string) => ({
+    ...base,
+    pads: pads.map((p) => ({
+      primitiveId: typeof p.primitiveId === 'string' ? p.primitiveId : '',
+      status: 'UNKNOWN' as const,
+      reason,
+      electrical_continuity_status: 'UNKNOWN' as const,
+    })) as CopperAnnulusOutcome[],
+  });
+  const fill = singleAnnulusFill(input.pouredRegions);
+  const drills = annulusDrillIndex(input.drills);
+  if (
+    !annulusId(input.pourNet) ||
+    ![1, 2].includes(input.pourLayer) ||
+    !validTransform(input.transform) ||
+    !fill ||
+    !drills ||
+    new Set(pads.map((p) => p.primitiveId)).size !== pads.length
+  ) {
+    return unavailable('UNVERIFIED_FILLED_REGION_OR_SOURCE');
+  }
+  const ring = inNativePadMm(fill.vertices, input.transform);
+  if (!ring) return unavailable('UNSUPPORTED_CONTOUR_COORDINATES');
+  return {
+    ...base,
+    transform: input.transform,
+    pads: pads.map((p) =>
+      reviewAnnulusPad(p, input, drills.get(String(p.primitiveId)), fill.id, ring),
+    ),
+  };
+}

@@ -2506,19 +2506,20 @@ Returns a JSON object matching the schema:
 
 ### Input Parameters
 
-| Parameter                  | Type                          | Required | Description                                                                                                                                                                      |
-| -------------------------- | ----------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `projectId`                | `string`                      | Yes      |                                                                                                                                                                                  |
-| `intent`                   | `'general'` \| `'high-speed'` | Yes      |                                                                                                                                                                                  |
-| `minWidthMm`               | `number (optional)`           | No       | Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence.                                                                              |
-| `minClearanceMm`           | `number (optional)`           | No       | Optional caller-supplied minimum same-layer, different-net line-edge clearance in millimeters; not an active native DRC or fabricator limit.                                     |
-| `differentialPair`         | `object (optional)`           | No       |                                                                                                                                                                                  |
-| `placementRelations`       | `object[] (optional)`         | No       |                                                                                                                                                                                  |
-| `placementPriorityContext` | `object (optional)`           | No       | Opt in to review action ordering; optional caller-supplied power-tree issue excerpts, not verified electrical severity.                                                          |
-| `includeNativePadContacts` | `boolean (optional)`          | Yes      | Opt in to narrowly scoped beta native pad.getConnectedPrimitives(false) read-only association evidence for declared pad pairs. Associations never certify electrical continuity. |
-| `nativePadContactMode`     | `'centre-only' (optional)`    | No       | Opt in to native centre-only pad associations; not all contacts or physical continuity.                                                                                          |
-| `nativeViaAdjacency`       | `object[] (optional)`         | No       | Opt-in beta native reciprocal via/line observations for at most four exact via IDs and nets; no electrical continuity or span proof.                                             |
-| `traceCurrent`             | `object (optional)`           | No       | Optional source-bound native net-width check against a caller-declared empirical current reference; never a thermal design pass.                                                 |
+| Parameter                  | Type                          | Required | Description                                                                                                                                                                                |
+| -------------------------- | ----------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `projectId`                | `string`                      | Yes      |                                                                                                                                                                                            |
+| `intent`                   | `'general'` \| `'high-speed'` | Yes      |                                                                                                                                                                                            |
+| `minWidthMm`               | `number (optional)`           | No       | Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence.                                                                                        |
+| `minClearanceMm`           | `number (optional)`           | No       | Optional caller-supplied minimum same-layer, different-net line-edge clearance in millimeters; not an active native DRC or fabricator limit.                                               |
+| `differentialPair`         | `object (optional)`           | No       |                                                                                                                                                                                            |
+| `placementRelations`       | `object[] (optional)`         | No       |                                                                                                                                                                                            |
+| `placementPriorityContext` | `object (optional)`           | No       | Opt in to review action ordering; optional caller-supplied power-tree issue excerpts, not verified electrical severity.                                                                    |
+| `includeNativePadContacts` | `boolean (optional)`          | Yes      | Opt in to narrowly scoped beta native pad.getConnectedPrimitives(false) read-only association evidence for declared pad pairs. Associations never certify electrical continuity.           |
+| `nativePadContactMode`     | `'centre-only' (optional)`    | No       | Opt in to native centre-only pad associations; not all contacts or physical continuity.                                                                                                    |
+| `nativePourAnnulus`        | `object (optional)`           | No       | Opt-in source-linked single filled copper contour and selected circular plated pad annulus candidates; explicit caller-sourced coordinate and drill units. No electrical continuity proof. |
+| `nativeViaAdjacency`       | `object[] (optional)`         | No       | Opt-in beta native reciprocal via/line observations for at most four exact via IDs and nets; no electrical continuity or span proof.                                                       |
+| `traceCurrent`             | `object (optional)`           | No       | Optional source-bound native net-width check against a caller-declared empirical current reference; never a thermal design pass.                                                           |
 
 ### Output Format
 
@@ -2543,6 +2544,7 @@ Returns a JSON object matching the schema:
   placement_review: object (optional);
   trace_current_review: object (optional);
   via_adjacency_review: object[] (optional);
+  native_pour_annulus_review: object (optional);
   engineering_sign_off: 'false';
 }
 ```

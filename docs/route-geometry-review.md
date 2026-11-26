@@ -755,3 +755,71 @@ isolation, plating, field-solver behavior or manufacturing readiness.
 `electricalContinuity` remains `UNKNOWN` and `engineeringSignOff` remains
 `false` even when every selected record matches. It is not an MCP tool
 and does not grant remote filesystem access.
+
+### Optional source-linked filled-copper / round pad annulus candidates
+
+When a declared return-net pad has no observed line chain, a native filled
+region may still overlap the pad's copper annulus. Empty native pad-contact
+results do **not** establish disconnection. Use the optional
+`nativePourAnnulus` field on `easyeda_pcb_route_geometry_review` to request
+one exact native Pour and up to eight independently identified component pads.
+
+Example (illustrative IDs and explicitly fixture-specific source calibrations;
+replace them with observations from the intended PCB and independent source
+dimensions):
+
+```json
+{
+  "projectId": "your-native-project-uuid",
+  "nativePourAnnulus": {
+    "pourPrimitiveId": "your-observed-pour-id",
+    "expectedNet": "GND",
+    "expectedLayer": 1,
+    "transform": {
+      "scale": 0.1,
+      "invertY": false,
+      "source": "Independent source/native contour coordinate comparison"
+    },
+    "pads": [
+      {
+        "componentPrimitiveId": "your-observed-component-id",
+        "designator": "U1",
+        "padNumber": "3",
+        "primitiveId": "your-observed-pad-id",
+        "diameterMm": 1.1,
+        "nativeHoleMmPerUnit": 0.254,
+        "source": "Independent footprint drill diameter and native hole unit comparison"
+      }
+    ]
+  }
+}
+```
+
+The transform maps native pad coordinates to the polygon source frame; the
+hole conversion is separate and **has no default**. Do not reuse these
+example scales without calibration. The caller's source descriptions are
+not independently authenticated by the tool. Exact focused project/PCB
+identity is checked before and after the read; this is not an atomic snapshot.
+The bridge requires unique bounded Pour/Poured identities, the requested net
+and layer, matching derived source identity and identical single filled
+geometry from native `getAll()` and beta `getCopperRegion()` readback.
+
+The first supported subset is a single closed line-only filled contour on
+native top/bottom copper, no additional fill/stroke records, and circular
+plated multilayer pads with concentric round drills, zero hole offset, no
+special pad shape and no reported thermal override. The reader checks exact
+component designator/primitive ID and pad number/primitive ID, native net,
+shape and metadata. Missing getters, duplicate/contradictory identities,
+unsupported geometry, changed focus or source mismatch fail closed.
+
+`native_pour_annulus_review` names each requested pad and exact source pour.
+A `GEOMETRIC_OVERLAP_CANDIDATE` contains a strictly interior witness in the
+native pad millimetre frame, minimum geometric margin, fill ID and declared
+drill provenance. The deterministic 108-point annular sample is not an
+exhaustive intersection algorithm; both parity and single-winding checks
+must agree, and a small numerical interior margin excludes boundaries.
+No witness remains `UNKNOWN`, never a negative connectivity finding. A
+candidate does not prove physical copper contact, plating, a closed/shared
+return path, current capacity or electrical adequacy; the overall status
+and electrical continuity remain `UNKNOWN` and engineering sign-off is
+false. No board write, rebuild or automatic routing is performed.

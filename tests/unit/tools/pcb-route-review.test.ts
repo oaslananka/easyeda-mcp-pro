@@ -246,6 +246,208 @@ describe('native PCB route geometry review MCP contract', () => {
     }
   });
 
+  const annulusRequest = {
+    pourPrimitiveId: 'pour1',
+    expectedNet: 'GND',
+    expectedLayer: 1,
+    transform: { scale: 0.1, invertY: false, source: 'Independent contour calibration' },
+    pads: [
+      {
+        componentPrimitiveId: 'u1',
+        designator: 'U1',
+        padNumber: '3',
+        primitiveId: 'p1',
+        diameterMm: 1.016,
+        nativeHoleMmPerUnit: 0.254,
+        source: 'Independent drill source',
+      },
+    ],
+  };
+  const annulusReply = {
+    evidence: 'native_source_linked_filled_region',
+    pourPrimitiveId: 'pour1',
+    net: 'GND',
+    layer: 1,
+    electricalContinuity: 'UNKNOWN',
+    fill: {
+      id: 'copper0',
+      fill: true,
+      lineWidth: 0,
+      path: { complexPolygon: [[0, 0, 'L', 100, 0, 100, 100, 0, 100, 0, 0]] },
+    },
+    pads: [
+      {
+        componentPrimitiveId: 'u1',
+        designator: 'U1',
+        padNumber: '3',
+        primitiveId: 'p1',
+        net: 'GND',
+        layer: 12,
+        x: -20,
+        y: 500,
+        pad: ['ELLIPSE', 80, 80],
+        hole: ['ROUND', 4, 4],
+        metallization: true,
+        heatWelding: null,
+        holeOffsetX: 0,
+        holeOffsetY: 0,
+        specialPad: [],
+      },
+    ],
+  };
+
+  it('reports a source-linked round annulus candidate on the exact requested native pad', async () => {
+    const base = bridgeCall.getMockImplementation();
+    bridgeCall.mockImplementation(async (method: string, params: unknown) => {
+      if (method === 'api.read')
+        return { result: { uuid: 'pcb-1', documentType: 3, parentProjectUuid: 'project-1' } };
+      if (method === 'pcb.listPourAnnulusGeometry') {
+        expect(params).toEqual({
+          projectId: 'project-1',
+          pourPrimitiveId: 'pour1',
+          expectedNet: 'GND',
+          expectedLayer: 1,
+          pads: [
+            { componentPrimitiveId: 'u1', designator: 'U1', padNumber: '3', primitiveId: 'p1' },
+          ],
+        });
+        return annulusReply;
+      }
+      return base?.(method);
+    });
+    const r = await run({ nativePourAnnulus: annulusRequest });
+    expect(r.native_pour_annulus_review).toMatchObject({
+      evidence: 'native_source_linked_filled_region',
+      pour_primitive_id: 'pour1',
+      expected_net: 'GND',
+      native_layer: 1,
+      overall_status: 'UNKNOWN',
+      engineering_sign_off: false,
+      pads: [
+        {
+          designator: 'U1',
+          pad_number: '3',
+          primitiveId: 'p1',
+          status: 'GEOMETRIC_OVERLAP_CANDIDATE',
+          fill_id: 'copper0',
+          electrical_continuity_status: 'UNKNOWN',
+        },
+      ],
+    });
+    expect(r.native_pour_annulus_review.pads[0].witness.minimum_margin_mm).toBeGreaterThan(0);
+    bridgeCall.mockClear();
+    const legacy = await run();
+    expect(legacy.native_pour_annulus_review).toBeUndefined();
+    expect(bridgeCall.mock.calls.some(([m]) => m === 'pcb.listPourAnnulusGeometry')).toBe(false);
+    expect(legacy.findings).toEqual(r.findings);
+  });
+
+  it('rejects contradictory annulus evidence, focus changes and unsupported readers', async () => {
+    const base = bridgeCall.getMockImplementation();
+    for (const mode of [
+      'wrong-net',
+      'wrong-layer',
+      'wrong-pour',
+      'wrong-pad',
+      'wrong-owner',
+      'wrong-designator',
+      'wrong-pin',
+      'missing-pad',
+      'duplicate-pad',
+      'missing-getter',
+      'invalid-contour',
+      'changed-focus',
+      'throw',
+    ]) {
+      let focus = 'pcb-1';
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'api.read')
+          return { result: { uuid: focus, documentType: 3, parentProjectUuid: 'project-1' } };
+        if (method === 'pcb.listPourAnnulusGeometry') {
+          if (mode === 'changed-focus') focus = 'pcb-2';
+          if (mode === 'throw') throw Error('native read failed');
+          const p = { ...annulusReply.pads[0] };
+          if (mode === 'wrong-pad') p.primitiveId = 'other';
+          if (mode === 'wrong-owner') p.componentPrimitiveId = 'other';
+          if (mode === 'wrong-designator') p.designator = 'U2';
+          if (mode === 'wrong-pin') p.padNumber = '4';
+          const pad = mode === 'missing-getter' ? { ...p, heatWelding: undefined } : p;
+          return {
+            ...annulusReply,
+            net: mode === 'wrong-net' ? 'VCC' : 'GND',
+            layer: mode === 'wrong-layer' ? 2 : 1,
+            pourPrimitiveId: mode === 'wrong-pour' ? 'other' : 'pour1',
+            fill:
+              mode === 'invalid-contour'
+                ? { ...annulusReply.fill, path: { complexPolygon: [Array(8194).fill(0)] } }
+                : annulusReply.fill,
+            pads: mode === 'missing-pad' ? [] : mode === 'duplicate-pad' ? [pad, pad] : [pad],
+          };
+        }
+        return base?.(method);
+      });
+      const r = await run({ nativePourAnnulus: annulusRequest });
+      expect(r.native_pour_annulus_review, mode).toMatchObject({
+        evidence: 'unavailable',
+        overall_status: 'UNKNOWN',
+        pads: [{ primitiveId: 'p1', status: 'UNKNOWN' }],
+      });
+      expect(r.native_pour_annulus_review.pads[0].witness).toBeUndefined();
+    }
+  });
+
+  it('bounds declared annulus identities and skips native reads without a verified source', async () => {
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    for (const request of [
+      { ...annulusRequest, pads: [] },
+      { ...annulusRequest, pads: [...annulusRequest.pads, ...annulusRequest.pads] },
+      { ...annulusRequest, expectedLayer: 15 },
+      { ...annulusRequest, transform: { ...annulusRequest.transform, scale: 0 } },
+      { ...annulusRequest, pads: [{ ...annulusRequest.pads[0], nativeHoleMmPerUnit: 0 }] },
+      { ...annulusRequest, pads: [{ ...annulusRequest.pads[0], source: '' }] },
+    ])
+      expect(
+        schema?.safeParse({ projectId: 'project-1', nativePourAnnulus: request }).success,
+      ).toBe(false);
+    const base = bridgeCall.getMockImplementation();
+    for (const mode of ['mismatch', 'incomplete', 'focus']) {
+      context.bridge.registryMismatch = mode === 'mismatch';
+      bridgeCall.mockClear();
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'api.read')
+          return {
+            result: {
+              uuid: 'pcb-1',
+              documentType: mode === 'focus' ? 1 : 3,
+              parentProjectUuid: 'project-1',
+            },
+          };
+        if (method === 'pcb.listVias' && mode === 'incomplete') return { total: 2, items: [] };
+        return base?.(method);
+      });
+      const r = await run({ nativePourAnnulus: annulusRequest });
+      expect(r.native_pour_annulus_review.evidence).toBe('unavailable');
+      expect(bridgeCall.mock.calls.some(([m]) => m === 'pcb.listPourAnnulusGeometry')).toBe(false);
+    }
+  });
+
+  it('discards annulus evidence when focus changes during earlier inventory collection', async () => {
+    const base = bridgeCall.getMockImplementation();
+    let focus = 'pcb-1';
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'api.read')
+        return { result: { uuid: focus, documentType: 3, parentProjectUuid: 'project-1' } };
+      if (method === 'pcb.listTracks') focus = 'pcb-2';
+      return base?.(method);
+    });
+    const r = await run({ nativePourAnnulus: annulusRequest });
+    expect(r.native_pour_annulus_review).toMatchObject({
+      evidence: 'unavailable',
+      pads: [{ status: 'UNKNOWN', reason: 'Focused PCB changed before annulus review.' }],
+    });
+    expect(bridgeCall.mock.calls.some(([m]) => m === 'pcb.listPourAnnulusGeometry')).toBe(false);
+  });
+
   it('validates and evaluates a caller-declared minimum copper clearance without extra reads', async () => {
     const tool = registry.get('easyeda_pcb_route_geometry_review');
     for (const value of [0, -1, Number.POSITIVE_INFINITY, Number.NaN, '0.1']) {

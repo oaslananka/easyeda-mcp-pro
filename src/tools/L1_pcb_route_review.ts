@@ -1,3 +1,8 @@
+import {
+  nativePourAnnulusSchema,
+  pourAnnulusResultSchema,
+  optionalPourAnnulusReview,
+} from './pcb-pour-annulus-review.js';
 import { reviewSelectedLineWidth } from '../pcb-layout/placement-selected-line-width.js';
 import {
   reviewDecouplingTopology,
@@ -325,6 +330,11 @@ const inputSchema = z
       .optional()
       .describe(
         'Opt in to native centre-only pad associations; not all contacts or physical continuity.',
+      ),
+    nativePourAnnulus: nativePourAnnulusSchema
+      .optional()
+      .describe(
+        'Opt-in source-linked single filled copper contour and selected circular plated pad annulus candidates; explicit caller-sourced coordinate and drill units. No electrical continuity proof.',
       ),
     nativeViaAdjacency: nativeViaAdjacencySchema
       .optional()
@@ -664,6 +674,7 @@ const outputSchema = z.object({
   placement_review: placementReviewSchema.optional(),
   trace_current_review: nativeTraceCurrentResultSchema.optional(),
   via_adjacency_review: z.array(viaAdjacencyResultSchema).max(4).optional(),
+  native_pour_annulus_review: pourAnnulusResultSchema.optional(),
   engineering_sign_off: z.literal(false),
 });
 
@@ -881,18 +892,22 @@ function requestsSelectedWidth(relations: PlacementRelation[] | undefined): bool
   );
 }
 
+function requestsIndependentNativeSource(input: z.infer<typeof inputSchema>): boolean {
+  return input.nativeViaAdjacency !== undefined || input.nativePourAnnulus !== undefined;
+}
+
 async function capturePlacementSource(
   ctx: ToolContext,
   projectId: string,
   relations: PlacementRelation[] | undefined,
   includeNativePadContacts: boolean,
   sourceMismatch: boolean,
-  includeViaAdjacency: boolean,
+  includeIndependentNativeSource: boolean,
 ): Promise<string | undefined> {
   if (
     sourceMismatch ||
     !ctx.bridge.connected ||
-    (!includeViaAdjacency &&
+    (!includeIndependentNativeSource &&
       !requestsSelectedWidth(relations) &&
       (!includeNativePadContacts || !relations?.some((relation) => relation.padPairs?.length)))
   )
@@ -1172,6 +1187,7 @@ export function registerPcbRouteReviewTools(
     inputSchema,
     outputSchema,
     handler: async (ctx: ToolContext, params: unknown) => {
+      const input = inputSchema.parse(params);
       const {
         projectId,
         intent,
@@ -1183,8 +1199,9 @@ export function registerPcbRouteReviewTools(
         includeNativePadContacts,
         nativePadContactMode,
         nativeViaAdjacency,
+        nativePourAnnulus,
         traceCurrent,
-      } = inputSchema.parse(params);
+      } = input;
       const requestPadContacts = includeNativePadContacts || nativePadContactMode !== undefined;
       const sourceMismatch =
         ctx.bridge.registryMismatch === true || ctx.bridge.extensionVersionMismatch === true;
@@ -1197,7 +1214,7 @@ export function registerPcbRouteReviewTools(
         placementRelations,
         requestPadContacts,
         sourceMismatch,
-        nativeViaAdjacency !== undefined,
+        requestsIndependentNativeSource(input),
       );
       const route = await collectRouteEvidence(ctx, projectId, sourceMismatch);
       const { tracks, vias, trackCount, viaCount, tracksAvailable, viasAvailable, errors } = route;
@@ -1281,9 +1298,17 @@ export function registerPcbRouteReviewTools(
         { tracks, complete: geometry.input_evidence.collection_complete, focusedPcbId },
         () => readFocusedPcbId(ctx, projectId),
       );
+      const pourAnnulus = await optionalPourAnnulusReview(
+        ctx,
+        projectId,
+        nativePourAnnulus,
+        { complete: geometry.input_evidence.collection_complete, focusedPcbId },
+        () => readFocusedPcbId(ctx, projectId),
+      );
       return {
         project_id: projectId,
         ...geometry,
+        ...pourAnnulus,
         ...viaAdjacency,
         ...(placement === undefined
           ? {}

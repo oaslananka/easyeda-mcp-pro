@@ -160,6 +160,10 @@ function createDependencies() {
           padNumber,
         }),
       ),
+      listPourAnnulusGeometry: vi.fn(async (declaration: unknown) => ({
+        method: 'pour-annulus',
+        declaration,
+      })),
       listViaLineAdjacency: vi.fn(async (viaPrimitiveId: string, expectedNet: string) => ({
         method: 'via-line-adjacency',
         viaPrimitiveId,
@@ -306,6 +310,7 @@ const expectedMethods = [
   'pcb.listComponentPadConnections',
   'pcb.listComponents',
   'pcb.listFills',
+  'pcb.listPourAnnulusGeometry',
   'pcb.listPours',
   'pcb.listRegions',
   'pcb.listTracks',
@@ -364,6 +369,29 @@ describe('createDispatcherDomainRouter', () => {
       expect.any(Function),
       3,
     );
+  });
+
+  it('passes the exact selected pour declaration through the focused PCB scope', async () => {
+    const deps = createDependencies();
+    const router = createDispatcherDomainRouter(deps);
+    const request = {
+      projectId: 'verified-project-uuid',
+      pourPrimitiveId: 'p1',
+      expectedNet: 'GND',
+      expectedLayer: 1,
+      pads: [{ componentPrimitiveId: 'c1', designator: 'U1', padNumber: '3', primitiveId: 'g1' }],
+    };
+    const result = await router.tryDispatch('pcb.listPourAnnulusGeometry', request);
+    expect(result).toEqual({
+      handled: true,
+      value: { method: 'pour-annulus', declaration: request },
+    });
+    expect(deps.pcbReadOperations.readProjectScoped).toHaveBeenCalledWith(
+      request.projectId,
+      expect.any(Function),
+      3,
+    );
+    expect(deps.pcbReadOperations.listPourAnnulusGeometry).toHaveBeenCalledWith(request);
   });
 
   it.each([

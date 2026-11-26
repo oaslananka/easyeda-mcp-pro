@@ -110,6 +110,8 @@ export function createDispatcherDomainRouter(
         params.padNumber as string,
         params.onlyCentreConnection,
       ),
+    'pcb.listPourAnnulusGeometry': (params) =>
+      dependencies.pcbReadOperations.listPourAnnulusGeometry(params),
     'pcb.listViaLineAdjacency': (params) =>
       dependencies.pcbReadOperations.listViaLineAdjacency(
         params.viaPrimitiveId as string,
