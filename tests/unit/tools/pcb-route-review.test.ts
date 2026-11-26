@@ -1120,6 +1120,25 @@ describe('native PCB route geometry review MCP contract', () => {
     ).toBe(false);
   });
 
+  it('supports priority review with unspecified provenance and no power-tree context', async () => {
+    mockNativePlacementPads();
+    const result = await run({
+      placementRelations: [placementPadPair],
+      placementPriorityContext: {},
+    });
+    expect(result.placement_review.review_priorities).toEqual([
+      expect.objectContaining({
+        finding_id: result.placement_review.findings[0].id,
+        action: 'collect-topology-evidence',
+        constraint_source_kind: 'unspecified',
+        power_context: [],
+        electrical_loop_status: 'UNKNOWN',
+      }),
+    ]);
+    expect(result.placement_review.findings[0].status).toBe('UNKNOWN');
+    expect(result.placement_review.engineering_sign_off).toBe(false);
+  });
+
   it('includes bounded exact same-layer route endpoint chain evidence without electrical PASS', async () => {
     mockNativePlacementPads({
       tracks: [
