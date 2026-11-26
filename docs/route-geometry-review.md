@@ -497,6 +497,41 @@ DRC or manufacturing approval. The relationship's overall
 and `false`, respectively. Design-specific source constraints remain
 required for actionable warnings.
 
+## Optional beta reciprocal via/line observations
+
+Use the existing `easyeda_pcb_vias` read to identify the native via ID and
+exact net, then opt in to the route review:
+
+```json
+{
+  "projectId": "your-exact-native-project-uuid",
+  "nativeViaAdjacency": [{ "viaPrimitiveId": "your-observed-via-id", "expectedNet": "VCC" }]
+}
+```
+
+At most four unique via IDs are accepted. The optional
+`via_adjacency_review` entries independently report native line IDs and
+copper layer codes; existing route and placement findings are unchanged.
+The beta
+[via getter](https://prodocs.easyeda.com/en/api/reference/pro-api.ipcb_primitivevia.getadjacentprimitives.html)
+and [line getter](https://prodocs.easyeda.com/en/api/reference/pro-api.ipcb_primitiveline.getadjacentprimitives.html)
+must reciprocally identify the same via/line on the exact requested net.
+Both observations must resolve in the bounded native inventory (600 vias,
+1,200 lines); duplicate identities, unknown or non-copper layer codes,
+non-line neighbors including arcs, missing or malformed replies, or a
+changed project/focused PCB invalidate the relevant evidence. Each via
+read is limited to 16 line neighbors and 128 reciprocal neighbors per line.
+Separate reads are not atomic.
+
+`cross_layer_candidate: true` means verified reciprocal associations
+were reported on at least two native copper layer codes, not that the
+via has a verified span or plating. An observed empty list and an
+unavailable result are distinct; neither proves a disconnection.
+All entries retain `electrical_continuity_status: UNKNOWN`. No plane,
+return-current, EMC or manufacturing sign-off is implied. The optional
+read is beta/experimental; it is not a production electrical validator.
+The bridge version and method registry must match the server.
+
 ## Optional beta native pad-contact associations
 
 The `includeNativePadContacts: true` input (off by default) requests at

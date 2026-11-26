@@ -2739,6 +2739,147 @@ describe('createDispatcher', () => {
     expect(native).not.toHaveBeenCalled();
   });
 
+  it.each([2, 15, 44])(
+    'reports reciprocal native via/line associations on layer %s without electrical continuity',
+    async (otherLayer) => {
+      const via = {
+        getState_PrimitiveId: () => 'v1',
+        getState_Net: () => 'VCC',
+        getAdjacentPrimitives: async (): Promise<unknown[]> => [top, bottom],
+      };
+      const line = (id: string, layer: number) => ({
+        getState_PrimitiveId: () => id,
+        getState_Net: () => 'VCC',
+        getState_Layer: () => layer,
+        getAdjacentPrimitives: async () => [via],
+      });
+      const top = line('t1', 1);
+      const bottom = line('t2', otherLayer);
+      const dispatcher = createDispatcher(
+        makeVerifiedPcbToolkit({
+          PCB_PrimitiveVia: { getAll: async () => [via] },
+          PCB_PrimitiveLine: { getAll: async () => [top, bottom] },
+        }),
+      );
+      expect(
+        await dispatcher.dispatch('pcb.listViaLineAdjacency', {
+          ...scopedPcbParams,
+          viaPrimitiveId: 'v1',
+          expectedNet: 'VCC',
+        }),
+      ).toEqual({
+        evidence: 'native_reciprocal_line_associations',
+        viaPrimitiveId: 'v1',
+        net: 'VCC',
+        lines: [
+          { primitiveId: 't1', layer: 1 },
+          { primitiveId: 't2', layer: otherLayer },
+        ],
+        electricalContinuity: 'UNKNOWN',
+      });
+    },
+  );
+
+  it('fails closed for unverified via or reciprocal line identity', async () => {
+    for (const kind of [
+      'wrong-net',
+      'duplicate',
+      'unresolved',
+      'nonreciprocal',
+      'oversized',
+      'missing-getter',
+      'getter-error',
+      'invalid-layer',
+      'cross-class-id',
+      'duplicate-lines',
+      'reverse-duplicate',
+    ]) {
+      const via = {
+        getState_PrimitiveId: () => 'v1',
+        getState_Net: () => (kind === 'wrong-net' ? 'GND' : 'VCC'),
+        getAdjacentPrimitives:
+          kind === 'missing-getter'
+            ? undefined
+            : async (): Promise<unknown[]> => {
+                if (kind === 'getter-error') throw new Error('native failure');
+                return kind === 'oversized' ? Array(17).fill(line) : [line];
+              },
+      };
+      const line = {
+        getState_PrimitiveId: () => 't1',
+        getState_Net: () => 'VCC',
+        getState_Layer: () => (kind === 'invalid-layer' ? 45 : 1),
+        getAdjacentPrimitives: async () =>
+          kind === 'reverse-duplicate' ? [via, via] : kind === 'nonreciprocal' ? [] : [via],
+      };
+      const dispatcher = createDispatcher(
+        makeVerifiedPcbToolkit({
+          PCB_PrimitiveVia: {
+            getAll: async () =>
+              kind === 'duplicate' ? [via, via] : kind === 'cross-class-id' ? [via, line] : [via],
+          },
+          PCB_PrimitiveLine: {
+            getAll: async () =>
+              kind === 'unresolved' ? [] : kind === 'duplicate-lines' ? [line, line] : [line],
+          },
+        }),
+      );
+      expect(
+        await dispatcher.dispatch('pcb.listViaLineAdjacency', {
+          ...scopedPcbParams,
+          viaPrimitiveId: 'v1',
+          expectedNet: 'VCC',
+        }),
+        kind,
+      ).toMatchObject({ evidence: 'unavailable', electricalContinuity: 'UNKNOWN' });
+    }
+  });
+
+  it('rejects invalid adjacency requests and unsupported native inventory before claiming observations', async () => {
+    const dispatcher = createDispatcher(makeVerifiedPcbToolkit({}));
+    for (const request of [
+      { viaPrimitiveId: ' v1', expectedNet: 'VCC' },
+      { viaPrimitiveId: 'v1', expectedNet: 'VCC' },
+    ]) {
+      await expect(
+        dispatcher.dispatch('pcb.listViaLineAdjacency', { ...scopedPcbParams, ...request }),
+      ).resolves.toMatchObject({
+        evidence: 'unavailable',
+        electricalContinuity: 'UNKNOWN',
+      });
+    }
+  });
+
+  it('distinguishes an observed empty adjacency result and rejects the wrong project', async () => {
+    const native = vi.fn(async () => [
+      {
+        getState_PrimitiveId: () => 'v1',
+        getState_Net: () => 'GND',
+        getAdjacentPrimitives: async () => [],
+      },
+    ]);
+    const dispatcher = createDispatcher(
+      makeVerifiedPcbToolkit({
+        PCB_PrimitiveVia: { getAll: native },
+        PCB_PrimitiveLine: { getAll: async () => [] },
+      }),
+    );
+    const request = { viaPrimitiveId: 'v1', expectedNet: 'GND' };
+    await expect(
+      dispatcher.dispatch('pcb.listViaLineAdjacency', { ...request, projectId: 'wrong' }),
+    ).rejects.toThrow('project identity mismatch');
+    expect(native).not.toHaveBeenCalled();
+    await expect(
+      dispatcher.dispatch('pcb.listViaLineAdjacency', { ...request, ...scopedPcbParams }),
+    ).resolves.toEqual({
+      evidence: 'native_reciprocal_line_associations',
+      viaPrimitiveId: 'v1',
+      net: 'GND',
+      lines: [],
+      electricalContinuity: 'UNKNOWN',
+    });
+  });
+
   it('native PCB list methods reject missing enumeration APIs rather than reporting empty boards', async () => {
     const dispatcher = createDispatcher(makeVerifiedPcbToolkit({}));
     for (const [method, nativeClass] of [

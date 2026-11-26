@@ -118,6 +118,7 @@ const METHOD_LIST: readonly string[] = [
   'pcb.listPours',
   'pcb.listRegions',
   'pcb.listTracks',
+  'pcb.listViaLineAdjacency',
   'pcb.listVias',
   'pcb.modifyComponent',
   'pcb.rebuildCopper',

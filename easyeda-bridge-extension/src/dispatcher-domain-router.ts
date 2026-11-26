@@ -109,6 +109,11 @@ export function createDispatcherDomainRouter(
         params.componentPrimitiveId as string,
         params.padNumber as string,
       ),
+    'pcb.listViaLineAdjacency': (params) =>
+      dependencies.pcbReadOperations.listViaLineAdjacency(
+        params.viaPrimitiveId as string,
+        params.expectedNet as string,
+      ),
     'pcb.zonePreflight': (params) =>
       params.rectangle === undefined
         ? dependencies.pcbReadOperations.zonePreflight(

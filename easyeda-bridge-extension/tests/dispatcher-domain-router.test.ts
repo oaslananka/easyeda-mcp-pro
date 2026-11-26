@@ -160,6 +160,11 @@ function createDependencies() {
           padNumber,
         }),
       ),
+      listViaLineAdjacency: vi.fn(async (viaPrimitiveId: string, expectedNet: string) => ({
+        method: 'via-line-adjacency',
+        viaPrimitiveId,
+        expectedNet,
+      })),
       deletePrimitives: vi.fn(async () => ({ deleted: [], notFound: [] })),
     },
     schematicTransactionOperations: {
@@ -304,6 +309,7 @@ const expectedMethods = [
   'pcb.listPours',
   'pcb.listRegions',
   'pcb.listTracks',
+  'pcb.listViaLineAdjacency',
   'pcb.listVias',
   'pcb.modifyComponent',
   'pcb.rebuildCopper',

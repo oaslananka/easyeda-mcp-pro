@@ -4,6 +4,11 @@ import {
 } from '../pcb-layout/placement-pad-connectivity.js';
 import { z } from 'zod';
 import {
+  nativeViaAdjacencySchema,
+  viaAdjacencyResultSchema,
+  optionalViaAdjacencyReview,
+} from './pcb-via-adjacency-review.js';
+import {
   rankPlacementReview,
   type ConstraintSourceKind,
 } from '../pcb-layout/placement-priorities.js';
@@ -255,6 +260,11 @@ const inputSchema = z
       .default(false)
       .describe(
         'Opt in to narrowly scoped beta native pad.getConnectedPrimitives(false) read-only association evidence for declared pad pairs. Associations never certify electrical continuity.',
+      ),
+    nativeViaAdjacency: nativeViaAdjacencySchema
+      .optional()
+      .describe(
+        'Opt-in beta native reciprocal via/line observations for at most four exact via IDs and nets; no electrical continuity or span proof.',
       ),
     traceCurrent: nativeTraceCurrentDeclarationSchema
       .optional()
@@ -560,6 +570,7 @@ const outputSchema = z.object({
   differential_pair: differentialPairResultSchema.optional(),
   placement_review: placementReviewSchema.optional(),
   trace_current_review: nativeTraceCurrentResultSchema.optional(),
+  via_adjacency_review: z.array(viaAdjacencyResultSchema).max(4).optional(),
   engineering_sign_off: z.literal(false),
 });
 
@@ -777,12 +788,13 @@ async function capturePlacementSource(
   relations: PlacementRelation[] | undefined,
   includeNativePadContacts: boolean,
   sourceMismatch: boolean,
+  includeViaAdjacency: boolean,
 ): Promise<string | undefined> {
   if (
-    !includeNativePadContacts ||
     sourceMismatch ||
     !ctx.bridge.connected ||
-    !relations?.some((relation) => relation.padPairs?.length)
+    (!includeViaAdjacency &&
+      (!includeNativePadContacts || !relations?.some((relation) => relation.padPairs?.length)))
   )
     return;
   return readFocusedPcbId(ctx, projectId);
@@ -999,6 +1011,7 @@ export function registerPcbRouteReviewTools(
         placementRelations,
         placementPriorityContext,
         includeNativePadContacts,
+        nativeViaAdjacency,
         traceCurrent,
       } = inputSchema.parse(params);
       const sourceMismatch =
@@ -1012,6 +1025,7 @@ export function registerPcbRouteReviewTools(
         placementRelations,
         includeNativePadContacts,
         sourceMismatch,
+        nativeViaAdjacency !== undefined,
       );
       const route = await collectRouteEvidence(ctx, projectId, sourceMismatch);
       const { tracks, vias, trackCount, viaCount, tracksAvailable, viasAvailable, errors } = route;
@@ -1074,9 +1088,17 @@ export function registerPcbRouteReviewTools(
         );
       }
 
+      const viaAdjacency = await optionalViaAdjacencyReview(
+        ctx,
+        projectId,
+        nativeViaAdjacency,
+        { tracks, vias, complete: geometry.input_evidence.collection_complete, focusedPcbId },
+        () => readFocusedPcbId(ctx, projectId),
+      );
       return {
         project_id: projectId,
         ...geometry,
+        ...viaAdjacency,
         ...(placement === undefined
           ? {}
           : {

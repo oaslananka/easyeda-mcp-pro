@@ -95,6 +95,157 @@ describe('native PCB route geometry review MCP contract', () => {
     );
   });
 
+  it.each([1, 2])(
+    'returns opt-in native via adjacency with second line on layer %s',
+    async (secondLayer) => {
+      const base = bridgeCall.getMockImplementation();
+      bridgeCall.mockImplementation(async (method: string, params: unknown) => {
+        if (method === 'api.read')
+          return { result: { uuid: 'pcb-1', documentType: 3, parentProjectUuid: 'project-1' } };
+        if (method === 'pcb.listTracks') {
+          const result = await base?.(method);
+          return {
+            ...result,
+            items: result.items.map((t: { primitiveId: string }) =>
+              t.primitiveId === 'track-b' ? { ...t, layer: secondLayer } : t,
+            ),
+          };
+        }
+        if (method === 'pcb.listViaLineAdjacency') {
+          expect(params).toEqual({
+            projectId: 'project-1',
+            viaPrimitiveId: 'via-1',
+            expectedNet: 'CLK',
+          });
+          return {
+            evidence: 'native_reciprocal_line_associations',
+            viaPrimitiveId: 'via-1',
+            net: 'CLK',
+            lines: [
+              { primitiveId: 'track-a', layer: 1 },
+              { primitiveId: 'track-b', layer: secondLayer },
+            ],
+            electricalContinuity: 'UNKNOWN',
+          };
+        }
+        return base?.(method);
+      });
+      const result = await run({
+        nativeViaAdjacency: [{ viaPrimitiveId: 'via-1', expectedNet: 'CLK' }],
+      });
+      expect(result.via_adjacency_review).toEqual([
+        {
+          via_primitive_id: 'via-1',
+          expected_net: 'CLK',
+          evidence: 'native_reciprocal_line_associations',
+          lines: [
+            { primitive_id: 'track-a', native_layer: 1 },
+            { primitive_id: 'track-b', native_layer: secondLayer },
+          ],
+          cross_layer_candidate: secondLayer === 2,
+          electrical_continuity_status: 'UNKNOWN',
+        },
+      ]);
+      expect(result.engineering_sign_off).toBe(false);
+      const legacy = await run();
+      expect(legacy.via_adjacency_review).toBeUndefined();
+      expect(legacy.findings).toEqual(result.findings);
+    },
+  );
+
+  it('does not trust a stale or contradictory native adjacency reply', async () => {
+    const base = bridgeCall.getMockImplementation();
+    for (const mode of ['wrong-line', 'wrong-layer', 'changed-focus', 'wrong-net', 'unavailable']) {
+      let focus = 'pcb-1';
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'api.read')
+          return { result: { uuid: focus, documentType: 3, parentProjectUuid: 'project-1' } };
+        if (method === 'pcb.listViaLineAdjacency') {
+          if (mode === 'changed-focus') focus = 'pcb-2';
+          if (mode === 'unavailable') throw new Error('native beta unavailable');
+          return {
+            evidence: 'native_reciprocal_line_associations',
+            viaPrimitiveId: 'via-1',
+            net: mode === 'wrong-net' ? 'GND' : 'CLK',
+            lines: [
+              {
+                primitiveId: mode === 'wrong-line' ? 'missing' : 'track-a',
+                layer: mode === 'wrong-layer' ? 2 : 1,
+              },
+            ],
+            electricalContinuity: 'UNKNOWN',
+          };
+        }
+        return base?.(method);
+      });
+      const result = await run({
+        nativeViaAdjacency: [{ viaPrimitiveId: 'via-1', expectedNet: 'CLK' }],
+      });
+      expect(result.via_adjacency_review[0], mode).toMatchObject({
+        evidence: 'unavailable',
+        lines: [],
+        cross_layer_candidate: false,
+        electrical_continuity_status: 'UNKNOWN',
+      });
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
+  it('bounds adjacency declarations and avoids native calls without matching inventory', async () => {
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    const declaration = { viaPrimitiveId: 'via-1', expectedNet: 'CLK' };
+    for (const nativeViaAdjacency of [
+      [],
+      [declaration, declaration],
+      Array.from({ length: 5 }, (_, i) => ({ ...declaration, viaPrimitiveId: String(i) })),
+      [{ ...declaration, expectedNet: ' CLK' }],
+    ]) {
+      expect(schema?.safeParse({ projectId: 'project-1', nativeViaAdjacency }).success).toBe(false);
+    }
+    const base = bridgeCall.getMockImplementation();
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'api.read')
+        return { result: { uuid: 'pcb-1', documentType: 3, parentProjectUuid: 'project-1' } };
+      return base?.(method);
+    });
+    const result = await run({ nativeViaAdjacency: [{ ...declaration, expectedNet: 'GND' }] });
+    expect(result.via_adjacency_review[0]).toMatchObject({
+      evidence: 'unavailable',
+      electrical_continuity_status: 'UNKNOWN',
+    });
+    expect(bridgeCall.mock.calls.some(([method]) => method === 'pcb.listViaLineAdjacency')).toBe(
+      false,
+    );
+  });
+
+  it('fails closed before adjacency reads when inventory, bridge source or PCB focus is unverified', async () => {
+    const base = bridgeCall.getMockImplementation();
+    for (const mode of ['incomplete', 'version-mismatch', 'changed-focus']) {
+      let reads = 0;
+      context.bridge.extensionVersionMismatch = mode === 'version-mismatch';
+      bridgeCall.mockClear();
+      bridgeCall.mockImplementation(async (method: string) => {
+        if (method === 'api.read') {
+          const uuid = mode === 'changed-focus' && ++reads > 1 ? 'pcb-2' : 'pcb-1';
+          return { result: { uuid, documentType: 3, parentProjectUuid: 'project-1' } };
+        }
+        if (method === 'pcb.listVias' && mode === 'incomplete') return { total: 2, items: [] };
+        return base?.(method);
+      });
+      const result = await run({
+        nativeViaAdjacency: [{ viaPrimitiveId: 'via-1', expectedNet: 'CLK' }],
+      });
+      expect(result.via_adjacency_review[0], mode).toMatchObject({
+        evidence: 'unavailable',
+        electrical_continuity_status: 'UNKNOWN',
+      });
+      expect(
+        bridgeCall.mock.calls.some(([method]) => method === 'pcb.listViaLineAdjacency'),
+        mode,
+      ).toBe(false);
+    }
+  });
+
   it('validates and evaluates a caller-declared minimum copper clearance without extra reads', async () => {
     const tool = registry.get('easyeda_pcb_route_geometry_review');
     for (const value of [0, -1, Number.POSITIVE_INFINITY, Number.NaN, '0.1']) {
