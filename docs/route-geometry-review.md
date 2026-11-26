@@ -381,6 +381,59 @@ collection fails closed to **UNKNOWN**, not `PASS` or a verified missing
 component. Native `getAll()` enumeration is bounded, and separate
 primitive reads are **not an atomic PCB snapshot**.
 
+### Optional source-specific selected line width
+
+A declared pad pair may include `minObservedLineWidthMm` when the caller has
+an applicable, independently sourced minimum line-width criterion. The
+relation must include its existing `constraintSource`; the optional
+`constraintSourceKind` distinguishes a declared datasheet requirement from
+advice. Do not substitute a universal trace-width rule.
+
+```json
+{
+  "first": "U1",
+  "second": "C4",
+  "kind": "decoupling",
+  "constraintSource": "Illustrative board-specific rule; not a vendor requirement",
+  "constraintSourceKind": "advisory",
+  "padPairs": [
+    {
+      "firstPin": "24",
+      "secondPin": "1",
+      "expectedNet": "+3.3V",
+      "minObservedLineWidthMm": 0.3
+    }
+  ]
+}
+```
+
+The number is illustrative only. The optional
+`selected_line_width_review` measures the minimum width of the **selected
+observed native line chain**, with its native layer and all tied narrowest
+line IDs. It prefers an exact pad-center endpoint chain; otherwise an
+already-observed associated endpoint chain can supply evidence if the caller
+explicitly opted into native pad contacts. Evidence records the exact
+endpoint, broad native association, or centre-only native association
+provenance. It never requests a different contact mode automatically.
+Unrelated same-net traces are not considered.
+
+The focused PCB must match before inventory collection, during pad
+observation and at the final width check. An incomplete or conflicting
+inventory, unavailable native pad/net match or selected chain yields
+`unavailable` and UNKNOWN, with no width measurement. Separate reads are
+not atomic. A measured width below the caller-declared criterion produces
+WARNING; meeting the criterion remains UNKNOWN. The finding and overall
+review reflect observed warnings. With priority review enabled,
+`width_deviations` identifies the affected pin pair, expected net, narrowest
+native line IDs and observed/declared widths; the action queue prioritizes
+the measured deviation ahead of generic advisory warnings, while preserving
+net mismatch, declared datasheet requirement and matched power-context
+precedence. This is a selected-chain geometry check, **not** a current
+capacity calculation, all-path bottleneck, physical contact, return-plane,
+closed-loop or placement-adequacy assessment. Electrical continuity and
+engineering sign-off are never inferred. Omit the criterion to preserve
+existing output and behavior.
+
 ## Optional placement review action priorities
 
 Set `placementPriorityContext: {}` together with `placementRelations` to
@@ -388,8 +441,9 @@ receive a separate ordered `placement_review.review_priorities` list.
 The original findings and their IDs/order are unchanged. Each priority
 references its finding and includes an action and topology-specific next
 step. Review actions are ordered by observed net mismatch, warning on a
-caller-declared datasheet requirement, matched power-tree context, other
-observed warning, then missing topology evidence. Equal action groups
+caller-declared datasheet requirement, matched power-tree context, observed
+selected-line width deviation, other observed warning, then missing topology
+evidence. Equal action groups
 retain caller order. This is an inspection queue, not electrical severity,
 a universal layout threshold, or an EMI/current-loop pass.
 

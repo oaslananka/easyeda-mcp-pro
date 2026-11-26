@@ -12,6 +12,7 @@ export type PlacementPriorityAction =
   | 'verify-net-mismatch'
   | 'review-declared-requirement'
   | 'review-power-context'
+  | 'review-selected-line-width'
   | 'review-observed-warning'
   | 'collect-topology-evidence';
 
@@ -22,6 +23,7 @@ export interface PlacementPriority {
   action: PlacementPriorityAction;
   constraint_source_kind: ConstraintSourceKind;
   power_context: PlacementPowerIssue[];
+  width_deviations?: WidthDeviation[];
   next_step: string;
   electrical_loop_status: 'UNKNOWN';
 }
@@ -30,6 +32,7 @@ const actions: readonly PlacementPriorityAction[] = [
   'verify-net-mismatch',
   'review-declared-requirement',
   'review-power-context',
+  'review-selected-line-width',
   'review-observed-warning',
   'collect-topology-evidence',
 ];
@@ -73,16 +76,44 @@ function correlatedPowerIssues(
   );
 }
 
+interface WidthDeviation {
+  first_pin: string;
+  second_pin: string;
+  expected_net: string;
+  narrowest_line_ids: string[];
+  observed_min_line_width_mm: number;
+  declared_min_line_width_mm: number;
+}
+
+function widthDeviations(finding: PlacementFinding): WidthDeviation[] {
+  return (finding.pad_pairs ?? []).flatMap((p) => {
+    const w = p.selected_line_width_review;
+    if (w?.status !== 'WARNING' || w.observed_min_line_width_mm === undefined) return [];
+    return [
+      {
+        first_pin: p.first_pin,
+        second_pin: p.second_pin,
+        expected_net: p.expected_net,
+        narrowest_line_ids: [...w.narrowest_line_ids],
+        observed_min_line_width_mm: w.observed_min_line_width_mm,
+        declared_min_line_width_mm: w.declared_min_line_width_mm,
+      },
+    ];
+  });
+}
+
 function selectAction(
   finding: PlacementFinding,
   sourceKind: ConstraintSourceKind,
   context: PlacementPowerIssue[],
+  widths: WidthDeviation[],
 ): PlacementPriorityAction {
   if (hasNetMismatch(finding)) return 'verify-net-mismatch';
   if (finding.status === 'WARNING' && sourceKind === 'datasheet-requirement') {
     return 'review-declared-requirement';
   }
   if (context.length) return 'review-power-context';
+  if (widths.length) return 'review-selected-line-width';
   if (finding.status === 'WARNING') return 'review-observed-warning';
   return 'collect-topology-evidence';
 }
@@ -93,6 +124,8 @@ const actionSteps: Record<PlacementPriorityAction, string> = {
     'Verify the caller-declared datasheet requirement and observed deviation.',
   'review-power-context':
     'Review the matched caller-supplied power-tree issue alongside native geometry.',
+  'review-selected-line-width':
+    'Review the exact narrow selected line segments against the caller-declared width criterion.',
   'review-observed-warning': 'Review the observed deviation and the supplied constraint source.',
   'collect-topology-evidence':
     'Collect missing current-path evidence; do not infer a physical failure.',
@@ -108,7 +141,8 @@ export function rankPlacementReview(
     .map((finding): PlacementPriority => {
       const sourceKind = provenance.get(finding.id) ?? 'unspecified';
       const context = correlatedPowerIssues(finding, issues);
-      const action = selectAction(finding, sourceKind, context);
+      const widths = widthDeviations(finding);
+      const action = selectAction(finding, sourceKind, context, widths);
       return {
         finding_id: finding.id,
         relation: finding.relation,
@@ -116,6 +150,7 @@ export function rankPlacementReview(
         action,
         constraint_source_kind: sourceKind,
         power_context: context,
+        ...(widths.length ? { width_deviations: widths } : {}),
         next_step: actionSteps[action] + ' ' + topologySteps[finding.relation],
         electrical_loop_status: 'UNKNOWN',
       };

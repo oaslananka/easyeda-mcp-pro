@@ -1,3 +1,4 @@
+import type { SelectedLineWidthReview } from './placement-selected-line-width.js';
 import {
   observeNativePadRouteChain,
   type NativePadRouteChain,
@@ -19,6 +20,7 @@ export interface NativePadPairDeclaration {
   secondPin: string;
   expectedNet: string;
   maxCenterDistanceMm?: number;
+  minObservedLineWidthMm?: number;
 }
 
 export interface NativePadPairFinding {
@@ -35,6 +37,7 @@ export interface NativePadPairFinding {
   declared_max_pad_center_distance_mm?: number;
   reasons: string[];
   electrical_loop_status: 'UNKNOWN';
+  selected_line_width_review?: SelectedLineWidthReview;
   route_chain?: NativePadRouteChain;
   native_pad_associations?: NativePadAssociationFinding;
 }

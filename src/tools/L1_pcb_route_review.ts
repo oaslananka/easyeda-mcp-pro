@@ -1,3 +1,4 @@
+import { reviewSelectedLineWidth } from '../pcb-layout/placement-selected-line-width.js';
 import {
   reviewDecouplingTopology,
   validDecouplingLegs,
@@ -112,6 +113,14 @@ const nativePadPairSchema = z.object({
     .refine((value) => value === value.trim()),
   expectedNet: exactNetSchema,
   maxCenterDistanceMm: z.number().finite().positive().optional(),
+  minObservedLineWidthMm: z
+    .number()
+    .finite()
+    .positive()
+    .optional()
+    .describe(
+      'Caller-sourced minimum selected native line width; not a current capacity or universal rule.',
+    ),
 });
 
 const placementRelationSchema = z
@@ -241,11 +250,25 @@ const placementPrioritySchema = z.object({
     'verify-net-mismatch',
     'review-declared-requirement',
     'review-power-context',
+    'review-selected-line-width',
     'review-observed-warning',
     'collect-topology-evidence',
   ]),
   constraint_source_kind: z.enum(['datasheet-requirement', 'advisory', 'unspecified']),
   power_context: z.array(placementPowerIssueSchema).max(64),
+  width_deviations: z
+    .array(
+      z.object({
+        first_pin: z.string(),
+        second_pin: z.string(),
+        expected_net: z.string(),
+        narrowest_line_ids: z.array(z.string()),
+        observed_min_line_width_mm: z.number().positive(),
+        declared_min_line_width_mm: z.number().positive(),
+      }),
+    )
+    .max(2)
+    .optional(),
   next_step: z.string(),
   electrical_loop_status: z.literal('UNKNOWN'),
 });
@@ -535,6 +558,23 @@ const placementReviewSchema = z.object({
                     .optional(),
                   reasons: z.array(z.string()),
                   electrical_continuity_status: z.literal('UNKNOWN'),
+                })
+                .optional(),
+              selected_line_width_review: z
+                .object({
+                  evidence: z.enum([
+                    'observed_exact_endpoint_chain',
+                    'native_reported',
+                    'native_reported_centre',
+                    'unavailable',
+                  ]),
+                  status: z.enum(['WARNING', 'UNKNOWN']),
+                  declared_min_line_width_mm: z.number().positive(),
+                  observed_min_line_width_mm: z.number().positive().optional(),
+                  native_layer: z.number().optional(),
+                  narrowest_line_ids: z.array(z.string()),
+                  electrical_continuity_status: z.literal('UNKNOWN'),
+                  reasons: z.array(z.string()),
                 })
                 .optional(),
               route_chain: z
@@ -835,6 +875,12 @@ async function readFocusedPcbId(ctx: ToolContext, projectId: string): Promise<st
   }
 }
 
+function requestsSelectedWidth(relations: PlacementRelation[] | undefined): boolean {
+  return (
+    relations?.some((r) => r.padPairs?.some((p) => p.minObservedLineWidthMm !== undefined)) === true
+  );
+}
+
 async function capturePlacementSource(
   ctx: ToolContext,
   projectId: string,
@@ -847,6 +893,7 @@ async function capturePlacementSource(
     sourceMismatch ||
     !ctx.bridge.connected ||
     (!includeViaAdjacency &&
+      !requestsSelectedWidth(relations) &&
       (!includeNativePadContacts || !relations?.some((relation) => relation.padPairs?.length)))
   )
     return;
@@ -1023,6 +1070,38 @@ async function attachDecouplingTopology(
   }
 }
 
+async function attachSelectedLineWidths(
+  placement: ReturnType<typeof reviewPlacementRelations> | undefined,
+  relations: PlacementRelation[] | undefined,
+  source: { tracks: NativeTrack[]; complete: boolean; focusedPcbId?: string },
+  readFocus: () => Promise<string | undefined>,
+) {
+  if (!placement || !relations || !requestsSelectedWidth(relations)) return;
+  const complete =
+    source.complete &&
+    placement.input_evidence.collection_complete &&
+    source.focusedPcbId !== undefined &&
+    (await readFocus()) === source.focusedPcbId;
+  for (const [index, relation] of relations.entries()) {
+    const finding = placement.findings[index];
+    for (const [pairIndex, declaration] of (relation.padPairs ?? []).entries()) {
+      const pad = finding?.pad_pairs?.[pairIndex];
+      if (!pad || declaration.minObservedLineWidthMm === undefined) continue;
+      pad.selected_line_width_review = reviewSelectedLineWidth(
+        pad,
+        declaration.minObservedLineWidthMm,
+        source.tracks,
+        complete,
+      );
+      if (pad.selected_line_width_review.status === 'WARNING') {
+        pad.status = 'WARNING';
+        finding.status = 'WARNING';
+        placement.status = 'WARNING';
+      }
+    }
+  }
+}
+
 function withPlacementPriorities(
   placement: ReturnType<typeof reviewPlacementRelations>,
   relations: z.infer<typeof placementRelationSchema>[] | undefined,
@@ -1194,6 +1273,12 @@ export function registerPcbRouteReviewTools(
         placementRelations,
         geometry.input_evidence.collection_complete,
         focusedPcbId,
+        () => readFocusedPcbId(ctx, projectId),
+      );
+      await attachSelectedLineWidths(
+        placement,
+        placementRelations,
+        { tracks, complete: geometry.input_evidence.collection_complete, focusedPcbId },
         () => readFocusedPcbId(ctx, projectId),
       );
       return {
