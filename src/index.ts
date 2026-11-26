@@ -18,9 +18,15 @@ import { RemoteGateway } from './remote/gateway.js';
 import { createHostedCloudRuntime } from './cloud/runtime.js';
 import { createHostedUsageAuditLog } from './cloud/usage.js';
 import { assertSupportedNodeRuntime } from './runtime/policy.js';
+import { runPcbExportEvidence } from './cli/pcb-export-evidence.js';
 import { runPrivateGroundCheck } from './cli/private-ground.js';
 
 async function handleLocalCommand(): Promise<boolean> {
+  if (process.argv[2] === 'pcb-export-evidence') {
+    if (process.argv[3] !== '--help') assertSupportedNodeRuntime();
+    process.exitCode = runPcbExportEvidence(process.argv.slice(3));
+    return true;
+  }
   if (['private-ground-check', 'private-ground-session'].includes(process.argv[2] ?? '')) {
     assertSupportedNodeRuntime();
     process.exitCode = await runPrivateGroundCheck(
