@@ -2513,6 +2513,7 @@ Returns a JSON object matching the schema:
 | `minWidthMm`               | `number (optional)`           | No       | Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence.                                                                                        |
 | `minClearanceMm`           | `number (optional)`           | No       | Optional caller-supplied minimum same-layer, different-net line-edge clearance in millimeters; not an active native DRC or fabricator limit.                                               |
 | `differentialPair`         | `object (optional)`           | No       |                                                                                                                                                                                            |
+| `sensitiveLineSpacing`     | `object[] (optional)`         | No       | Optional source-declared sensitive/other net line-edge spacing; no electrical isolation or EMI proof.                                                                                      |
 | `placementRelations`       | `object[] (optional)`         | No       |                                                                                                                                                                                            |
 | `placementPriorityContext` | `object (optional)`           | No       | Opt in to review action ordering; optional caller-supplied power-tree issue excerpts, not verified electrical severity.                                                                    |
 | `includeNativePadContacts` | `boolean (optional)`          | Yes      | Opt in to narrowly scoped beta native pad.getConnectedPrimitives(false) read-only association evidence for declared pad pairs. Associations never certify electrical continuity.           |
@@ -2541,6 +2542,7 @@ Returns a JSON object matching the schema:
   runtime: object;
   errors: string[];
   differential_pair: object (optional);
+  sensitive_line_spacing_review: object[] (optional);
   placement_review: object (optional);
   trace_current_review: object (optional);
   via_adjacency_review: object[] (optional);

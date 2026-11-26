@@ -1,4 +1,10 @@
 import {
+  optionalSensitiveLineSpacingReview,
+  sensitiveLineSpacingSchema,
+  sensitiveLineSpacingResultSchema,
+  sensitiveLineSpacingStatus,
+} from './pcb-sensitive-line-spacing-review.js';
+import {
   nativePourAnnulusSchema,
   pourAnnulusResultSchema,
   optionalPourAnnulusReview,
@@ -332,6 +338,11 @@ const inputSchema = z
         'Optional caller-supplied minimum same-layer, different-net line-edge clearance in millimeters; not an active native DRC or fabricator limit.',
       ),
     differentialPair: differentialPairSchema.optional(),
+    sensitiveLineSpacing: sensitiveLineSpacingSchema
+      .optional()
+      .describe(
+        'Optional source-declared sensitive/other net line-edge spacing; no electrical isolation or EMI proof.',
+      ),
     placementRelations: z.array(placementRelationSchema).min(1).max(8).optional(),
     placementPriorityContext: placementPriorityContextSchema
       .optional()
@@ -691,6 +702,7 @@ const outputSchema = z.object({
   }),
   errors: z.array(z.string()),
   differential_pair: differentialPairResultSchema.optional(),
+  sensitive_line_spacing_review: z.array(sensitiveLineSpacingResultSchema).max(4).optional(),
   placement_review: placementReviewSchema.optional(),
   trace_current_review: nativeTraceCurrentResultSchema.optional(),
   via_adjacency_review: z.array(viaAdjacencyResultSchema).max(4).optional(),
@@ -913,7 +925,11 @@ function requestsSelectedWidth(relations: PlacementRelation[] | undefined): bool
 }
 
 function requestsIndependentNativeSource(input: z.infer<typeof inputSchema>): boolean {
-  return input.nativeViaAdjacency !== undefined || input.nativePourAnnulus !== undefined;
+  return (
+    input.nativeViaAdjacency !== undefined ||
+    input.nativePourAnnulus !== undefined ||
+    input.sensitiveLineSpacing !== undefined
+  );
 }
 
 async function capturePlacementSource(
@@ -1268,6 +1284,11 @@ export function registerPcbRouteReviewTools(
               geometry.input_evidence.collection_complete,
             );
 
+      const sensitiveSpacing = await optionalSensitiveLineSpacingReview(
+        input.sensitiveLineSpacing,
+        { tracks, vias, complete: geometry.input_evidence.collection_complete, focusedPcbId },
+        () => readFocusedPcbId(ctx, projectId),
+      );
       const nativeCurrent = optionalNativeCurrentReview(
         traceCurrent,
         route,
@@ -1330,6 +1351,7 @@ export function registerPcbRouteReviewTools(
         ...geometry,
         ...pourAnnulus,
         ...viaAdjacency,
+        ...sensitiveSpacing,
         ...(placement === undefined
           ? {}
           : {
@@ -1346,6 +1368,7 @@ export function registerPcbRouteReviewTools(
           placement?.status,
           pair?.status,
           nativeCurrent?.status,
+          sensitiveLineSpacingStatus(sensitiveSpacing.sensitive_line_spacing_review),
         ),
         runtime: {
           bridge_connected: ctx.bridge.connected,
