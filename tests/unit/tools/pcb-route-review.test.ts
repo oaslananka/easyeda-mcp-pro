@@ -1,3 +1,4 @@
+import { analyzePowerTree } from '../../../src/power-tree/index.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EnvSchema } from '../../../src/config/env.js';
 import { registerPcbRouteReviewTools } from '../../../src/tools/L1_pcb_route_review.js';
@@ -1062,6 +1063,80 @@ describe('native PCB route geometry review MCP contract', () => {
       }),
     );
     expect(result.errors).toEqual([]);
+  });
+
+  it('opts in to separately ordered review actions using exact project-scoped power-tree context', async () => {
+    mockNativePlacementPads();
+    const relation = { ...placementPadPair, constraintSourceKind: 'advisory' };
+    // Hypothetical caller power model, not a claim about the real board.
+    const report = analyzePowerTree({
+      projectId: 'project-1',
+      rails: [
+        { id: 'vin', name: 'VIN', voltage: 12 },
+        { id: 'vcc', name: 'VCC', voltage: 5 },
+      ],
+      regulators: [
+        {
+          id: 'reg',
+          ref: 'U3',
+          kind: 'buck',
+          inputRailId: 'vin',
+          outputRailId: 'vcc',
+          maxOutputCurrentA: 0.1,
+        },
+      ],
+      loads: [{ id: 'load', railId: 'vcc', currentA: 0.2 }],
+    });
+    const issue = report.issues.find((i) => i.code === 'POWER_REGULATOR_OVERLOAD');
+    expect(issue).toMatchObject({ componentRef: 'U3', railName: 'VCC', severity: 'error' });
+    const excerpt = {
+      code: issue?.code,
+      severity: issue?.severity,
+      componentRef: issue?.componentRef,
+      railName: issue?.railName,
+    };
+    const context = { powerTree: { projectId: report.projectId, issues: [excerpt] } };
+    const result = await run({ placementRelations: [relation], placementPriorityContext: context });
+    expect(result.placement_review.review_priorities[0]).toMatchObject({
+      finding_id: result.placement_review.findings[0].id,
+      action: 'review-power-context',
+      constraint_source_kind: 'advisory',
+      power_context: [excerpt],
+      electrical_loop_status: 'UNKNOWN',
+    });
+    expect(result.placement_review.findings[0].status).toBe('UNKNOWN');
+    const without = await run({ placementRelations: [placementPadPair] });
+    expect(without.placement_review.review_priorities).toBeUndefined();
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    expect(
+      schema?.safeParse({
+        projectId: 'project-1',
+        placementRelations: [relation],
+        placementPriorityContext: { powerTree: { ...context.powerTree, projectId: 'wrong' } },
+      }).success,
+    ).toBe(false);
+    expect(
+      schema?.safeParse({ projectId: 'project-1', placementPriorityContext: {} }).success,
+    ).toBe(false);
+  });
+
+  it('supports priority review with unspecified provenance and no power-tree context', async () => {
+    mockNativePlacementPads();
+    const result = await run({
+      placementRelations: [placementPadPair],
+      placementPriorityContext: {},
+    });
+    expect(result.placement_review.review_priorities).toEqual([
+      expect.objectContaining({
+        finding_id: result.placement_review.findings[0].id,
+        action: 'collect-topology-evidence',
+        constraint_source_kind: 'unspecified',
+        power_context: [],
+        electrical_loop_status: 'UNKNOWN',
+      }),
+    ]);
+    expect(result.placement_review.findings[0].status).toBe('UNKNOWN');
+    expect(result.placement_review.engineering_sign_off).toBe(false);
   });
 
   it('includes bounded exact same-layer route endpoint chain evidence without electrical PASS', async () => {
