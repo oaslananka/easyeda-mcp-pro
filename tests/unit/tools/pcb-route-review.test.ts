@@ -1589,6 +1589,48 @@ describe('native PCB route geometry review MCP contract', () => {
     }
   });
 
+  it('keeps mixed placement relations independent and respects the shared contact budget', async () => {
+    const source = {
+      nativeContacts: true,
+      centreReply: true,
+      dualLegs: true,
+      tracks: decouplingTracks,
+    };
+    const ordinaryRelation = { first: 'U3', second: 'C5', kind: 'crystal' };
+    mockNativePlacementPads(source);
+    const mixed = await run({
+      placementRelations: [ordinaryRelation, decouplingRelation, placementPadPair],
+      nativePadContactMode: 'centre-only',
+    });
+    const findings = mixed.placement_review.findings;
+    expect(findings[0].decoupling_topology).toBeUndefined();
+    expect(findings[0].pad_pairs).toBeUndefined();
+    expect(findings[1].decoupling_topology.evidence).toBe('both_line_chains_observed');
+    expect(findings[2].decoupling_topology).toBeUndefined();
+    expect(findings[2].pad_pairs[0].native_pad_associations.evidence).toBe(
+      'native_reported_centre',
+    );
+    expect(
+      bridgeCall.mock.calls.filter(([method]) => method === 'pcb.listComponentPadConnections'),
+    ).toHaveLength(6);
+
+    bridgeCall.mockClear();
+    mockNativePlacementPads(source);
+    const overBudget = await run({
+      placementRelations: [decouplingRelation, decouplingRelation, placementPadPair],
+      nativePadContactMode: 'centre-only',
+    });
+    expect(
+      overBudget.placement_review.findings
+        .slice(0, 2)
+        .every((finding: any) => finding.decoupling_topology.evidence === 'unavailable'),
+    ).toBe(true);
+    expect(
+      bridgeCall.mock.calls.some(([method]) => method === 'pcb.listComponentPadConnections'),
+    ).toBe(false);
+    expect(overBudget.engineering_sign_off).toBe(false);
+  });
+
   it('rejects ambiguous decoupling leg declarations and requires centre-only opt-in', () => {
     const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
     const request = { projectId: 'project-1', nativePadContactMode: 'centre-only' };
