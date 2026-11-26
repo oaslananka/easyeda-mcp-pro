@@ -688,6 +688,21 @@ describe('Export Tools', () => {
       expect(result?.file_path).toBe(path.join(tmpArtifactDir, 'proj-123-schematic_svg.zip'));
     });
 
+    it('saves the native PADS archive (layout, logic schematic, decals) with a .zip extension', async () => {
+      const zip = zipWithEntries([
+        'proj/Board1/PCB1.asc',
+        'proj/Board1/Sch/Sch.txt',
+        'proj/proj.c',
+        'proj/proj.d',
+      ]);
+      bridgeCall.mockResolvedValue({ base64: zip.toString('base64'), fileName: 'pads.zip' });
+
+      const result = await run({ projectId: 'proj-123', kind: 'pads_layout' });
+
+      expect(result).toMatchObject({ exported: true, mime_type: 'application/zip' });
+      expect(result?.file_path).toBe(path.join(tmpArtifactDir, 'proj-123-pads_layout.zip'));
+    });
+
     it.each([
       ['missing payload', 'ipc2581', null],
       ['empty base64', 'ipc2581', { base64: '' }],
@@ -706,9 +721,14 @@ describe('Export Tools', () => {
         { base64: b64(ipcText.replace('999\n', '')) },
       ],
       [
-        'ZIP for a non-SVG kind',
+        'ZIP for a text-only kind',
+        'ipc_d356',
+        { base64: zipWithEntries(['a.ipc']).toString('base64') },
+      ],
+      [
+        'PADS ZIP without a .asc layout',
         'pads_layout',
-        { base64: zipWithEntries(['a.asc']).toString('base64') },
+        { base64: zipWithEntries(['proj/Sch.txt']).toString('base64') },
       ],
       [
         'ZIP with non-SVG entries',
