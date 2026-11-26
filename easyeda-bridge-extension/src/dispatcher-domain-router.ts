@@ -108,6 +108,7 @@ export function createDispatcherDomainRouter(
       dependencies.pcbReadOperations.listComponentPadConnections(
         params.componentPrimitiveId as string,
         params.padNumber as string,
+        params.onlyCentreConnection,
       ),
     'pcb.listViaLineAdjacency': (params) =>
       dependencies.pcbReadOperations.listViaLineAdjacency(

@@ -1,3 +1,4 @@
+import type { DecouplingTopology } from './placement-decoupling-topology.js';
 import type { NativePadPairDeclaration, NativePadPairFinding } from './placement-pad-evidence.js';
 
 /**
@@ -60,6 +61,7 @@ export interface PlacementFinding {
   reasons: string[];
   electrical_loop_status: 'UNKNOWN';
   pad_pairs?: NativePadPairFinding[];
+  decoupling_topology?: DecouplingTopology;
 }
 
 export interface PlacementReview {

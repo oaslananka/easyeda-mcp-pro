@@ -2669,6 +2669,56 @@ describe('createDispatcher', () => {
       connected: [{ primitiveId: 'trace-1', nativeType: 3, net: 'VCC', layer: 1 }],
       interpretation: 'native-api-association-only; electrical-continuity-UNKNOWN',
     });
+    getter.mockClear();
+    const centre = await dispatcher.dispatch('pcb.listComponentPadConnections', {
+      ...scopedPcbParams,
+      componentPrimitiveId: 'U3-id',
+      padNumber: '8',
+      onlyCentreConnection: true,
+    });
+    expect(getter).toHaveBeenCalledExactlyOnceWith(true);
+    expect(centre).toMatchObject({
+      evidence: 'native_reported_centre',
+      connected: [{ primitiveId: 'trace-1', nativeType: 3, net: 'VCC', layer: 1 }],
+    });
+    getter.mockClear();
+    await expect(
+      dispatcher.dispatch('pcb.listComponentPadConnections', {
+        ...scopedPcbParams,
+        componentPrimitiveId: 'U3-id',
+        padNumber: '8',
+        onlyCentreConnection: 'true',
+      }),
+    ).rejects.toThrow();
+    expect(getter).not.toHaveBeenCalled();
+  });
+
+  it('fails closed on invalid centre-only pad identities and incomplete inventory', async () => {
+    const getAllPinsByPrimitiveId = vi.fn(async () => []);
+    const dispatcher = createDispatcher(
+      makeVerifiedPcbToolkit({
+        PCB_PrimitiveComponent: {
+          getAll: async () => [{ getState_PrimitiveId: () => 'U3-id' }],
+          getAllPinsByPrimitiveId,
+        },
+      }),
+    );
+    const request = {
+      ...scopedPcbParams,
+      componentPrimitiveId: 'U3-id',
+      padNumber: '8',
+      onlyCentreConnection: true,
+    };
+    await expect(
+      dispatcher.dispatch('pcb.listComponentPadConnections', { ...request, padNumber: ' ' }),
+    ).rejects.toThrow('identity');
+    expect(getAllPinsByPrimitiveId).not.toHaveBeenCalled();
+    await expect(
+      dispatcher.dispatch('pcb.listComponentPadConnections', request),
+    ).resolves.toMatchObject({
+      evidence: 'unavailable',
+      reason: 'component-pad-inventory-unverified',
+    });
   });
 
   it('never interprets unavailable, wrong-parent or malformed connection evidence as empty', async () => {

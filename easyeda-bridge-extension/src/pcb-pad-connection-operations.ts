@@ -33,13 +33,47 @@ function reportedConnections(
   return items;
 }
 
+async function readPadAssociations(
+  pad: { getConnectedPrimitives?: (onlyCentreConnection: boolean) => Promise<unknown> } | undefined,
+  componentPrimitiveId: string,
+  padNumber: string,
+  onlyCentreConnection: boolean,
+  readState: PcbReadOperationDependencies['readState'],
+): Promise<unknown> {
+  const padPrimitiveId = readState(pad, 'PrimitiveId');
+  const net = readState(pad, 'Net');
+  if (!token(padPrimitiveId) || !token(net) || typeof pad?.getConnectedPrimitives !== 'function')
+    return missing('native-pad-net-or-connection-getter-unavailable');
+  const connected = reportedConnections(
+    await pad.getConnectedPrimitives(onlyCentreConnection),
+    net,
+    readState,
+  );
+  if (!connected) return missing('native-connected-primitives-unverified');
+  return {
+    evidence: onlyCentreConnection ? 'native_reported_centre' : 'native_reported',
+    componentPrimitiveId,
+    padPrimitiveId,
+    padNumber,
+    net,
+    connected,
+    interpretation: 'native-api-association-only; electrical-continuity-UNKNOWN',
+  };
+}
+
 /** Project/focused-PCB scope is enforced by readProjectScoped before/after. */
 export function createComponentPadConnectionReader({
   requireActivePcbContext,
   readFirstPath,
   readState,
 }: PcbReadOperationDependencies) {
-  return async (componentPrimitiveId: string, padNumber: string): Promise<unknown> => {
+  return async (
+    componentPrimitiveId: string,
+    padNumber: string,
+    onlyCentreConnection: unknown = false,
+  ): Promise<unknown> => {
+    if (typeof onlyCentreConnection !== 'boolean')
+      throw new Error('Invalid native pad contact mode');
     await requireActivePcbContext();
     if (!token(componentPrimitiveId) || !token(padNumber))
       throw new Error('Native component/pad identity is required and bounded');
@@ -58,21 +92,12 @@ export function createComponentPadConnectionReader({
         readState(p, 'ParentComponentPrimitiveId') === componentPrimitiveId,
     );
     if (matches.length !== 1) return missing('component-pad-identity-unverified');
-    const pad = matches[0];
-    const padPrimitiveId = readState(pad, 'PrimitiveId');
-    const net = readState(pad, 'Net');
-    if (!token(padPrimitiveId) || !token(net) || typeof pad?.getConnectedPrimitives !== 'function')
-      return missing('native-pad-net-or-connection-getter-unavailable');
-    const connected = reportedConnections(await pad.getConnectedPrimitives(false), net, readState);
-    if (!connected) return missing('native-connected-primitives-unverified');
-    return {
-      evidence: 'native_reported',
+    return readPadAssociations(
+      matches[0],
       componentPrimitiveId,
-      padPrimitiveId,
       padNumber,
-      net,
-      connected,
-      interpretation: 'native-api-association-only; electrical-continuity-UNKNOWN',
-    };
+      onlyCentreConnection,
+      readState,
+    );
   };
 }

@@ -1,4 +1,8 @@
 import {
+  reviewDecouplingTopology,
+  validDecouplingLegs,
+} from '../pcb-layout/placement-decoupling-topology.js';
+import {
   reviewNativePadAssociations,
   unknownNativePadAssociations,
 } from '../pcb-layout/placement-pad-connectivity.js';
@@ -115,6 +119,12 @@ const placementRelationSchema = z
     first: exactNetSchema.describe('Exact native PCB component designator, e.g. U1.'),
     second: exactNetSchema.describe('Exact second PCB component designator, e.g. C1.'),
     padPairs: z.array(nativePadPairSchema).min(1).max(2).optional(),
+    decouplingLegs: z
+      .object({ supplyNet: exactNetSchema, returnNet: exactNetSchema })
+      .optional()
+      .describe(
+        'Group explicitly declared supply and return pad pairs; requires centre-only contact mode.',
+      ),
     kind: z.enum([
       'decoupling',
       'switching-loop',
@@ -133,6 +143,19 @@ const placementRelationSchema = z
     secondFootprintName: exactFootprintNameSchema.optional(),
     constraintSource: z.string().trim().min(3).max(200).optional(),
     constraintSourceKind: z.enum(['datasheet-requirement', 'advisory']).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (
+      value.decouplingLegs &&
+      !validDecouplingLegs(value.kind, value.decouplingLegs, value.padPairs)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['decouplingLegs'],
+        message:
+          'Declare two distinct supply/return nets and distinct pad pins on a decoupling relation.',
+      });
+    }
   })
   .superRefine((value, ctx) => {
     if (value.first === value.second) {
@@ -227,6 +250,19 @@ const placementPrioritySchema = z.object({
   electrical_loop_status: z.literal('UNKNOWN'),
 });
 
+const decouplingLegResultSchema = z.object({
+  expected_net: z.string(),
+  pad_pair_index: z.number().int().min(0).max(1),
+  evidence: z.enum(['observed_line_chain', 'unavailable']),
+});
+const decouplingTopologySchema = z.object({
+  evidence: z.enum(['both_line_chains_observed', 'one_line_chain_observed', 'unavailable']),
+  supply: decouplingLegResultSchema,
+  return: decouplingLegResultSchema,
+  electrical_loop_status: z.literal('UNKNOWN'),
+  limitations: z.array(z.string()),
+});
+
 const inputSchema = z
   .object({
     projectId: projectIdSchema,
@@ -261,6 +297,12 @@ const inputSchema = z
       .describe(
         'Opt in to narrowly scoped beta native pad.getConnectedPrimitives(false) read-only association evidence for declared pad pairs. Associations never certify electrical continuity.',
       ),
+    nativePadContactMode: z
+      .literal('centre-only')
+      .optional()
+      .describe(
+        'Opt in to native centre-only pad associations; not all contacts or physical continuity.',
+      ),
     nativeViaAdjacency: nativeViaAdjacencySchema
       .optional()
       .describe(
@@ -273,6 +315,16 @@ const inputSchema = z
       ),
   })
   .superRefine((value, ctx) => {
+    if (
+      value.placementRelations?.some((r) => r.decouplingLegs !== undefined) &&
+      value.nativePadContactMode !== 'centre-only'
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['nativePadContactMode'],
+        message: 'Decoupling leg review requires centre-only native pad contact mode.',
+      });
+    }
     const priority = value.placementPriorityContext;
     if (priority !== undefined && !value.placementRelations?.length) {
       ctx.addIssue({
@@ -447,6 +499,7 @@ const placementReviewSchema = z.object({
         constraint_source: z.string().optional(),
         reasons: z.array(z.string()),
         electrical_loop_status: z.literal('UNKNOWN'),
+        decoupling_topology: decouplingTopologySchema.optional(),
         pad_pairs: z
           .array(
             z.object({
@@ -465,7 +518,7 @@ const placementReviewSchema = z.object({
               electrical_loop_status: z.literal('UNKNOWN'),
               native_pad_associations: z
                 .object({
-                  evidence: z.enum(['native_reported', 'unavailable']),
+                  evidence: z.enum(['native_reported', 'native_reported_centre', 'unavailable']),
                   first_primitive_ids: z.array(z.string()),
                   second_primitive_ids: z.array(z.string()),
                   shared_primitive_ids: z.array(z.string()),
@@ -806,6 +859,7 @@ async function readNativePairAssociations(
   ids: { first: string; second: string },
   found: NativePadPairFinding,
   routeSource: { tracks: NativeTrack[]; complete: boolean; focusedPcbId?: string },
+  centreOnly: boolean,
 ) {
   if (!ctx.bridge.connected || ctx.bridge.registryMismatch || ctx.bridge.extensionVersionMismatch) {
     return unknownNativePadAssociations('Native bridge version/source is not verified.');
@@ -827,6 +881,7 @@ async function readNativePairAssociations(
         projectId,
         componentPrimitiveId: ids.first,
         padNumber: found.first_pin,
+        ...(centreOnly ? { onlyCentreConnection: true } : {}),
       },
       { timeoutMs: 12000 },
     );
@@ -836,6 +891,7 @@ async function readNativePairAssociations(
         projectId,
         componentPrimitiveId: ids.second,
         padNumber: found.second_pin,
+        ...(centreOnly ? { onlyCentreConnection: true } : {}),
       },
       { timeoutMs: 12000 },
     );
@@ -862,6 +918,7 @@ async function readNativePairAssociations(
         complete: routeSource.complete,
         padLayers: found.native_pad_layer_codes,
       },
+      centreOnly,
     );
   } catch {
     return unknownNativePadAssociations('Native beta pad connections getter unavailable.');
@@ -877,6 +934,7 @@ async function enrichPlacementPadEvidence(
   errors: string[],
   routeSource: { tracks: NativeTrack[]; complete: boolean; focusedPcbId?: string },
   includeNativePadContacts: boolean,
+  centreOnly: boolean,
 ) {
   if (!relations.some((r) => r.padPairs?.length)) return;
   // The beta read is opt-in and capped at four pad pairs per invocation.
@@ -920,7 +978,14 @@ async function enrichPlacementPadEvidence(
               ? unknownNativePadAssociations(
                   'Native pad identity/net source unavailable, mismatched or contact read budget exceeded.',
                 )
-              : await readNativePairAssociations(ctx, projectId, ids, found, routeSource);
+              : await readNativePairAssociations(
+                  ctx,
+                  projectId,
+                  ids,
+                  found,
+                  routeSource,
+                  centreOnly,
+                );
         }
         return found;
       }),
@@ -928,6 +993,32 @@ async function enrichPlacementPadEvidence(
     if (finding.pad_pairs.some((pad) => pad.status === 'WARNING')) {
       finding.status = 'WARNING';
       placement.status = 'WARNING';
+    }
+  }
+}
+
+async function attachDecouplingTopology(
+  placement: ReturnType<typeof reviewPlacementRelations> | undefined,
+  relations: z.infer<typeof placementRelationSchema>[] | undefined,
+  complete: boolean,
+  focusedPcbId: string | undefined,
+  readFocus: () => Promise<string | undefined>,
+) {
+  if (!placement || !relations?.some((r) => r.decouplingLegs !== undefined)) return;
+  const usable =
+    complete &&
+    placement.input_evidence.collection_complete &&
+    focusedPcbId !== undefined &&
+    (await readFocus()) === focusedPcbId;
+  for (const [index, relation] of relations.entries()) {
+    const finding = placement.findings[index];
+    if (finding && relation.decouplingLegs && relation.padPairs) {
+      finding.decoupling_topology = reviewDecouplingTopology(
+        relation.decouplingLegs,
+        relation.padPairs,
+        finding.pad_pairs ?? [],
+        usable && finding.evidence === 'native_component_origins',
+      );
     }
   }
 }
@@ -1011,9 +1102,11 @@ export function registerPcbRouteReviewTools(
         placementRelations,
         placementPriorityContext,
         includeNativePadContacts,
+        nativePadContactMode,
         nativeViaAdjacency,
         traceCurrent,
       } = inputSchema.parse(params);
+      const requestPadContacts = includeNativePadContacts || nativePadContactMode !== undefined;
       const sourceMismatch =
         ctx.bridge.registryMismatch === true || ctx.bridge.extensionVersionMismatch === true;
       // Cross-correlate independent native inventories only when their observed
@@ -1023,7 +1116,7 @@ export function registerPcbRouteReviewTools(
         ctx,
         projectId,
         placementRelations,
-        includeNativePadContacts,
+        requestPadContacts,
         sourceMismatch,
         nativeViaAdjacency !== undefined,
       );
@@ -1084,7 +1177,8 @@ export function registerPcbRouteReviewTools(
           placement,
           errors,
           { tracks, complete: geometry.input_evidence.collection_complete, focusedPcbId },
-          includeNativePadContacts,
+          requestPadContacts,
+          nativePadContactMode === 'centre-only',
         );
       }
 
@@ -1093,6 +1187,13 @@ export function registerPcbRouteReviewTools(
         projectId,
         nativeViaAdjacency,
         { tracks, vias, complete: geometry.input_evidence.collection_complete, focusedPcbId },
+        () => readFocusedPcbId(ctx, projectId),
+      );
+      await attachDecouplingTopology(
+        placement,
+        placementRelations,
+        geometry.input_evidence.collection_complete,
+        focusedPcbId,
         () => readFocusedPcbId(ctx, projectId),
       );
       return {
