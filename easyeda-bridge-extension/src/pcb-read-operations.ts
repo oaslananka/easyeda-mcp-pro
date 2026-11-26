@@ -1,4 +1,5 @@
 import type { ApiRuntime } from './api-runtime.js';
+import { createViaLineAdjacencyReader } from './pcb-via-adjacency-operations.js';
 import { createComponentPadConnectionReader } from './pcb-pad-connection-operations.js';
 import type { BoardInspectionOperations } from './board-inspection.js';
 import { logRecoverableError } from './utils.js';
@@ -30,6 +31,7 @@ export interface PcbReadOperations {
   listTracks(limit?: number, offset?: number): Promise<unknown>;
   listVias(limit?: number, offset?: number): Promise<unknown>;
   listComponentPadConnections(componentPrimitiveId: string, padNumber: string): Promise<unknown>;
+  listViaLineAdjacency(viaPrimitiveId: string, expectedNet: string): Promise<unknown>;
   deletePrimitives(primitiveIds: string[]): Promise<{ deleted: string[]; notFound: string[] }>;
 }
 
@@ -532,6 +534,11 @@ export function createPcbReadOperations({
     listTracks,
     listVias,
     listComponentPadConnections,
+    listViaLineAdjacency: createViaLineAdjacencyReader({
+      requireActivePcbContext,
+      readFirstPath,
+      readState,
+    }),
     deletePrimitives,
   };
 }
