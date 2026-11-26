@@ -30,7 +30,11 @@ export interface PcbReadOperations {
   listRegions(limit?: number, offset?: number): Promise<unknown>;
   listTracks(limit?: number, offset?: number): Promise<unknown>;
   listVias(limit?: number, offset?: number): Promise<unknown>;
-  listComponentPadConnections(componentPrimitiveId: string, padNumber: string): Promise<unknown>;
+  listComponentPadConnections(
+    componentPrimitiveId: string,
+    padNumber: string,
+    onlyCentreConnection?: unknown,
+  ): Promise<unknown>;
   listViaLineAdjacency(viaPrimitiveId: string, expectedNet: string): Promise<unknown>;
   deletePrimitives(primitiveIds: string[]): Promise<{ deleted: string[]; notFound: string[] }>;
 }

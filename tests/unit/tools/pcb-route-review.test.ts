@@ -1055,6 +1055,12 @@ describe('native PCB route geometry review MCP contract', () => {
       extraUnrelatedComponent?: boolean;
       tracks?: Array<Record<string, unknown>>;
       nativeContacts?: boolean;
+      centreReply?: boolean;
+      dualLegs?: boolean;
+      emptyReturn?: boolean;
+      wrongReturnNet?: boolean;
+      duplicateReturnPad?: boolean;
+      switchAfterPairReads?: boolean;
       switchPcbDuringContacts?: boolean;
       switchPcbBeforeContacts?: boolean;
       mismatchedContactPad?: boolean;
@@ -1081,8 +1087,26 @@ describe('native PCB route geometry review MCP contract', () => {
         nativeContactReads += 1;
         if (!overrides.nativeContacts) throw new Error('native getter unavailable');
         const first = args.componentPrimitiveId === 'native-u3';
+        const ground = overrides.dualLegs && ['7', '2'].includes(args.padNumber);
+        if (ground)
+          return {
+            evidence:
+              overrides.centreReply && args.onlyCentreConnection === true
+                ? 'native_reported_centre'
+                : 'native_reported',
+            componentPrimitiveId: args.componentPrimitiveId,
+            padPrimitiveId: first ? 'native-u3/pad7' : 'native-c5/pad2',
+            padNumber: args.padNumber,
+            net: 'GND',
+            connected: overrides.emptyReturn
+              ? []
+              : [{ primitiveId: 'return-trace', net: 'GND', nativeType: 'Line', layer: 1 }],
+          };
         return {
-          evidence: 'native_reported',
+          evidence:
+            overrides.centreReply && args.onlyCentreConnection === true
+              ? 'native_reported_centre'
+              : 'native_reported',
           componentPrimitiveId: args.componentPrimitiveId,
           padPrimitiveId:
             overrides.mismatchedContactPad && first
@@ -1122,7 +1146,8 @@ describe('native PCB route geometry review MCP contract', () => {
             result: {
               uuid:
                 (overrides.switchPcbBeforeContacts && docReads > 1) ||
-                (overrides.switchPcbDuringContacts && nativeContactReads > 0)
+                (overrides.switchPcbDuringContacts && nativeContactReads > 0) ||
+                (overrides.switchAfterPairReads && nativeContactReads >= 4 && docReads > 7)
                   ? 'other-pcb'
                   : 'focused-pcb',
               parentProjectUuid: 'project-1',
@@ -1146,6 +1171,25 @@ describe('native PCB route geometry review MCP contract', () => {
                 y: 0,
                 layer: 12,
               },
+              ...(overrides.dualLegs
+                ? [
+                    {
+                      primitiveId: overrides.duplicateReturnPad
+                        ? first
+                          ? 'native-u3/pad8'
+                          : 'native-c5/pad1'
+                        : first
+                          ? 'native-u3/pad7'
+                          : 'native-c5/pad2',
+                      parentComponentPrimitiveId: first ? 'native-u3' : 'native-c5',
+                      padNumber: first ? '7' : '2',
+                      net: !first && overrides.wrongReturnNet ? 'OTHER' : 'GND',
+                      x: first ? 100 : 0,
+                      y: 30,
+                      layer: 12,
+                    },
+                  ]
+                : []),
             ],
           };
         }
@@ -1391,6 +1435,195 @@ describe('native PCB route geometry review MCP contract', () => {
     expect(
       bridgeCall.mock.calls.filter(([m]) => m === 'pcb.listComponentPadConnections'),
     ).toHaveLength(2);
+  });
+
+  it('opts into centre-only native associations explicitly and rejects an old broad reply', async () => {
+    const tracks = [
+      {
+        primitiveId: 'shared-trace',
+        net: 'VCC',
+        layer: 1,
+        startX: 20,
+        startY: 0,
+        endX: 80,
+        endY: 0,
+        width: 10,
+      },
+    ];
+    for (const centreReply of [true, false]) {
+      mockNativePlacementPads({ nativeContacts: true, centreReply, tracks });
+      const result = await run({
+        placementRelations: [placementPadPair],
+        nativePadContactMode: 'centre-only',
+      });
+      const evidence = result.placement_review.findings[0].pad_pairs[0].native_pad_associations;
+      expect(evidence).toMatchObject({
+        evidence: centreReply ? 'native_reported_centre' : 'unavailable',
+        electrical_continuity_status: 'UNKNOWN',
+      });
+      if (centreReply)
+        expect(evidence.associated_route_chain).toMatchObject({
+          evidence: 'observed_associated_endpoint_chain',
+          primitive_ids: ['shared-trace'],
+        });
+      const calls = bridgeCall.mock.calls.filter(([m]) => m === 'pcb.listComponentPadConnections');
+      expect(calls.length).toBeGreaterThanOrEqual(2);
+      expect(calls.slice(-2).every(([, args]) => args.onlyCentreConnection === true)).toBe(true);
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
+  const decouplingRelation = {
+    ...placementPadPair,
+    padPairs: [...placementPadPair.padPairs, { firstPin: '7', secondPin: '2', expectedNet: 'GND' }],
+    decouplingLegs: { supplyNet: 'VCC', returnNet: 'GND' },
+  };
+  const decouplingTracks = [
+    {
+      primitiveId: 'shared-trace',
+      net: 'VCC',
+      layer: 1,
+      startX: 20,
+      startY: 0,
+      endX: 80,
+      endY: 0,
+      width: 10,
+    },
+    {
+      primitiveId: 'return-trace',
+      net: 'GND',
+      layer: 1,
+      startX: 20,
+      startY: 30,
+      endX: 80,
+      endY: 30,
+      width: 10,
+    },
+  ];
+
+  it('groups explicitly declared supply and return line chains without declaring a closed loop', async () => {
+    mockNativePlacementPads({
+      nativeContacts: true,
+      centreReply: true,
+      dualLegs: true,
+      tracks: decouplingTracks,
+    });
+    const result = await run({
+      placementRelations: [decouplingRelation],
+      nativePadContactMode: 'centre-only',
+    });
+    const finding = result.placement_review.findings[0];
+    expect(finding.decoupling_topology).toMatchObject({
+      evidence: 'both_line_chains_observed',
+      supply: { expected_net: 'VCC', pad_pair_index: 0, evidence: 'observed_line_chain' },
+      return: { expected_net: 'GND', pad_pair_index: 1, evidence: 'observed_line_chain' },
+      electrical_loop_status: 'UNKNOWN',
+    });
+    expect(finding.status).toBe('UNKNOWN');
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
+  it('uses declared roles rather than pair order or net-name guesses', async () => {
+    mockNativePlacementPads({
+      nativeContacts: true,
+      centreReply: true,
+      dualLegs: true,
+      tracks: decouplingTracks,
+    });
+    const relation = {
+      ...decouplingRelation,
+      padPairs: [...decouplingRelation.padPairs].reverse(),
+    };
+    const result = await run({
+      placementRelations: [relation],
+      nativePadContactMode: 'centre-only',
+    });
+    expect(result.placement_review.findings[0].decoupling_topology).toMatchObject({
+      evidence: 'both_line_chains_observed',
+      supply: { pad_pair_index: 1 },
+      return: { pad_pair_index: 0 },
+    });
+    mockNativePlacementPads({
+      nativeContacts: true,
+      centreReply: true,
+      dualLegs: true,
+      tracks: decouplingTracks,
+    });
+    const legacy = await run({
+      placementRelations: [{ ...relation, decouplingLegs: undefined }],
+      includeNativePadContacts: true,
+    });
+    expect(legacy.placement_review.findings[0].decoupling_topology).toBeUndefined();
+    expect(
+      legacy.placement_review.findings[0].pad_pairs.every(
+        (p: any) => p.native_pad_associations.evidence === 'native_reported',
+      ),
+    ).toBe(true);
+  });
+
+  it('reports partial or unavailable decoupling observations when native evidence is absent or conflicting', async () => {
+    for (const [flags, expected] of [
+      [{ emptyReturn: true }, 'one_line_chain_observed'],
+      [{ wrongReturnNet: true }, 'one_line_chain_observed'],
+      [{ duplicateReturnPad: true }, 'unavailable'],
+      [{ centreReply: false }, 'unavailable'],
+      [{ switchPcbDuringContacts: true }, 'unavailable'],
+      [{ switchAfterPairReads: true }, 'unavailable'],
+    ] as const) {
+      mockNativePlacementPads({
+        nativeContacts: true,
+        centreReply: true,
+        dualLegs: true,
+        tracks: decouplingTracks,
+        ...flags,
+      });
+      const result = await run({
+        placementRelations: [decouplingRelation],
+        nativePadContactMode: 'centre-only',
+      });
+      expect(result.placement_review.findings[0].decoupling_topology).toMatchObject({
+        evidence: expected,
+        electrical_loop_status: 'UNKNOWN',
+      });
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+
+  it('rejects ambiguous decoupling leg declarations and requires centre-only opt-in', () => {
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    const request = { projectId: 'project-1', nativePadContactMode: 'centre-only' };
+    expect(
+      schema?.safeParse({ ...request, placementRelations: [decouplingRelation] }).success,
+    ).toBe(true);
+    expect(
+      schema?.safeParse({
+        projectId: 'project-1',
+        placementRelations: [decouplingRelation],
+        includeNativePadContacts: true,
+      }).success,
+    ).toBe(false);
+    for (const invalid of [
+      { ...decouplingRelation, kind: 'crystal' },
+      { ...decouplingRelation, decouplingLegs: { supplyNet: 'VCC', returnNet: 'VCC' } },
+      { ...decouplingRelation, decouplingLegs: { supplyNet: 'VCC', returnNet: 'UNKNOWN' } },
+      { ...decouplingRelation, padPairs: placementPadPair.padPairs },
+      {
+        ...decouplingRelation,
+        padPairs: [
+          placementPadPair.padPairs[0],
+          { firstPin: '8', secondPin: '2', expectedNet: 'GND' },
+        ],
+      },
+      {
+        ...decouplingRelation,
+        padPairs: [
+          placementPadPair.padPairs[0],
+          { firstPin: '7', secondPin: '1', expectedNet: 'GND' },
+        ],
+      },
+      { ...decouplingRelation, constraintSource: undefined },
+    ])
+      expect(schema?.safeParse({ ...request, placementRelations: [invalid] }).success).toBe(false);
   });
 
   it('correlates native pad-associated lines even when endpoints do not equal pad centers', async () => {

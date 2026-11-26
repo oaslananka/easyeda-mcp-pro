@@ -12,7 +12,7 @@ import type { NativeTrack } from './route-review.js';
 const MAX_CONNECTED = 128;
 
 export interface NativePadAssociationFinding {
-  evidence: 'native_reported' | 'unavailable';
+  evidence: 'native_reported' | 'native_reported_centre' | 'unavailable';
   first_primitive_ids: string[];
   second_primitive_ids: string[];
   shared_primitive_ids: string[];
@@ -22,7 +22,7 @@ export interface NativePadAssociationFinding {
 }
 
 type NativePadAssociation = {
-  evidence: 'native_reported';
+  evidence: 'native_reported' | 'native_reported_centre';
   componentPrimitiveId: string;
   padPrimitiveId: string;
   padNumber: string;
@@ -71,8 +71,13 @@ function decode(
   expectedComponent: string,
   expectedPin: string,
   expectedNet: string,
+  centreOnly: boolean,
 ): NativePadAssociation | undefined {
-  if (!isRecord(raw) || raw.evidence !== 'native_reported') return undefined;
+  if (
+    !isRecord(raw) ||
+    raw.evidence !== (centreOnly ? 'native_reported_centre' : 'native_reported')
+  )
+    return undefined;
   if (
     raw.componentPrimitiveId !== expectedComponent ||
     raw.padNumber !== expectedPin ||
@@ -102,9 +107,22 @@ export function reviewNativePadAssociations(
     secondPadId?: string;
   },
   routeSource?: { tracks: NativeTrack[]; complete: boolean; padLayers: number[] },
+  centreOnly = false,
 ): NativePadAssociationFinding {
-  const first = decode(firstRaw, expected.firstComponentId, expected.firstPin, expected.net);
-  const second = decode(secondRaw, expected.secondComponentId, expected.secondPin, expected.net);
+  const first = decode(
+    firstRaw,
+    expected.firstComponentId,
+    expected.firstPin,
+    expected.net,
+    centreOnly,
+  );
+  const second = decode(
+    secondRaw,
+    expected.secondComponentId,
+    expected.secondPin,
+    expected.net,
+    centreOnly,
+  );
   if (
     !first ||
     !second ||
@@ -134,13 +152,15 @@ export function reviewNativePadAssociations(
       )
     : undefined;
   return {
-    evidence: 'native_reported',
+    evidence: first.evidence,
     first_primitive_ids: firstIds,
     second_primitive_ids: secondIds,
     shared_primitive_ids: firstIds.filter((id) => secondSet.has(id)),
     ...(chain ? { associated_route_chain: chain } : {}),
     reasons: [
-      'Native beta getConnectedPrimitives(false) reports direct pad associations only. Missing associations do not prove disconnection; reported overlap does not prove a closed copper or reference-plane current path.',
+      'Native beta getConnectedPrimitives(' +
+        String(centreOnly) +
+        ') reports direct pad associations only. Missing associations do not prove disconnection; reported overlap does not prove a closed copper or reference-plane current path.',
     ],
     electrical_continuity_status: 'UNKNOWN',
   };

@@ -49,6 +49,50 @@ describe('native pad associations remain evidence-only', () => {
     expect(result.reasons.join(' ')).toContain('do not prove disconnection');
   });
 
+  it('requires exact contact mode provenance and does not interpret incompatible pad layers as a chain', () => {
+    const centre = {
+      ...first,
+      evidence: 'native_reported_centre',
+      connected: [{ primitiveId: 'track1', nativeType: 'Line', net: 'VCC', layer: 1 }],
+    };
+    const other = { ...second, evidence: 'native_reported_centre', connected: centre.connected };
+    const tracks = [
+      {
+        primitiveId: 'track1',
+        net: 'VCC',
+        layer: 1,
+        startX: 0,
+        startY: 0,
+        endX: 10,
+        endY: 0,
+        width: 1,
+      },
+    ];
+    const routeSource = { tracks, complete: true, padLayers: [1, 1] };
+    expect(reviewNativePadAssociations(centre, other, expected, routeSource, true)).toMatchObject({
+      evidence: 'native_reported_centre',
+      associated_route_chain: { evidence: 'observed_associated_endpoint_chain' },
+    });
+    expect(
+      reviewNativePadAssociations(
+        centre,
+        other,
+        expected,
+        { ...routeSource, padLayers: [2, 1] },
+        true,
+      ),
+    ).toMatchObject({
+      evidence: 'native_reported_centre',
+      associated_route_chain: { evidence: 'unavailable' },
+    });
+    expect(reviewNativePadAssociations(centre, other, expected, routeSource)).toMatchObject({
+      evidence: 'unavailable',
+    });
+    expect(reviewNativePadAssociations(centre, second, expected, routeSource, true)).toMatchObject({
+      evidence: 'unavailable',
+    });
+  });
+
   it('withholds source-bound associations when different components report one native pad identity', () => {
     const ambiguousSecond = { ...second, padPrimitiveId: first.padPrimitiveId };
     expect(reviewNativePadAssociations(first, ambiguousSecond, expected)).toMatchObject({

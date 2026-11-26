@@ -574,6 +574,58 @@ contradictory inventory, unresolved contacts, unmatched endpoints, and
 cross-layer paths remain unavailable; absence does not prove an open
 circuit. Electrical continuity and engineering sign-off remain unverified.
 
+### Centre-only pad associations and decoupling legs
+
+Set `nativePadContactMode: "centre-only"` to explicitly request the same
+bounded, read-only pad association review using the documented beta
+`getConnectedPrimitives(true)` instead. It independently opts in to contact
+reads; if the legacy boolean is also supplied, the explicit mode takes
+precedence. Observed responses carry the distinct evidence value
+`native_reported_centre`. Old or inconsistent bridge responses are
+unavailable, not relabelled. The legacy boolean alone continues to request
+`false` and return `native_reported`. No automatic retry or fallback between
+modes is performed. Centre-only observations can omit non-centre contacts.
+
+To group a declared bypass capacitor supply and return relationship, provide
+two pad pairs on a `decoupling` relation and explicit `decouplingLegs`.
+For example, the following pin/net identities must be checked against the
+actual schematic and footprint:
+
+```json
+{
+  "projectId": "your-exact-native-project-uuid",
+  "nativePadContactMode": "centre-only",
+  "placementRelations": [
+    {
+      "first": "U1",
+      "second": "C4",
+      "kind": "decoupling",
+      "constraintSource": "Caller-declared schematic and footprint pin identities",
+      "padPairs": [
+        { "firstPin": "24", "secondPin": "1", "expectedNet": "+3.3V" },
+        { "firstPin": "23", "secondPin": "2", "expectedNet": "GND" }
+      ],
+      "decouplingLegs": { "supplyNet": "+3.3V", "returnNet": "GND" }
+    }
+  ]
+}
+```
+
+Each leg must name a different exact net and a different pad on each
+component. No role is inferred from net names, pair order, or distance.
+The optional `decoupling_topology` result references the zero-based
+`pad_pairs` indices for supply and return, and distinguishes
+`both_line_chains_observed`, `one_line_chain_observed`, and `unavailable`.
+Only centre-mode, independently matched native pad identities and
+same-layer associated line chains count; missing, contradictory or
+incomplete evidence and a changed focused PCB cannot establish a group
+observation. The same four-pair budget applies (at most two such
+two-leg relations per call with contact observations). Original findings,
+warning criteria, and priority ordering do not change. Both observed
+chains are not a closed electrical loop, physical path-length measure,
+plane-continuity proof, or placement-risk pass. All electrical loop
+statuses remain UNKNOWN.
+
 There is no edit/save/export and no general API execution capability.
 
 ### Source-matched native observation (November 2026)
