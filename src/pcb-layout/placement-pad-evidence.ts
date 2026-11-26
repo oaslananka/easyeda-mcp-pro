@@ -56,10 +56,10 @@ function nativePadIdentity(v: Record<string, unknown>, parentId: string): boolea
     v.primitiveId === v.primitiveId.trim() &&
     v.parentComponentPrimitiveId === parentId &&
     typeof v.padNumber === 'string' &&
-    v.padNumber.length > 0 &&
     v.padNumber === v.padNumber.trim() &&
     typeof v.net === 'string' &&
-    v.net === v.net.trim()
+    v.net === v.net.trim() &&
+    (v.padNumber.length > 0 || v.net === '')
   );
 }
 
@@ -80,7 +80,7 @@ function validPad(value: unknown, parentId: string): value is ComponentPad {
   return nativePadIdentity(v, parentId) && nativePadGeometry(v);
 }
 
-function uniquePads(raw: unknown, parentId: string): ComponentPad[] | undefined {
+function validatedPads(raw: unknown, parentId: string): ComponentPad[] | undefined {
   if (
     !Array.isArray(raw) ||
     raw.length < 1 ||
@@ -89,11 +89,9 @@ function uniquePads(raw: unknown, parentId: string): ComponentPad[] | undefined 
   )
     return undefined;
   const pads = raw as ComponentPad[];
-  if (
-    new Set(pads.map((p) => p.primitiveId)).size !== pads.length ||
-    new Set(pads.map((p) => p.padNumber)).size !== pads.length
-  )
-    return undefined;
+  // Physical primitive identity must be unique. A footprint may legitimately
+  // have multiple distinct physical pads for one logical pin number.
+  if (new Set(pads.map((p) => p.primitiveId)).size !== pads.length) return undefined;
   return pads;
 }
 
@@ -130,10 +128,32 @@ function validatedPadCollections(
   observations: { first: unknown; second: unknown },
   componentIds: { first: string; second: string },
 ): { first: ComponentPad[]; second: ComponentPad[] } | undefined {
-  const first = uniquePads(observations.first, componentIds.first);
-  const second = uniquePads(observations.second, componentIds.second);
+  const first = validatedPads(observations.first, componentIds.first);
+  const second = validatedPads(observations.second, componentIds.second);
   if (!first || !second || sharesNativePadPrimitiveId(first, second)) return;
   return { first, second };
+}
+
+function selectRequestedPads(
+  pads: { first: ComponentPad[]; second: ComponentPad[] },
+  declaration: NativePadPairDeclaration,
+  reasons: string[],
+): { a: ComponentPad; b: ComponentPad } | undefined {
+  const firstMatches = pads.first.filter((p) => p.padNumber === declaration.firstPin);
+  const secondMatches = pads.second.filter((p) => p.padNumber === declaration.secondPin);
+  if (firstMatches.length > 1 || secondMatches.length > 1) {
+    reasons.push(
+      'Requested pad number identifies multiple physical pads; a unique pad is required.',
+    );
+    return undefined;
+  }
+  const a = firstMatches[0];
+  const b = secondMatches[0];
+  if (!a || !b || !a.net || !b.net) {
+    reasons.push('Requested pad number or populated native net is unavailable.');
+    return undefined;
+  }
+  return { a, b };
 }
 
 export function reviewNativePlacementPadPair(
@@ -163,12 +183,9 @@ export function reviewNativePlacementPadPair(
     );
     return base;
   }
-  const a = pads.first.find((p) => p.padNumber === declaration.firstPin);
-  const b = pads.second.find((p) => p.padNumber === declaration.secondPin);
-  if (!a || !b || !a.net || !b.net) {
-    base.reasons.push('Requested pad number or populated native net is unavailable.');
-    return base;
-  }
+  const selected = selectRequestedPads(pads, declaration, base.reasons);
+  if (!selected) return base;
+  const { a, b } = selected;
   base.route_chain = declaredNativeRouteChain(a, b, declaration.expectedNet, routeSource);
   base.evidence = 'native_component_pads';
   base.native_first_net = a.net;

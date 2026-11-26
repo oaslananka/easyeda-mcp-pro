@@ -389,11 +389,17 @@ pad-center distance. The requested `constraintSource` is required: a generic
 bypass capacitor millimetre rule must not be inferred. The beta
 `PCB_PrimitiveComponent.getAllPinsByPrimitiveId` getter is used only for
 explicitly requested components in the existing focused, project-verified
-read-only session. Parent component IDs, unique pad numbers, populated
-native nets and finite PCB coordinates are checked; each component is
-bounded at 128 pads. The current project and focused PCB document must
-still match after the getters. Source gaps and malformed/duplicate
-evidence remain `UNKNOWN`.
+read-only session. Parent component IDs, unique physical primitive IDs,
+native net identity and finite PCB coordinates are checked; each component
+is bounded at 128 pads. Distinct physical pads may share a logical pin
+number (for example, connector shield pads). Unnumbered, netless pads may
+also occur. Each requested pin must resolve to exactly one physical pad
+with a populated native net. Repeated unrelated pin numbers do not
+invalidate a unique requested pin; an ambiguous requested pin remains
+`UNKNOWN` even if the expected net matches. Duplicate primitive IDs,
+unnumbered net-bearing records and malformed evidence remain
+`UNKNOWN`. The current project and focused PCB document must still
+match after the getters.
 
 A pad pair's exact `expectedNet` is part of route-chain **attribution**,
 not merely a warning threshold. When both native pads are observed
