@@ -906,6 +906,7 @@ export function formatHelp(): string {
     '  easyeda-mcp-pro private-ground-session --help  Start isolated Ground stdio MCP (Linux, opt-in)',
     '  easyeda-mcp-pro private-ground-check --help  Verify isolated Ground rollback (Linux, opt-in)',
     '  easyeda-mcp-pro private-ground-check --publish-delete  Publish verified Ground-free project COPY (Linux; confirmWrite)',
+    '  easyeda-mcp-pro pcb-export-evidence --help    Compare local Gerber/IPC geometry (read-only)',
     '  easyeda-mcp-pro --version                    Print package version',
     '',
     'Examples:',

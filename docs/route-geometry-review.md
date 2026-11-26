@@ -512,3 +512,48 @@ The EasyEDA native component pad and line getter APIs are still
 [preview interfaces](https://prodocs.easyeda.com/en/api/reference/pro-api.pcb_primitiveline.getall.html).
 If the installed extension and server version do not match,
 native reads fail closed rather than bypassing the version guard.
+
+## Offline Gerber / IPC geometry correlation
+
+The local CLI can compare the copper artwork and IPC netlist of an existing
+EasyEDA Pro export without connecting to EasyEDA, exporting again, or writing
+to the design. Extract the Gerber ZIP first and pass the actual selected
+copper layer and IPC-D-356A file from the same export snapshot.
+
+```bash
+easyeda-mcp-pro pcb-export-evidence top VCC Gerber_TopLayer.GTL ipc_d356.bin
+easyeda-mcp-pro pcb-export-evidence bottom VCC Gerber_BottomLayer.GBL ipc_d356.bin
+```
+
+The JSON result binds both input files by SHA-256 and reports exact IPC net
+names, individual record and Gerber line numbers, matching errors in mm,
+and counts of matched, unmatched, ambiguous and omitted geometry.
+`MATCHED_OBSERVED_RECORDS` means only that the enumerated records for the
+requested net were uniquely correlated; `NO_RECORDS` and
+`PARTIAL_OR_AMBIGUOUS` require further inspection. Exit code 0 means the
+analysis ran, not that the design passed. Invalid or unsupported inputs
+return exit code 2 with a diagnostic.
+
+This initial subset is intentionally limited to the observed EasyEDA Pro
+metric export dialect: explicit absolute 4:5 Gerber coordinates, circular,
+rectangular and obround flashes, straight circular-aperture strokes, and
+IPC-D-356A CUST 1 through-hole test records and 378/078 conductor records.
+Pad centers and line endpoints are matched within 0.001 mm per axis; nominal
+line widths must match exactly. Competing records or multiple artwork
+candidates are ambiguous. Valid observed linear regions, arcs and
+noncircular strokes are counted but omitted from conductor matching. Clear
+polarity, unsupported commands, ambiguous format or excessive input fail
+closed. Each input is limited to 2 MiB and 20,000 lines. Correlation is
+limited to two million comparisons per record class.
+
+The Gerber format reference is Ucamco's [Gerber Layer Format
+Specification, revision 2026.05](https://www.ucamco.com/en/sales/downloads).
+The IPC support here is an observed export subset, not a claim of general
+IPC-D-356A conformance.
+
+This is an artwork correlation aid, not a netlist equivalence checker.
+It does not check drill subtraction, filled copper continuity, global net
+isolation, plating, field-solver behavior or manufacturing readiness.
+`electricalContinuity` remains `UNKNOWN` and `engineeringSignOff` remains
+`false` even when every selected record matches. It is not an MCP tool
+and does not grant remote filesystem access.
