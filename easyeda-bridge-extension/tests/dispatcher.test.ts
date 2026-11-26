@@ -2830,6 +2830,120 @@ describe('createDispatcher', () => {
     },
   );
 
+  it('reads explicitly requested via type metadata independently of reciprocal adjacency', async () => {
+    for (const [type, rule, intent] of [
+      [0, '', 'through_outer_layers'],
+      [0, null, 'through_outer_layers'],
+      [1, 'Blind rule A', 'blind_rule_unresolved'],
+      [2, '', 'stitching_span_unresolved'],
+      [1, '', 'unavailable'],
+      [0, 'Unexpected rule', 'unavailable'],
+      [2, 'Unexpected rule', 'unavailable'],
+      [9, '', 'unavailable'],
+      [0, undefined, 'unavailable'],
+    ] as const) {
+      const getType = vi.fn(() => type),
+        getRule = vi.fn(() => rule);
+      const via = {
+        getState_PrimitiveId: () => 'v1',
+        getState_Net: () => 'GND',
+        getState_ViaType: getType,
+        getState_DesignRuleBlindViaName: getRule,
+        getAdjacentPrimitives: async () => [],
+      };
+      const dispatcher = createDispatcher(
+        makeVerifiedPcbToolkit({
+          PCB_PrimitiveVia: { getAll: async () => [via] },
+          PCB_PrimitiveLine: { getAll: async () => [] },
+        }),
+      );
+      const args = { ...scopedPcbParams, viaPrimitiveId: 'v1', expectedNet: 'GND' };
+      const legacy = await dispatcher.dispatch('pcb.listViaLineAdjacency', args);
+      expect(legacy).not.toHaveProperty('viaTypeMetadata');
+      expect(getType).not.toHaveBeenCalled();
+      expect(getRule).not.toHaveBeenCalled();
+      const observed = await dispatcher.dispatch('pcb.listViaLineAdjacency', {
+        ...args,
+        includeViaTypeMetadata: true,
+      });
+      expect(observed).toMatchObject({
+        evidence: 'native_reciprocal_line_associations',
+        lines: [],
+        electricalContinuity: 'UNKNOWN',
+        viaTypeMetadata: {
+          evidence: intent === 'unavailable' ? 'unavailable' : 'native_reported_via_type',
+          spanIntent: intent,
+          physicalSpanStatus: 'UNKNOWN',
+          ...(intent === 'unavailable' ? {} : { viaType: type, designRuleBlindViaName: rule }),
+        },
+      });
+      expect(getType).toHaveBeenCalledTimes(1);
+      expect(getRule).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('rejects nonliteral via metadata flags without native enumeration', async () => {
+    const getAll = vi.fn(async () => []);
+    const dispatcher = createDispatcher(
+      makeVerifiedPcbToolkit({
+        PCB_PrimitiveVia: { getAll },
+        PCB_PrimitiveLine: { getAll },
+      }),
+    );
+    for (const includeViaTypeMetadata of [false, 'true', 1, null]) {
+      const result = await dispatcher.dispatch('pcb.listViaLineAdjacency', {
+        ...scopedPcbParams,
+        viaPrimitiveId: 'v1',
+        expectedNet: 'GND',
+        includeViaTypeMetadata,
+      });
+      expect(result).toMatchObject({
+        evidence: 'unavailable',
+        reason: 'invalid-via-type-metadata-request',
+        electricalContinuity: 'UNKNOWN',
+      });
+    }
+    expect(getAll).not.toHaveBeenCalled();
+  });
+
+  it('preserves valid adjacency when an opt-in metadata getter fails or is missing', async () => {
+    for (const getRule of [
+      undefined,
+      () => {
+        throw Error('getter unavailable');
+      },
+    ]) {
+      const via = {
+        getState_PrimitiveId: () => 'v1',
+        getState_Net: () => 'GND',
+        getState_ViaType: () => 0,
+        getState_DesignRuleBlindViaName: getRule,
+        getAdjacentPrimitives: async () => [],
+      };
+      const dispatcher = createDispatcher(
+        makeVerifiedPcbToolkit({
+          PCB_PrimitiveVia: { getAll: async () => [via] },
+          PCB_PrimitiveLine: { getAll: async () => [] },
+        }),
+      );
+      const observed = await dispatcher.dispatch('pcb.listViaLineAdjacency', {
+        ...scopedPcbParams,
+        viaPrimitiveId: 'v1',
+        expectedNet: 'GND',
+        includeViaTypeMetadata: true,
+      });
+      expect(observed).toMatchObject({
+        evidence: 'native_reciprocal_line_associations',
+        lines: [],
+        viaTypeMetadata: {
+          evidence: 'unavailable',
+          spanIntent: 'unavailable',
+          physicalSpanStatus: 'UNKNOWN',
+        },
+      });
+    }
+  });
+
   it('fails closed for unverified via or reciprocal line identity', async () => {
     for (const kind of [
       'wrong-net',

@@ -311,6 +311,163 @@ describe('native PCB route geometry review MCP contract', () => {
     },
   );
 
+  it('reports opt-in via type intent without interpreting physical layer span or invalidating legacy adjacency', async () => {
+    const base = bridgeCall.getMockImplementation();
+    for (const [metadata, expected] of [
+      [
+        {
+          evidence: 'native_reported_via_type',
+          viaType: 0,
+          designRuleBlindViaName: '',
+          spanIntent: 'through_outer_layers',
+          physicalSpanStatus: 'UNKNOWN',
+        },
+        'through_outer_layers',
+      ],
+      [
+        {
+          evidence: 'native_reported_via_type',
+          viaType: 1,
+          designRuleBlindViaName: 'Blind A',
+          spanIntent: 'blind_rule_unresolved',
+          physicalSpanStatus: 'UNKNOWN',
+        },
+        'blind_rule_unresolved',
+      ],
+      [
+        {
+          evidence: 'native_reported_via_type',
+          viaType: 2,
+          designRuleBlindViaName: null,
+          spanIntent: 'stitching_span_unresolved',
+          physicalSpanStatus: 'UNKNOWN',
+        },
+        'stitching_span_unresolved',
+      ],
+      [
+        {
+          evidence: 'native_reported_via_type',
+          viaType: 1,
+          designRuleBlindViaName: 'Blind A',
+          spanIntent: 'through_outer_layers',
+          physicalSpanStatus: 'UNKNOWN',
+        },
+        'unavailable',
+      ],
+      [
+        {
+          evidence: 'native_reported_via_type',
+          viaType: 0,
+          designRuleBlindViaName: '',
+          spanIntent: 'through_outer_layers',
+          physicalSpanStatus: 'PASS',
+        },
+        'unavailable',
+      ],
+      [undefined, 'unavailable'],
+    ] as const) {
+      bridgeCall.mockImplementation(async (method: string, params: any) => {
+        if (method === 'api.read')
+          return { result: { uuid: 'pcb-1', documentType: 3, parentProjectUuid: 'project-1' } };
+        if (method === 'pcb.listViaLineAdjacency') {
+          expect(params).toMatchObject({
+            projectId: 'project-1',
+            viaPrimitiveId: 'via-1',
+            expectedNet: 'CLK',
+            includeViaTypeMetadata: true,
+          });
+          return {
+            evidence: 'native_reciprocal_line_associations',
+            viaPrimitiveId: 'via-1',
+            net: 'CLK',
+            lines: [{ primitiveId: 'track-a', layer: 1 }],
+            electricalContinuity: 'UNKNOWN',
+            viaTypeMetadata: metadata,
+          };
+        }
+        return base?.(method);
+      });
+      bridgeCall.mockClear();
+      const result = await run({
+        nativeViaAdjacency: [
+          { viaPrimitiveId: 'via-1', expectedNet: 'CLK', includeViaTypeMetadata: true },
+        ],
+      });
+      expect(result.via_adjacency_review[0]).toMatchObject({
+        evidence: 'native_reciprocal_line_associations',
+        lines: [{ primitive_id: 'track-a', native_layer: 1 }],
+        electrical_continuity_status: 'UNKNOWN',
+        via_type_metadata: {
+          evidence: expected === 'unavailable' ? 'unavailable' : 'native_reported_via_type',
+          span_intent: expected,
+          physical_span_status: 'UNKNOWN',
+          ...(expected === 'unavailable'
+            ? {}
+            : {
+                native_via_type: metadata?.viaType,
+                design_rule_blind_via_name: metadata?.designRuleBlindViaName,
+              }),
+        },
+      });
+      expect(bridgeCall.mock.calls.filter(([m]) => m === 'pcb.listViaLineAdjacency')).toHaveLength(
+        1,
+      );
+      expect(result.engineering_sign_off).toBe(false);
+    }
+  });
+  it('discards via metadata for an unverified focus or identity and rejects nonliteral opt-in', async () => {
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    const decl = { viaPrimitiveId: 'via-1', expectedNet: 'CLK', includeViaTypeMetadata: true };
+    expect(
+      schema?.safeParse({
+        projectId: 'project-1',
+        nativeViaAdjacency: [{ ...decl, includeViaTypeMetadata: false }],
+      }).success,
+    ).toBe(false);
+    const base = bridgeCall.getMockImplementation();
+    let focus = 'pcb-1';
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'api.read')
+        return { result: { uuid: focus, documentType: 3, parentProjectUuid: 'project-1' } };
+      if (method === 'pcb.listViaLineAdjacency') {
+        focus = 'pcb-2';
+        return {
+          evidence: 'native_reciprocal_line_associations',
+          viaPrimitiveId: 'via-1',
+          net: 'CLK',
+          lines: [],
+          electricalContinuity: 'UNKNOWN',
+          viaTypeMetadata: {
+            evidence: 'native_reported_via_type',
+            viaType: 0,
+            designRuleBlindViaName: '',
+            spanIntent: 'through_outer_layers',
+            physicalSpanStatus: 'UNKNOWN',
+          },
+        };
+      }
+      return base?.(method);
+    });
+    const result = await run({ nativeViaAdjacency: [decl] });
+    expect(result.via_adjacency_review[0]).toMatchObject({
+      evidence: 'unavailable',
+      via_type_metadata: {
+        evidence: 'unavailable',
+        span_intent: 'unavailable',
+        physical_span_status: 'UNKNOWN',
+      },
+    });
+    const wrong = await run({ nativeViaAdjacency: [{ ...decl, expectedNet: 'GND' }] });
+    expect(wrong.via_adjacency_review[0]).toMatchObject({
+      evidence: 'unavailable',
+      via_type_metadata: {
+        evidence: 'unavailable',
+        span_intent: 'unavailable',
+        physical_span_status: 'UNKNOWN',
+      },
+    });
+  });
+
   it('does not trust a stale or contradictory native adjacency reply', async () => {
     const base = bridgeCall.getMockImplementation();
     for (const mode of ['wrong-line', 'wrong-layer', 'changed-focus', 'wrong-net', 'unavailable']) {

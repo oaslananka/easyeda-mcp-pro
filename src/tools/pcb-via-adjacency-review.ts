@@ -18,7 +18,11 @@ const exactNet = z
   .refine((v) => v.trim() === v);
 const layer = z.number().refine(nativeCopperLayerCode);
 
-const declarationSchema = z.object({ viaPrimitiveId: exactId, expectedNet: exactNet });
+const declarationSchema = z.object({
+  viaPrimitiveId: exactId,
+  expectedNet: exactNet,
+  includeViaTypeMetadata: z.literal(true).optional(),
+});
 type Declaration = z.infer<typeof declarationSchema>;
 
 export const nativeViaAdjacencySchema = z
@@ -36,7 +40,84 @@ const bridgeReplySchema = z.object({
   net: exactNet,
   lines: z.array(z.object({ primitiveId: exactId, layer })).max(16),
   electricalContinuity: z.literal('UNKNOWN'),
+  viaTypeMetadata: z.unknown().optional(),
 });
+
+const noBlindRule = z.union([z.literal(''), z.null()]);
+const nativeTypeMetadataSchema = z
+  .object({
+    evidence: z.literal('native_reported_via_type'),
+    physicalSpanStatus: z.literal('UNKNOWN'),
+  })
+  .and(
+    z.union([
+      z.object({
+        viaType: z.literal(0),
+        designRuleBlindViaName: noBlindRule,
+        spanIntent: z.literal('through_outer_layers'),
+      }),
+      z.object({
+        viaType: z.literal(1),
+        designRuleBlindViaName: exactId,
+        spanIntent: z.literal('blind_rule_unresolved'),
+      }),
+      z.object({
+        viaType: z.literal(2),
+        designRuleBlindViaName: noBlindRule,
+        spanIntent: z.literal('stitching_span_unresolved'),
+      }),
+    ]),
+  );
+
+const viaTypeResultSchema = z
+  .object({
+    physical_span_status: z.literal('UNKNOWN'),
+  })
+  .and(
+    z.union([
+      z.object({ evidence: z.literal('unavailable'), span_intent: z.literal('unavailable') }),
+      z.object({
+        evidence: z.literal('native_reported_via_type'),
+        native_via_type: z.literal(0),
+        design_rule_blind_via_name: noBlindRule,
+        span_intent: z.literal('through_outer_layers'),
+      }),
+      z.object({
+        evidence: z.literal('native_reported_via_type'),
+        native_via_type: z.literal(1),
+        design_rule_blind_via_name: exactId,
+        span_intent: z.literal('blind_rule_unresolved'),
+      }),
+      z.object({
+        evidence: z.literal('native_reported_via_type'),
+        native_via_type: z.literal(2),
+        design_rule_blind_via_name: noBlindRule,
+        span_intent: z.literal('stitching_span_unresolved'),
+      }),
+    ]),
+  );
+type ViaTypeObservation = z.infer<typeof viaTypeResultSchema>;
+
+function viaTypeMetadata(raw: unknown): ViaTypeObservation {
+  const result = nativeTypeMetadataSchema.safeParse(raw);
+  if (!result.success)
+    return { evidence: 'unavailable', span_intent: 'unavailable', physical_span_status: 'UNKNOWN' };
+  const v = result.data;
+  return viaTypeResultSchema.parse({
+    evidence: v.evidence,
+    native_via_type: v.viaType,
+    design_rule_blind_via_name: v.designRuleBlindViaName,
+    span_intent: v.spanIntent,
+    physical_span_status: v.physicalSpanStatus,
+  });
+}
+
+function optionalViaTypeMetadata(
+  d: Declaration,
+  raw?: unknown,
+): { via_type_metadata?: ViaTypeObservation } {
+  return d.includeViaTypeMetadata === true ? { via_type_metadata: viaTypeMetadata(raw) } : {};
+}
 
 export const viaAdjacencyResultSchema = z.object({
   via_primitive_id: exactId,
@@ -46,6 +127,7 @@ export const viaAdjacencyResultSchema = z.object({
   cross_layer_candidate: z.boolean(),
   electrical_continuity_status: z.literal('UNKNOWN'),
   reason: z.string().optional(),
+  via_type_metadata: viaTypeResultSchema.optional(),
 });
 type Observation = z.infer<typeof viaAdjacencyResultSchema>;
 
@@ -65,6 +147,7 @@ function unavailable(d: Declaration, reason: string): Observation {
     cross_layer_candidate: false,
     electrical_continuity_status: 'UNKNOWN',
     reason,
+    ...optionalViaTypeMetadata(d),
   };
 }
 
@@ -98,6 +181,7 @@ function observed(d: Declaration, raw: unknown, source: RouteSource): Observatio
     lines: lines.map((t) => ({ primitive_id: t.primitiveId, native_layer: t.layer })),
     cross_layer_candidate: new Set(lines.map((t) => t.layer)).size > 1,
     electrical_continuity_status: 'UNKNOWN',
+    ...optionalViaTypeMetadata(d, reply.data.viaTypeMetadata),
   };
 }
 

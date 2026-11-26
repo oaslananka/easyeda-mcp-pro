@@ -37,7 +37,11 @@ export interface PcbReadOperations {
     onlyCentreConnection?: unknown,
   ): Promise<unknown>;
   listPourAnnulusGeometry(declaration: unknown): Promise<unknown>;
-  listViaLineAdjacency(viaPrimitiveId: string, expectedNet: string): Promise<unknown>;
+  listViaLineAdjacency(
+    viaPrimitiveId: string,
+    expectedNet: string,
+    includeViaTypeMetadata?: unknown,
+  ): Promise<unknown>;
   deletePrimitives(primitiveIds: string[]): Promise<{ deleted: string[]; notFound: string[] }>;
 }
 
