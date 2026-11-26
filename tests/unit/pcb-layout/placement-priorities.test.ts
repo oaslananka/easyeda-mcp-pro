@@ -71,6 +71,56 @@ describe('placement review priorities (not electrical risk or sign-off)', () => 
     ).toEqual([]);
   });
 
+  it('prioritizes observed selected-line deviations over generic advice but below matched power context and requirements', () => {
+    const width = {
+      evidence: 'native_reported_centre',
+      status: 'WARNING',
+      declared_min_line_width_mm: 0.5,
+      observed_min_line_width_mm: 0.254,
+      narrowest_line_ids: ['narrow'],
+      electrical_continuity_status: 'UNKNOWN',
+      reasons: [],
+    } as const;
+    const w = finding('width', {
+      status: 'WARNING',
+      pad_pairs: [
+        {
+          ...pad,
+          selected_line_width_review: {
+            ...width,
+            narrowest_line_ids: [...width.narrowest_line_ids],
+          },
+        },
+      ],
+    });
+    const advice = finding('advice', { status: 'WARNING' });
+    const requirement = finding('requirement', { ...w, id: 'requirement' });
+    const power = finding('power', { components: ['U2', 'C2'], pad_pairs: [{ ...pad }] });
+    const result = rankPlacementReview(
+      [advice, w, power, requirement],
+      new Map([['requirement', 'datasheet-requirement']]),
+      [{ ...issue, componentRef: 'U2' }],
+    );
+    expect(result.map((x) => x.action)).toEqual([
+      'review-declared-requirement',
+      'review-power-context',
+      'review-selected-line-width',
+      'review-observed-warning',
+    ]);
+    expect(result[0]?.width_deviations).toEqual(result[2]?.width_deviations);
+    expect(result[2]?.width_deviations).toEqual([
+      {
+        first_pin: '1',
+        second_pin: '1',
+        expected_net: 'VIN',
+        narrowest_line_ids: ['narrow'],
+        observed_min_line_width_mm: 0.254,
+        declared_min_line_width_mm: 0.5,
+      },
+    ]);
+    expect(result[3]?.width_deviations).toBeUndefined();
+  });
+
   it('keeps advisory, unknown provenance and missing evidence distinct without physical risk scores', () => {
     const a = finding('advice', { status: 'WARNING', constraint_source: 'Layout example' });
     const b = finding('unknown');

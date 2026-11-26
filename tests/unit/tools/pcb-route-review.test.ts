@@ -1373,6 +1373,164 @@ describe('native PCB route geometry review MCP contract', () => {
     expect(result.overall_status).toBe('UNKNOWN');
   });
 
+  const widthRelation = {
+    ...placementPadPair,
+    constraintSource: 'Synthetic source-specific test criterion only',
+    constraintSourceKind: 'advisory',
+    padPairs: [{ ...placementPadPair.padPairs[0], minObservedLineWidthMm: 0.3 }],
+  };
+  const widthTracks = [
+    {
+      primitiveId: 'wide',
+      net: 'VCC',
+      layer: 1,
+      startX: 100,
+      startY: 0,
+      endX: 50,
+      endY: 0,
+      width: 20,
+    },
+    {
+      primitiveId: 'narrow',
+      net: 'VCC',
+      layer: 1,
+      startX: 50,
+      startY: 0,
+      endX: 0,
+      endY: 0,
+      width: 10,
+    },
+    {
+      primitiveId: 'unrelated',
+      net: 'VCC',
+      layer: 1,
+      startX: 100,
+      startY: 500,
+      endX: 0,
+      endY: 500,
+      width: 1,
+    },
+  ];
+
+  it('reviews only the source-bound selected line width and prioritizes a measured deviation', async () => {
+    mockNativePlacementPads({ tracks: widthTracks });
+    const result = await run({
+      placementRelations: [widthRelation],
+      placementPriorityContext: {},
+    });
+    const f = result.placement_review.findings[0];
+    expect(f.pad_pairs[0].selected_line_width_review).toMatchObject({
+      evidence: 'observed_exact_endpoint_chain',
+      status: 'WARNING',
+      declared_min_line_width_mm: 0.3,
+      observed_min_line_width_mm: 0.254,
+      narrowest_line_ids: ['narrow'],
+      electrical_continuity_status: 'UNKNOWN',
+    });
+    expect(f.status).toBe('WARNING');
+    expect(result.placement_review.review_priorities[0]).toMatchObject({
+      action: 'review-selected-line-width',
+      electrical_loop_status: 'UNKNOWN',
+      width_deviations: [
+        {
+          first_pin: '8',
+          second_pin: '1',
+          expected_net: 'VCC',
+          narrowest_line_ids: ['narrow'],
+          observed_min_line_width_mm: 0.254,
+          declared_min_line_width_mm: 0.3,
+        },
+      ],
+    });
+    expect(result.engineering_sign_off).toBe(false);
+    expect(bridgeCall.mock.calls[0]).toMatchObject([
+      'api.read',
+      { path: 'DMT_SelectControl.getCurrentDocumentInfo' },
+    ]);
+  });
+
+  it('keeps selected width unavailable on a changed source, even without contact opt-in', async () => {
+    mockNativePlacementPads({ tracks: widthTracks, switchPcbBeforeContacts: true });
+    const result = await run({ placementRelations: [widthRelation] });
+    expect(
+      result.placement_review.findings[0].pad_pairs[0].selected_line_width_review,
+    ).toMatchObject({
+      evidence: 'unavailable',
+      status: 'UNKNOWN',
+      narrowest_line_ids: [],
+    });
+    expect(result.placement_review.findings[0].status).toBe('UNKNOWN');
+  });
+
+  it('uses explicit native contact provenance and preserves unknown at the exact width boundary', async () => {
+    mockNativePlacementPads({
+      nativeContacts: true,
+      centreReply: true,
+      tracks: [
+        {
+          primitiveId: 'shared-trace',
+          net: 'VCC',
+          layer: 1,
+          startX: 20,
+          startY: 0,
+          endX: 80,
+          endY: 0,
+          width: 10,
+        },
+      ],
+    });
+    const result = await run({
+      placementRelations: [
+        {
+          ...widthRelation,
+          padPairs: [{ ...widthRelation.padPairs[0], minObservedLineWidthMm: 0.254 }],
+        },
+      ],
+      nativePadContactMode: 'centre-only',
+    });
+    expect(
+      result.placement_review.findings[0].pad_pairs[0].selected_line_width_review,
+    ).toMatchObject({
+      evidence: 'native_reported_centre',
+      observed_min_line_width_mm: 0.254,
+      narrowest_line_ids: ['shared-trace'],
+      status: 'UNKNOWN',
+    });
+  });
+
+  it('requires a positive finite selected width criterion and an explicit source', () => {
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    const parse = (relation: unknown) =>
+      schema?.safeParse({ projectId: 'project-1', placementRelations: [relation] }).success;
+    expect(parse(widthRelation)).toBe(true);
+    expect(parse({ ...widthRelation, constraintSource: undefined })).toBe(false);
+    for (const width of [0, -1, Infinity, NaN]) {
+      expect(
+        parse({
+          ...widthRelation,
+          padPairs: [{ ...widthRelation.padPairs[0], minObservedLineWidthMm: width }],
+        }),
+      ).toBe(false);
+    }
+  });
+
+  it('preserves legacy pad findings and reports unavailable width on a mismatched pin net', async () => {
+    mockNativePlacementPads({ tracks: widthTracks });
+    const legacy = await run({ placementRelations: [placementPadPair] });
+    expect(
+      legacy.placement_review.findings[0].pad_pairs[0].selected_line_width_review,
+    ).toBeUndefined();
+    mockNativePlacementPads({ tracks: widthTracks, secondNet: 'OTHER' });
+    const mismatch = await run({
+      placementRelations: [{ ...widthRelation, kind: 'switching-loop' }],
+      placementPriorityContext: {},
+    });
+    expect(
+      mismatch.placement_review.findings[0].pad_pairs[0].selected_line_width_review,
+    ).toMatchObject({ evidence: 'unavailable', status: 'UNKNOWN' });
+    expect(mismatch.placement_review.review_priorities[0].action).toBe('verify-net-mismatch');
+  });
+
   it('does not infer copper contact when one route primitive is invalid or changes net', async () => {
     for (const tracks of [
       [
