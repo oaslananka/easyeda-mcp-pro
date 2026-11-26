@@ -95,6 +95,164 @@ describe('native PCB route geometry review MCP contract', () => {
     );
   });
 
+  it('reviews only explicitly declared sensitive net pairs on the anchored PCB, without new primitive reads', async () => {
+    const base = bridgeCall.getMockImplementation();
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'api.read')
+        return { result: { uuid: 'pcb-1', documentType: 3, parentProjectUuid: 'project-1' } };
+      if (method === 'pcb.listTracks')
+        return {
+          total: 2,
+          items: [
+            {
+              primitiveId: 'xtal',
+              net: 'XTAL',
+              layer: 1,
+              startX: 0,
+              startY: 0,
+              endX: 100,
+              endY: 0,
+              width: 4,
+            },
+            {
+              primitiveId: 'sw',
+              net: 'SW',
+              layer: 1,
+              startX: 0,
+              startY: 10,
+              endX: 100,
+              endY: 10,
+              width: 4,
+            },
+          ],
+        };
+      return base?.(method);
+    });
+    const decl = {
+      sensitiveNet: 'XTAL',
+      otherNet: 'SW',
+      context: 'sensitive-adjacency',
+      constraintSource: 'Synthetic criterion',
+      minEdgeGapMm: 0.2,
+    };
+    const result = await run({ sensitiveLineSpacing: [decl] });
+    expect(result.sensitive_line_spacing_review).toEqual([
+      expect.objectContaining({
+        sensitive_net: 'XTAL',
+        other_net: 'SW',
+        evidence: 'observed_same_layer_lines',
+        status: 'WARNING',
+        closest: {
+          primitive_ids: ['xtal', 'sw'],
+          native_layer: 1,
+          observed_edge_gap_mm: expect.closeTo(0.1524, 12),
+        },
+        electrical_isolation_status: 'UNKNOWN',
+        engineering_sign_off: false,
+      }),
+    ]);
+    expect(result.overall_status).toBe('WARNING');
+    const calls = bridgeCall.mock.calls;
+    expect(calls.filter(([m]) => m === 'pcb.listTracks')).toHaveLength(1);
+    expect(calls.filter(([m]) => m === 'pcb.listVias')).toHaveLength(1);
+    expect(calls.filter(([m]) => m === 'api.read')).toHaveLength(2);
+    const legacy = await run();
+    expect(legacy.sensitive_line_spacing_review).toBeUndefined();
+    expect(legacy.findings).toEqual(result.findings);
+  });
+  it('rejects invalid declarations and discards sensitive spacing on focus change or version mismatch', async () => {
+    const decl = {
+      sensitiveNet: 'CLK',
+      otherNet: 'SW',
+      context: 'feedback',
+      constraintSource: 'Caller source',
+    };
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    for (const bad of [
+      [],
+      Array(5).fill(decl),
+      [decl, decl],
+      [{ ...decl, otherNet: 'CLK' }],
+      [{ ...decl, otherNet: ' SW' }],
+      [{ ...decl, constraintSource: '' }],
+      [{ ...decl, minEdgeGapMm: 0 }],
+    ]) {
+      expect(schema?.safeParse({ projectId: 'project-1', sensitiveLineSpacing: bad }).success).toBe(
+        false,
+      );
+    }
+    const base = bridgeCall.getMockImplementation();
+    let focus = 'pcb-1';
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'api.read')
+        return { result: { uuid: focus, documentType: 3, parentProjectUuid: 'project-1' } };
+      if (method === 'pcb.listTracks') focus = 'pcb-2';
+      return base?.(method);
+    });
+    const result = await run({ sensitiveLineSpacing: [decl] });
+    expect(result.sensitive_line_spacing_review[0]).toMatchObject({
+      evidence: 'unavailable',
+      status: 'UNKNOWN',
+      electrical_isolation_status: 'UNKNOWN',
+    });
+    expect(result.sensitive_line_spacing_review[0].closest).toBeUndefined();
+    context.bridge.registryMismatch = true;
+    bridgeCall.mockClear();
+    const mismatch = await run({ sensitiveLineSpacing: [decl] });
+    expect(mismatch.sensitive_line_spacing_review[0].evidence).toBe('unavailable');
+    expect(bridgeCall).not.toHaveBeenCalled();
+  });
+
+  it('does not attribute sensitive line IDs that collide with the via inventory', async () => {
+    const base = bridgeCall.getMockImplementation();
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'api.read')
+        return { result: { uuid: 'pcb-1', documentType: 3, parentProjectUuid: 'project-1' } };
+      if (method === 'pcb.listTracks')
+        return {
+          total: 2,
+          items: [
+            {
+              primitiveId: 'via-1',
+              net: 'CLK',
+              layer: 1,
+              startX: 0,
+              startY: 0,
+              endX: 100,
+              endY: 0,
+              width: 4,
+            },
+            {
+              primitiveId: 'sw',
+              net: 'SW',
+              layer: 1,
+              startX: 0,
+              startY: 10,
+              endX: 100,
+              endY: 10,
+              width: 4,
+            },
+          ],
+        };
+      return base?.(method);
+    });
+    const result = await run({
+      sensitiveLineSpacing: [
+        {
+          sensitiveNet: 'CLK',
+          otherNet: 'SW',
+          context: 'feedback',
+          constraintSource: 'Caller source',
+        },
+      ],
+    });
+    expect(result.sensitive_line_spacing_review[0]).toMatchObject({
+      evidence: 'unavailable',
+      status: 'UNKNOWN',
+      compared_pair_count: 0,
+    });
+  });
+
   it.each([1, 2])(
     'returns opt-in native via adjacency with second line on layer %s',
     async (secondLayer) => {

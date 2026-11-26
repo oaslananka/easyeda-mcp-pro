@@ -434,6 +434,44 @@ closed-loop or placement-adequacy assessment. Electrical continuity and
 engineering sign-off are never inferred. Omit the criterion to preserve
 existing output and behavior.
 
+## Optional source-declared sensitive line spacing
+
+Use `sensitiveLineSpacing` (up to four distinct unordered net pairs) when
+reviewing proximity between explicitly selected sensitive and other nets.
+Specify their exact native names and a caller-owned `constraintSource`.
+The context (`sensitive-adjacency` or `feedback`) describes the review intent,
+not an automatically inferred circuit role. For example:
+
+```json
+{
+  "projectId": "your-exact-native-project-uuid",
+  "sensitiveLineSpacing": [
+    {
+      "sensitiveNet": "/HSE_IN",
+      "otherNet": "+3.3VA",
+      "context": "sensitive-adjacency",
+      "constraintSource": "Caller-selected oscillator and analog supply nets"
+    }
+  ]
+}
+```
+
+The separate `sensitive_line_spacing_review` output reports line counts,
+the number of compared same-layer pairs, and the closest observed pair
+with native line IDs, layer and signed edge gap in mm. It compares the
+shortest 2D segment centerline separation minus the two half-widths.
+Ties are deterministic by primitive identity. A supplied positive
+`minEdgeGapMm` is only a caller-declared source-specific criterion; without
+it there is no universal minimum. Observed line overlap/touch or a gap
+below the declared limit produces WARNING; all other outcomes remain
+UNKNOWN. Missing nets, no same-layer pairs, incomplete/malformed inventory,
+identity collisions or changed PCB focus cannot establish isolation.
+The focus-anchored bounded track/via inventory is reused without new
+primitive reads. Separate reads are not atomic. No pad, via, arc, plane,
+cross-layer separation, coupling, return-path, EMI or full DRC assessment
+is implied. `electrical_isolation_status` remains UNKNOWN and
+`engineering_sign_off` false. Omit the option for legacy behavior.
+
 ## Optional placement review action priorities
 
 Set `placementPriorityContext: {}` together with `placementRelations` to
