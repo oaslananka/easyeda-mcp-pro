@@ -2514,6 +2514,7 @@ Returns a JSON object matching the schema:
 | `minClearanceMm`           | `number (optional)`           | No       | Optional caller-supplied minimum same-layer, different-net line-edge clearance in millimeters; not an active native DRC or fabricator limit.                                     |
 | `differentialPair`         | `object (optional)`           | No       |                                                                                                                                                                                  |
 | `placementRelations`       | `object[] (optional)`         | No       |                                                                                                                                                                                  |
+| `placementPriorityContext` | `object (optional)`           | No       | Opt in to review action ordering; optional caller-supplied power-tree issue excerpts, not verified electrical severity.                                                          |
 | `includeNativePadContacts` | `boolean (optional)`          | Yes      | Opt in to narrowly scoped beta native pad.getConnectedPrimitives(false) read-only association evidence for declared pad pairs. Associations never certify electrical continuity. |
 | `traceCurrent`             | `object (optional)`           | No       | Optional source-bound native net-width check against a caller-declared empirical current reference; never a thermal design pass.                                                 |
 

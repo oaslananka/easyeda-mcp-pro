@@ -381,6 +381,57 @@ collection fails closed to **UNKNOWN**, not `PASS` or a verified missing
 component. Native `getAll()` enumeration is bounded, and separate
 primitive reads are **not an atomic PCB snapshot**.
 
+## Optional placement review action priorities
+
+Set `placementPriorityContext: {}` together with `placementRelations` to
+receive a separate ordered `placement_review.review_priorities` list.
+The original findings and their IDs/order are unchanged. Each priority
+references its finding and includes an action and topology-specific next
+step. Review actions are ordered by observed net mismatch, warning on a
+caller-declared datasheet requirement, matched power-tree context, other
+observed warning, then missing topology evidence. Equal action groups
+retain caller order. This is an inspection queue, not electrical severity,
+a universal layout threshold, or an EMI/current-loop pass.
+
+Optionally classify a relation's existing `constraintSource` using
+`constraintSourceKind: "datasheet-requirement"` or `"advisory"`. The
+classification is caller-declared, not independently authenticated;
+omitting it yields `unspecified` in the priority list. Existing constraints
+and their WARNING/UNKNOWN behavior are unchanged.
+
+The optional `placementPriorityContext.powerTree` accepts the requested
+`projectId` and up to 64 caller-supplied issue excerpts from
+`easyeda_power_tree_analyze` (code, severity, componentRef, railName).
+Only non-info issues matching both a component designator and an exact
+expected net independently observed on both native pads of a relation
+contribute context. A project mismatch is rejected. Unmatched or missing
+identities, absent pad data, and case differences do not establish a
+correlation. This uses the existing power-tree analysis vocabulary and
+component/net metadata without guessing rail aliases, retrieving a hidden
+cached report, or validating the caller's power model. For example:
+
+```json
+{
+  "placementPriorityContext": {
+    "powerTree": {
+      "projectId": "your-exact-native-project-uuid",
+      "issues": [
+        {
+          "code": "POWER_REGULATOR_OVERLOAD",
+          "severity": "error",
+          "componentRef": "U1",
+          "railName": "VIN"
+        }
+      ]
+    }
+  }
+}
+```
+
+All priority entries retain electrical loop status UNKNOWN. A matched
+power-tree issue does not prove that layout caused it. No extra native
+read or write is initiated by prioritization.
+
 ## Optional native pad-pair and routed endpoint-chain evidence
 
 A relation may include up to two `padPairs`, each with exact first/second pin

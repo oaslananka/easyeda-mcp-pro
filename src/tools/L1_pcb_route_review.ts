@@ -4,6 +4,10 @@ import {
 } from '../pcb-layout/placement-pad-connectivity.js';
 import { z } from 'zod';
 import {
+  rankPlacementReview,
+  type ConstraintSourceKind,
+} from '../pcb-layout/placement-priorities.js';
+import {
   reviewPlacementRelations,
   type NativePlacement,
   type PlacementRelation,
@@ -123,6 +127,7 @@ const placementRelationSchema = z
     firstFootprintName: exactFootprintNameSchema.optional(),
     secondFootprintName: exactFootprintNameSchema.optional(),
     constraintSource: z.string().trim().min(3).max(200).optional(),
+    constraintSourceKind: z.enum(['datasheet-requirement', 'advisory']).optional(),
   })
   .superRefine((value, ctx) => {
     if (value.first === value.second) {
@@ -153,7 +158,8 @@ const placementRelationSchema = z
         value.secondRotationDeg !== undefined ||
         value.padPairs !== undefined ||
         value.firstFootprintName !== undefined ||
-        value.secondFootprintName !== undefined) &&
+        value.secondFootprintName !== undefined ||
+        value.constraintSourceKind !== undefined) &&
       !value.constraintSource
     ) {
       ctx.addIssue({
@@ -174,40 +180,105 @@ const nativeTraceCurrentDeclarationSchema = z.object({
   manufacturerMinWidthMm: z.number().finite().positive().optional(),
 });
 
-const inputSchema = z.object({
-  projectId: projectIdSchema,
-  intent: z.enum(['general', 'high-speed']).default('general'),
-  minWidthMm: z
-    .number()
-    .finite()
-    .positive()
-    .optional()
-    .describe(
-      'Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence.',
-    ),
-  minClearanceMm: z
-    .number()
-    .finite()
-    .positive()
-    .optional()
-    .describe(
-      'Optional caller-supplied minimum same-layer, different-net line-edge clearance in millimeters; not an active native DRC or fabricator limit.',
-    ),
-  differentialPair: differentialPairSchema.optional(),
-  placementRelations: z.array(placementRelationSchema).min(1).max(8).optional(),
-  includeNativePadContacts: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe(
-      'Opt in to narrowly scoped beta native pad.getConnectedPrimitives(false) read-only association evidence for declared pad pairs. Associations never certify electrical continuity.',
-    ),
-  traceCurrent: nativeTraceCurrentDeclarationSchema
-    .optional()
-    .describe(
-      'Optional source-bound native net-width check against a caller-declared empirical current reference; never a thermal design pass.',
-    ),
+const placementPowerIssueSchema = z.object({
+  code: z.enum([
+    'POWER_RAIL_OVERCURRENT',
+    'POWER_RAIL_LOW_MARGIN',
+    'POWER_SOURCE_MISSING_PROTECTION',
+    'POWER_MISSING_BULK_CAPACITANCE',
+    'POWER_REGULATOR_OVERLOAD',
+    'POWER_REGULATOR_DROPOUT',
+    'POWER_REGULATOR_THERMAL_RISK',
+    'POWER_REGULATOR_THERMAL_OVER_LIMIT',
+    'POWER_SEQUENCE_MISSING',
+    'POWER_TREE_INTERNAL',
+  ]),
+  severity: z.enum(['error', 'warning', 'info']),
+  componentRef: exactNetSchema,
+  railName: exactNetSchema,
 });
+const placementPriorityContextSchema = z.object({
+  powerTree: z
+    .object({
+      projectId: projectIdSchema,
+      issues: z.array(placementPowerIssueSchema).max(64),
+    })
+    .optional(),
+});
+const placementPrioritySchema = z.object({
+  finding_id: z.string(),
+  relation: placementRelationSchema.shape.kind,
+  components: z.array(z.string()),
+  action: z.enum([
+    'verify-net-mismatch',
+    'review-declared-requirement',
+    'review-power-context',
+    'review-observed-warning',
+    'collect-topology-evidence',
+  ]),
+  constraint_source_kind: z.enum(['datasheet-requirement', 'advisory', 'unspecified']),
+  power_context: z.array(placementPowerIssueSchema).max(64),
+  next_step: z.string(),
+  electrical_loop_status: z.literal('UNKNOWN'),
+});
+
+const inputSchema = z
+  .object({
+    projectId: projectIdSchema,
+    intent: z.enum(['general', 'high-speed']).default('general'),
+    minWidthMm: z
+      .number()
+      .finite()
+      .positive()
+      .optional()
+      .describe(
+        'Optional caller-supplied minimum route width in millimeters; not native DRC or fabricator evidence.',
+      ),
+    minClearanceMm: z
+      .number()
+      .finite()
+      .positive()
+      .optional()
+      .describe(
+        'Optional caller-supplied minimum same-layer, different-net line-edge clearance in millimeters; not an active native DRC or fabricator limit.',
+      ),
+    differentialPair: differentialPairSchema.optional(),
+    placementRelations: z.array(placementRelationSchema).min(1).max(8).optional(),
+    placementPriorityContext: placementPriorityContextSchema
+      .optional()
+      .describe(
+        'Opt in to review action ordering; optional caller-supplied power-tree issue excerpts, not verified electrical severity.',
+      ),
+    includeNativePadContacts: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe(
+        'Opt in to narrowly scoped beta native pad.getConnectedPrimitives(false) read-only association evidence for declared pad pairs. Associations never certify electrical continuity.',
+      ),
+    traceCurrent: nativeTraceCurrentDeclarationSchema
+      .optional()
+      .describe(
+        'Optional source-bound native net-width check against a caller-declared empirical current reference; never a thermal design pass.',
+      ),
+  })
+  .superRefine((value, ctx) => {
+    const priority = value.placementPriorityContext;
+    if (priority !== undefined && !value.placementRelations?.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['placementPriorityContext'],
+        message: 'Placement relations are required for priority review.',
+      });
+    }
+    if (priority?.powerTree && priority.powerTree.projectId !== value.projectId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['placementPriorityContext', 'powerTree', 'projectId'],
+        message: 'Power-tree context must name the requested project.',
+      });
+    }
+  });
 
 const nativeComponentSchema = z.object({
   primitiveId: z.string().optional(),
@@ -421,6 +492,7 @@ const placementReviewSchema = z.object({
       }),
     )
     .max(8),
+  review_priorities: z.array(placementPrioritySchema).max(8).optional(),
   limitations: z.array(z.string()),
   engineering_sign_off: z.literal(false),
 });
@@ -848,6 +920,28 @@ async function enrichPlacementPadEvidence(
   }
 }
 
+function withPlacementPriorities(
+  placement: ReturnType<typeof reviewPlacementRelations>,
+  relations: z.infer<typeof placementRelationSchema>[] | undefined,
+  context: z.infer<typeof placementPriorityContextSchema> | undefined,
+) {
+  if (context === undefined) return placement;
+  const provenance = new Map<string, ConstraintSourceKind>(
+    placement.findings.map((finding, index) => [
+      finding.id,
+      relations?.[index]?.constraintSourceKind ?? 'unspecified',
+    ]),
+  );
+  return {
+    ...placement,
+    review_priorities: rankPlacementReview(
+      placement.findings,
+      provenance,
+      context.powerTree?.issues ?? [],
+    ),
+  };
+}
+
 function optionalNativeCurrentReview(
   declaration: z.infer<typeof nativeTraceCurrentDeclarationSchema> | undefined,
   route: Awaited<ReturnType<typeof collectRouteEvidence>>,
@@ -903,6 +997,7 @@ export function registerPcbRouteReviewTools(
         minClearanceMm,
         differentialPair,
         placementRelations,
+        placementPriorityContext,
         includeNativePadContacts,
         traceCurrent,
       } = inputSchema.parse(params);
@@ -982,7 +1077,15 @@ export function registerPcbRouteReviewTools(
       return {
         project_id: projectId,
         ...geometry,
-        ...(placement === undefined ? {} : { placement_review: placement }),
+        ...(placement === undefined
+          ? {}
+          : {
+              placement_review: withPlacementPriorities(
+                placement,
+                placementRelations,
+                placementPriorityContext,
+              ),
+            }),
         ...(pair === undefined ? {} : { differential_pair: pair }),
         ...(nativeCurrent === undefined ? {} : { trace_current_review: nativeCurrent }),
         overall_status: aggregateReviewStatus(
