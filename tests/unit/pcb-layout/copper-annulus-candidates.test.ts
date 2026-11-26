@@ -163,6 +163,60 @@ describe('bounded source-declared round annulus geometry', () => {
     expect(result.pads[0]?.status).toBe('UNKNOWN');
   });
 
+  it('requires bounded source geometry and drill declarations even for malformed inventory', () => {
+    for (const patch of [
+      { drills: null },
+      { drills: Array(9).fill(source.drills[0]) },
+      { drills: [null] },
+      { pourNet: '' },
+      { pourLayer: 15 },
+      { pads: [null] },
+      { pads: [{ ...source.pads[0], primitiveId: undefined }] },
+      { transform: { ...source.transform, scale: 0.000001 } },
+      {
+        pouredRegions: [
+          {
+            ...source.pouredRegions[0],
+            path: { complexPolygon: [[0, 0, 'L', 100, 0, 0, 100, 1, 1]] },
+          },
+        ],
+      },
+    ]) {
+      const result = reviewCopperAnnulusCandidates({ ...source, ...patch });
+      expect(result.pads[0]).toMatchObject({ status: 'UNKNOWN' });
+      expect(result.pads[0]?.witness).toBeUndefined();
+    }
+    for (const pads of [null, Array(9).fill(source.pads[0])]) {
+      expect(reviewCopperAnnulusCandidates({ ...source, pads }).pads).toEqual([]);
+    }
+  });
+
+  it('supports mirrored source coordinates and repeated contour vertices without false contact', () => {
+    const region = source.pouredRegions[0]!;
+    const result = reviewCopperAnnulusCandidates({
+      ...source,
+      transform: { ...source.transform, invertY: true },
+      pads: [{ ...source.pads[0]!, y: -500, specialPad: [] }],
+      pouredRegions: [
+        {
+          ...region,
+          path: { complexPolygon: [[0, 0, 'L', 100, 0, 100, 0, 100, 100, 0, 100, 0, 0]] },
+        },
+      ],
+    });
+    expect(result.pads[0]?.status).toBe('GEOMETRIC_OVERLAP_CANDIDATE');
+    expect(result.pads[0]?.witness?.y_mm).toBeLessThan(0);
+    expect(result.pads[0]?.electrical_continuity_status).toBe('UNKNOWN');
+    const noAnnulus = reviewCopperAnnulusCandidates({
+      ...source,
+      pads: [{ ...source.pads[0]!, pad: ['ELLIPSE', 40, 40] }],
+    });
+    expect(noAnnulus.pads[0]).toMatchObject({
+      status: 'UNKNOWN',
+      reason: 'ROUND_DRILL_SOURCE_MISMATCH',
+    });
+  });
+
   it('does not infer disconnection when finite sampling finds no interior witness', () => {
     const result = reviewCopperAnnulusCandidates({
       ...source,

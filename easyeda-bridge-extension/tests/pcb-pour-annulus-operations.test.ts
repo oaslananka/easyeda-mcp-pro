@@ -12,7 +12,12 @@ function native(data: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(data).map(([k, v]) => ['getState_' + k, () => v]));
 }
 function fixture(mode = '') {
-  const fill = { id: 'copper0', fill: true, lineWidth: 0, path: { getSource: () => ring } };
+  const fill = {
+    id: 'copper0',
+    fill: true,
+    lineWidth: 0,
+    path: { getSource: (): unknown => ring },
+  };
   const derived = {
     ...native({ PrimitiveId: 'p1', PourPrimitiveId: 'p1', Layer: 1, PourFills: [fill] }),
   };
@@ -53,10 +58,20 @@ function fixture(mode = '') {
   if (mode === 'malformed-pad') pad.getState_Pad = () => Array(100).fill(1);
   if (mode === 'unsupported-path') fill.path.getSource = () => [0, 0, 'ARC', 90, 100, 100, 0, 0];
   if (mode === 'oversized-path') fill.path.getSource = () => Array(8194).fill(0);
+  if (mode === 'nested-path') fill.path.getSource = () => [ring];
+  if (mode === 'nonfinite-path') fill.path.getSource = () => [0, 0, 'L', 100, 0, 100, NaN, 0, 0];
+  if (mode === 'multiple-fills') derived.getState_PourFills = () => [fill, fill];
+  if (mode === 'stroke-fill') fill.lineWidth = 1;
+  if (mode === 'wrong-derived-layer') derived.getState_Layer = () => 2;
+  const pad2 = { ...pad, getState_PrimitiveId: () => 'pad2', getState_PadNumber: () => '4' };
   const components = [native({ PrimitiveId: 'c1', Designator: 'U1' })];
   if (mode === 'colliding-pad') components.push(native({ PrimitiveId: 'pad1', Designator: 'U2' }));
   if (mode === 'colliding-component')
     components.push(native({ PrimitiveId: 'p1', Designator: 'U2' }));
+  if (mode === 'duplicate-designator')
+    components.push(native({ PrimitiveId: 'c2', Designator: 'U1' }));
+  if (mode === 'cross-owner-duplicate')
+    components.push(native({ PrimitiveId: 'c2', Designator: 'U2' }));
   const runtime: Record<string, unknown> = {
     PCB_PrimitivePour: { getAll: async () => (mode === 'duplicate-pour' ? [pour, pour] : [pour]) },
     PCB_PrimitivePoured: {
@@ -70,9 +85,21 @@ function fixture(mode = '') {
     PCB_PrimitiveComponent: {
       getAll: async () =>
         mode === 'duplicate-component' ? [...components, ...components] : components,
-      getAllPinsByPrimitiveId: async () => (mode === 'duplicate-pad' ? [pad, pad] : [pad]),
+      getAllPinsByPrimitiveId: vi.fn(async (id: string) => {
+        if (mode === 'duplicate-pad') return [pad, pad];
+        if (mode === 'multiple-pins') return [pad, pad2];
+        if (mode === 'cross-owner-duplicate' && id === 'c2')
+          return [
+            { ...pad, getState_ParentComponentPrimitiveId: () => 'c2' },
+            { ...pad2, getState_ParentComponentPrimitiveId: () => 'c2' },
+          ];
+        return [pad];
+      }),
     },
   };
+  if (mode === 'non-array-inventory') runtime.PCB_PrimitivePour = { getAll: async () => null };
+  if (mode === 'oversized-inventory')
+    runtime.PCB_PrimitivePour = { getAll: async () => Array(257).fill(pour) };
   if (mode === 'missing-api') delete runtime.PCB_PrimitivePoured;
   if (mode === 'throw')
     runtime.PCB_PrimitivePoured = {
@@ -87,7 +114,7 @@ function fixture(mode = '') {
     readState: (v: unknown, k: string) =>
       (v as Record<string, () => unknown> | undefined)?.['getState_' + k]?.(),
   });
-  return { operations, pour };
+  return { operations, pour, runtime };
 }
 
 describe('bounded native pour annulus geometry', () => {
@@ -121,6 +148,13 @@ describe('bounded native pour annulus geometry', () => {
   });
   it.each([
     'different-geometry',
+    'nonfinite-path',
+    'multiple-fills',
+    'stroke-fill',
+    'wrong-derived-layer',
+    'duplicate-designator',
+    'non-array-inventory',
+    'oversized-inventory',
     'absent',
     'wrong-net',
     'missing-getter',
@@ -144,6 +178,51 @@ describe('bounded native pour annulus geometry', () => {
       electricalContinuity: 'UNKNOWN',
     });
   });
+  it('supports the single nested contour and caches an exact component pin inventory', async () => {
+    const nested = await fixture('nested-path').operations.listPourAnnulusGeometry(requested);
+    expect(nested).toMatchObject({
+      evidence: 'native_source_linked_filled_region',
+      fill: { path: { complexPolygon: [ring] } },
+    });
+    const { operations, runtime } = fixture('multiple-pins');
+    const result = await operations.listPourAnnulusGeometry({
+      ...requested,
+      pads: [...requested.pads, { ...requested.pads[0], padNumber: '4', primitiveId: 'pad2' }],
+    });
+    expect(result).toMatchObject({
+      evidence: 'native_source_linked_filled_region',
+      pads: [
+        { primitiveId: 'pad1', padNumber: '3' },
+        { primitiveId: 'pad2', padNumber: '4' },
+      ],
+    });
+    expect(
+      (runtime.PCB_PrimitiveComponent as { getAllPinsByPrimitiveId: unknown })
+        .getAllPinsByPrimitiveId,
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not reuse contradictory component or pin identities', async () => {
+    for (const pad of [
+      { ...requested.pads[0], designator: 'U2' },
+      { ...requested.pads[0], padNumber: '999' },
+      { ...requested.pads[0], primitiveId: 'other' },
+    ]) {
+      expect(
+        await fixture().operations.listPourAnnulusGeometry({ ...requested, pads: [pad] }),
+      ).toMatchObject({ evidence: 'unavailable' });
+    }
+    expect(
+      await fixture('cross-owner-duplicate').operations.listPourAnnulusGeometry({
+        ...requested,
+        pads: [
+          ...requested.pads,
+          { componentPrimitiveId: 'c2', designator: 'U2', padNumber: '4', primitiveId: 'pad2' },
+        ],
+      }),
+    ).toMatchObject({ evidence: 'unavailable' });
+  });
+
   it('rejects malformed and repeated declarations before copper reads', async () => {
     const { operations, pour } = fixture();
     for (const request of [
@@ -152,6 +231,8 @@ describe('bounded native pour annulus geometry', () => {
       { ...requested, expectedLayer: 15 },
       { ...requested, pourPrimitiveId: ' p1' },
       { ...requested, pads: [] },
+      { ...requested, pads: [{ ...requested.pads[0], padNumber: '' }] },
+      { ...requested, pads: [...requested.pads, { ...requested.pads[0], primitiveId: 'pad2' }] },
       { ...requested, pads: [...requested.pads, ...requested.pads] },
     ]) {
       expect(await operations.listPourAnnulusGeometry(request)).toMatchObject({

@@ -431,6 +431,23 @@ describe('native PCB route geometry review MCP contract', () => {
     }
   });
 
+  it('discards annulus evidence when focus changes during earlier inventory collection', async () => {
+    const base = bridgeCall.getMockImplementation();
+    let focus = 'pcb-1';
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'api.read')
+        return { result: { uuid: focus, documentType: 3, parentProjectUuid: 'project-1' } };
+      if (method === 'pcb.listTracks') focus = 'pcb-2';
+      return base?.(method);
+    });
+    const r = await run({ nativePourAnnulus: annulusRequest });
+    expect(r.native_pour_annulus_review).toMatchObject({
+      evidence: 'unavailable',
+      pads: [{ status: 'UNKNOWN', reason: 'Focused PCB changed before annulus review.' }],
+    });
+    expect(bridgeCall.mock.calls.some(([m]) => m === 'pcb.listPourAnnulusGeometry')).toBe(false);
+  });
+
   it('validates and evaluates a caller-declared minimum copper clearance without extra reads', async () => {
     const tool = registry.get('easyeda_pcb_route_geometry_review');
     for (const value of [0, -1, Number.POSITIVE_INFINITY, Number.NaN, '0.1']) {
