@@ -14,6 +14,8 @@ const token = (v: unknown): v is string =>
 
 interface NativePrimitive {
   getAdjacentPrimitives?: () => Promise<unknown>;
+  getState_ViaType?: () => unknown;
+  getState_DesignRuleBlindViaName?: () => unknown;
 }
 
 type NativeInventory = { getAll?: () => Promise<unknown> };
@@ -59,12 +61,46 @@ async function reciprocalLine(
   return { primitiveId: id, layer };
 }
 
+const unavailableViaType = () => ({
+  evidence: 'unavailable',
+  spanIntent: 'unavailable',
+  physicalSpanStatus: 'UNKNOWN',
+});
+
+function viaSpanIntent(type: unknown, rule: unknown): string | undefined {
+  if (type === 1 && token(rule)) return 'blind_rule_unresolved';
+  if (rule !== '' && rule !== null) return undefined;
+  if (type === 0) return 'through_outer_layers';
+  if (type === 2) return 'stitching_span_unresolved';
+  return undefined;
+}
+
+/** Explicit getter values, not normalized object aliases or inferred stack data. */
+async function readViaTypeMetadata(via: NativePrimitive) {
+  try {
+    const type = await via.getState_ViaType?.();
+    const rule = await via.getState_DesignRuleBlindViaName?.();
+    const intent = viaSpanIntent(type, rule);
+    if (!intent) return unavailableViaType();
+    return {
+      evidence: 'native_reported_via_type',
+      viaType: type,
+      designRuleBlindViaName: rule,
+      spanIntent: intent,
+      physicalSpanStatus: 'UNKNOWN',
+    };
+  } catch {
+    return unavailableViaType();
+  }
+}
+
 async function collectViaAssociations(
   viaId: string,
   expectedNet: string,
   viaIndex: Map<string, NativePrimitive> | undefined,
   lineIndex: Map<string, NativePrimitive> | undefined,
   state: PrimitiveStateReader,
+  includeViaTypeMetadata: boolean,
 ) {
   const via = viaIndex?.get(viaId);
   if (!via || !lineIndex || lineIndex.has(viaId) || state(via, 'Net') !== expectedNet)
@@ -84,6 +120,7 @@ async function collectViaAssociations(
     net: expectedNet,
     lines: result.sort((a, b) => a.primitiveId.localeCompare(b.primitiveId)),
     electricalContinuity: 'UNKNOWN',
+    ...(includeViaTypeMetadata ? { viaTypeMetadata: await readViaTypeMetadata(via) } : {}),
   };
 }
 
@@ -94,9 +131,15 @@ export function createViaLineAdjacencyReader({
   readFirstPath,
   readState,
 }: PcbReadOperationDependencies) {
-  return async (viaId: string, expectedNet: string): Promise<unknown> => {
+  return async (
+    viaId: string,
+    expectedNet: string,
+    includeViaTypeMetadata?: unknown,
+  ): Promise<unknown> => {
     await requireActivePcbContext();
     if (!token(viaId) || !token(expectedNet)) return missing('invalid-via-or-net-identity');
+    if (includeViaTypeMetadata !== undefined && includeViaTypeMetadata !== true)
+      return missing('invalid-via-type-metadata-request');
     const vias = readFirstPath<NativeInventory>(['PCB_PrimitiveVia', 'pcb_PrimitiveVia']);
     const lines = readFirstPath<NativeInventory>(['PCB_PrimitiveLine', 'pcb_PrimitiveLine']);
     if (typeof vias?.getAll !== 'function' || typeof lines?.getAll !== 'function')
@@ -104,7 +147,14 @@ export function createViaLineAdjacencyReader({
     try {
       const viaIndex = indexInventory(await vias.getAll(), MAX_VIAS, readState);
       const lineIndex = indexInventory(await lines.getAll(), MAX_LINES, readState);
-      return await collectViaAssociations(viaId, expectedNet, viaIndex, lineIndex, readState);
+      return await collectViaAssociations(
+        viaId,
+        expectedNet,
+        viaIndex,
+        lineIndex,
+        readState,
+        includeViaTypeMetadata === true,
+      );
     } catch {
       return missing('native-adjacency-read-failed');
     }

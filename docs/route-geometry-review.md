@@ -638,6 +638,31 @@ return-current, EMC or manufacturing sign-off is implied. The optional
 read is beta/experimental; it is not a production electrical validator.
 The bridge version and method registry must match the server.
 
+For a selected via, optionally add `"includeViaTypeMetadata": true` to
+its `nativeViaAdjacency` declaration. The additional `via_type_metadata`
+reports the native
+[via type and blind-via rule name getters](https://prodocs.easyeda.com/en/api/reference/pro-api.ipcb_primitivevia.html)
+on the same identity-bound native via object. The documented
+[via type enumeration](https://prodocs.easyeda.com/en/api/reference/pro-api.epcb_primitiveviatype.html)
+distinguishes ordinary through vias (0), blind/buried vias (1) and stitching
+vias (2). A through via with an explicitly empty or null blind-rule name
+has `span_intent: through_outer_layers` (design intent only). A blind/buried
+via with a nonempty exact rule name has `blind_rule_unresolved`; stitching
+vias without a blind rule have `stitching_span_unresolved`. Other,
+contradictory, missing or failed metadata remains `unavailable`. Valid
+reciprocal adjacency is retained if only the optional metadata fails or
+an older bridge does not return it. Invalid source identity/focus invalidates
+both observations. The optional getters are not called when the flag is
+omitted, and no extra bridge call is needed.
+
+The raw type and rule name are included only for validated metadata.
+No physical stack, drill span, plating, plane contact or return path
+is established: `physical_span_status` and
+`electrical_continuity_status` remain UNKNOWN. In particular, the native
+physical stacking configuration can be unavailable and an adjacent line
+does not identify the extent of a blind/buried via. Do not use this as
+manufacturing sign-off.
+
 ## Optional beta native pad-contact associations
 
 The `includeNativePadContacts: true` input (off by default) requests at
