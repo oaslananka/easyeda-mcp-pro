@@ -1531,6 +1531,57 @@ describe('native PCB route geometry review MCP contract', () => {
     expect(mismatch.placement_review.review_priorities[0].action).toBe('verify-net-mismatch');
   });
 
+  it('applies selected width criteria only to opted-in pairs in a mixed placement request', async () => {
+    mockNativePlacementPads({
+      dualLegs: true,
+      tracks: [
+        ...widthTracks,
+        {
+          primitiveId: 'return-trace',
+          net: 'GND',
+          layer: 1,
+          startX: 100,
+          startY: 30,
+          endX: 0,
+          endY: 30,
+          width: 1,
+        },
+      ],
+    });
+    const result = await run({
+      placementRelations: [
+        { first: 'U3', second: 'C5', kind: 'crystal' },
+        placementPadPair,
+        {
+          ...widthRelation,
+          padPairs: [
+            ...widthRelation.padPairs,
+            { firstPin: '7', secondPin: '2', expectedNet: 'GND' },
+          ],
+        },
+      ],
+      placementPriorityContext: {},
+    });
+    const findings = result.placement_review.findings;
+    expect(findings[0].pad_pairs).toBeUndefined();
+    expect(findings[1].pad_pairs[0].selected_line_width_review).toBeUndefined();
+    expect(findings[2].pad_pairs[0].selected_line_width_review).toMatchObject({
+      status: 'WARNING',
+      observed_min_line_width_mm: 0.254,
+      narrowest_line_ids: ['narrow'],
+    });
+    expect(findings[2].pad_pairs[1].route_chain.evidence).toBe('observed_exact_endpoint_chain');
+    expect(findings[2].pad_pairs[1].selected_line_width_review).toBeUndefined();
+    expect(findings[2].pad_pairs[1].status).toBe('UNKNOWN');
+    expect(result.placement_review.review_priorities.map((p: any) => p.finding_id)).toEqual([
+      findings[2].id,
+      findings[0].id,
+      findings[1].id,
+    ]);
+    expect(result.placement_review.review_priorities[0].width_deviations).toHaveLength(1);
+    expect(result.engineering_sign_off).toBe(false);
+  });
+
   it('does not infer copper contact when one route primitive is invalid or changes net', async () => {
     for (const tracks of [
       [
