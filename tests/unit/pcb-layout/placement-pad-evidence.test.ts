@@ -162,6 +162,50 @@ describe('native placement pad evidence is bounded and never a copper-loop pass'
     ).toBe('unavailable');
   });
 
+  it('retains unique requested pins when unrelated connector pads share a number', () => {
+    const shield = ['shield-a', 'shield-b', 'shield-c', 'shield-d'].map((primitiveId, index) => ({
+      ...first[0],
+      primitiveId,
+      padNumber: '6',
+      net: 'SHIELD',
+      x: index * 100,
+    }));
+    const mechanical = ['hole-a', 'hole-b'].map((primitiveId) => ({
+      ...first[0],
+      primitiveId,
+      padNumber: '',
+      net: '',
+    }));
+    const result = evaluate([...first, ...shield, ...mechanical], second);
+    expect(result).toMatchObject({
+      evidence: 'native_component_pads',
+      native_pad_primitive_ids: ['component-u/pad8', 'component-c/pad1'],
+      measured_pad_center_distance_mm: 2.54,
+      electrical_loop_status: 'UNKNOWN',
+    });
+    for (const expectedNet of ['SHIELD', 'VCC']) {
+      const ambiguous = reviewNativePlacementPadPair(
+        { ...declaration, firstPin: '6', expectedNet },
+        ids,
+        { first: [...first, ...shield], second },
+      );
+      expect(ambiguous).toMatchObject({
+        evidence: 'unavailable',
+        status: 'UNKNOWN',
+        electrical_loop_status: 'UNKNOWN',
+      });
+      expect(ambiguous.measured_pad_center_distance_mm).toBeUndefined();
+      expect(ambiguous.native_pad_primitive_ids).toBeUndefined();
+    }
+    expect(evaluate([...first, ...shield, shield[0]], second).evidence).toBe('unavailable');
+    expect(evaluate([...first, { ...mechanical[0], net: 'VCC' }], second).evidence).toBe(
+      'unavailable',
+    );
+    expect(
+      evaluate(first, [...second, { ...second[0], primitiveId: 'second-duplicate' }]).evidence,
+    ).toBe('unavailable');
+  });
+
   it('withholds a distance for a cross-component native primitive ID collision', () => {
     const collided = [{ ...second[0], primitiveId: first[0]!.primitiveId }];
     const finding = evaluate(first, collided);
