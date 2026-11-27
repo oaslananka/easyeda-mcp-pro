@@ -17,6 +17,7 @@ import { registerEngineeringReviewTools } from './L1_engineering_review.js';
 import { registerPcbRouteReviewTools } from './L1_pcb_route_review.js';
 import { registerPcbReadTools } from './L1_pcb_read.js';
 import { registerPcbWriteTools } from './L1_pcb_write.js';
+import { registerPcbOutlineTools } from './L1_pcb_outline.js';
 import { registerSchematicBatchTools } from './L1_schematic_batch.js';
 import { registerSchematicReadTools } from './L1_schematic_read.js';
 import { registerSchematicWriteTools } from './L1_schematic_write.js';
@@ -45,6 +46,7 @@ export function registerBuiltinTools(registry: ToolRegistry, config: EnvConfig):
   registerEngineeringReviewTools(registry, config);
   registerPcbRouteReviewTools(registry, config);
   registerPcbWriteTools(registry, config);
+  registerPcbOutlineTools(registry);
   registerExportTools(registry, config);
   registerExtensionRpcTools(registry, config);
   registerPcb3dPreviewTool(registry);

@@ -22,7 +22,7 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Pro',
     description:
       'Adds pick-and-place, PDF, netlist export, compound transactional workflow tools, autorouting, route-context export, exported PCB 3D previews, and offline SPICE verification for manufacturing workflows',
-    approxToolCount: '114',
+    approxToolCount: '115',
     isDefault: false,
   },
   full: {
@@ -30,7 +30,7 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Full',
     description:
       'Adds audited read-only EasyEDA API getters, controlled writable API calls, and CircuitIR-driven floorplanning without raw JavaScript execution',
-    approxToolCount: '131',
+    approxToolCount: '132',
     isDefault: false,
   },
   dev: {
@@ -38,14 +38,14 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     label: 'Dev',
     description:
       'Adds diagnostics probes for bridge methods and live component runtime shape inspection',
-    approxToolCount: '136',
+    approxToolCount: '137',
     isDefault: false,
   },
   experimental: {
     name: 'experimental',
     label: 'Experimental',
     description: 'MCP Apps, Tasks, AI action plans',
-    approxToolCount: '139',
+    approxToolCount: '140',
     isDefault: false,
   },
 };
