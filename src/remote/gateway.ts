@@ -435,6 +435,23 @@ function projectIdentity(project?: ExtensionSession['activeProject']): string | 
 const EXTENSION_RPC_METHOD = 'extension.rpcCall';
 const EXTENSION_RPC_TOOL = 'easyeda_extension_call';
 
+// Only the bounded, validated service selector is displayed; never include
+// arbitrary service message data in the native approval dialog.
+function approvalActionLabel(toolName: string, input: unknown): string | undefined {
+  if (toolName !== EXTENSION_RPC_TOOL) return 'MCP tool';
+  const parsed = z
+    .object({ topic: z.string().regex(/^mcp\.[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$/) })
+    .safeParse(input);
+  return parsed.success ? `MCP tool (service topic: ${parsed.data.topic})` : undefined;
+}
+
+function sessionConsentEligible(
+  input: { sessionApprovalEligible?: boolean; riskLevel: RemoteRiskLevel },
+  effectiveRisk: RemoteRiskLevel,
+): boolean {
+  return input.sessionApprovalEligible === true && effectiveRisk === input.riskLevel;
+}
+
 function extensionRpcGrantInput(input: unknown): unknown {
   // The MCP handler sends an explicit null for an omitted message.
   const parsed = z
@@ -1161,11 +1178,13 @@ export class RemoteGateway {
     });
     if (!route.ok) return route;
 
+    const actionLabel = approvalActionLabel(input.toolName, input.input);
+    if (!actionLabel) return gatewayError(400, 'BAD_REQUEST', 'Invalid extension RPC topic.');
     const now = this.now();
     const inputHash = this.hashInput(input.input);
     // A caller may assert a lower risk than the server-resolved tool policy.
     // A temporary native grant can never lower the effective risk tier.
-    const consentEligible = input.sessionApprovalEligible && effectiveRisk === input.riskLevel;
+    const consentEligible = sessionConsentEligible(input, effectiveRisk);
     const reusable = Boolean(
       consentEligible && this.hasProjectSessionGrant(identity, route.session, effectiveRisk, now),
     );
@@ -1178,7 +1197,7 @@ export class RemoteGateway {
         riskLevel: effectiveRisk,
         inputHash,
         now,
-        actionLabel: 'MCP tool',
+        actionLabel,
         sessionApprovalEligible: consentEligible,
         retryMessage:
           'Approval was requested in EasyEDA. Retry the same MCP tool call with remoteApprovalId after the user decides.',

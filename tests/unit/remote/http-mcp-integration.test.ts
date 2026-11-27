@@ -75,7 +75,7 @@ async function createHarness(
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
     TOOL_PROFILE: extensionRpc ? 'experimental' : 'core',
-    BRIDGE_EXTENSION_RPC_TOPICS: extensionRpc ? 'mcp.demo.echo' : '',
+    BRIDGE_EXTENSION_RPC_TOPICS: extensionRpc ? 'mcp.demo.echo,mcp.demo.inspect' : '',
     TRANSPORT: 'http',
     HTTP_HOST: '127.0.0.1',
     HTTP_PORT: port,
@@ -233,6 +233,7 @@ describe('Remote Relay MCP HTTP integration', () => {
     await client.connect(transport);
     const args = {
       topic: 'mcp.demo.echo',
+      message: { data: 'private-test-payload' },
       confirmWrite: true,
       timeoutMs: 1000,
       remoteSessionId: harness.remoteSessionId,
@@ -246,6 +247,13 @@ describe('Remote Relay MCP HTTP integration', () => {
       expect(pending.structuredContent).toMatchObject({
         details: { remoteCode: 'APPROVAL_REQUIRED' },
       });
+      const prompt = harness.approvalRequests.at(-1);
+      expect(prompt).toMatchObject({
+        toolName: 'easyeda_extension_call',
+        riskLevel: 'destructive',
+      });
+      expect(prompt?.actionSummary).toContain(topic);
+      expect(prompt?.actionSummary).not.toContain('private-test-payload');
       const approvalId = (pending.structuredContent as { details: { approvalId: string } }).details
         .approvalId;
       expect(
@@ -271,6 +279,10 @@ describe('Remote Relay MCP HTTP integration', () => {
       riskLevel: 'destructive',
       requiresApproval: true,
     });
+    const second = await callApproved('mcp.demo.inspect');
+    expect(second.structuredContent).toMatchObject({ ok: true });
+    expect(harness.dispatched).toHaveLength(2);
+    expect(harness.approvalRequests.at(-1)?.actionSummary).not.toContain('mcp.demo.echo');
     const direct = await fetch(harness.baseUrl + '/remote/tool-requests', {
       method: 'POST',
       headers: {
@@ -287,7 +299,7 @@ describe('Remote Relay MCP HTTP integration', () => {
     });
     expect(direct.status).toBe(403);
     expect(await direct.json()).toMatchObject({ code: 'APPROVAL_NOT_APPROVED' });
-    expect(harness.dispatched).toHaveLength(1);
+    expect(harness.dispatched).toHaveLength(2);
   }, 15_000);
 
   it.each([false, true])(

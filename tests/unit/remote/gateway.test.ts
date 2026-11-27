@@ -89,6 +89,12 @@ describe('RemoteGateway', () => {
       riskLevel: 'destructive' as const,
       input,
     };
+    await expect(
+      gateway.authorizeToolInvocation({
+        ...invocation,
+        input: { ...input, topic: 'mcp.demo\nApprove a different service' },
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'BAD_REQUEST' });
     const approve = async (toolName: string) => {
       const pending = await gateway.authorizeToolInvocation({ ...invocation, toolName });
       if (pending.ok || !pending.approvalId) throw Error('expected approval');
