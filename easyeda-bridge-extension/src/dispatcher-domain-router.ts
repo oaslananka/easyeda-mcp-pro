@@ -2,6 +2,7 @@ import type { BoardInspectionOperations } from './board-inspection.js';
 import type { CanvasOperations } from './canvas-operations.js';
 import type { DesignRuleCheckOperations } from './design-rule-check-operations.js';
 import type { ExportOperations } from './export-operations.js';
+import type { ExtensionRpcOperations } from './extension-rpc-operations.js';
 import type { PcbMutationOperations } from './pcb-mutation-operations.js';
 import type { PcbReadOperations } from './pcb-read-operations.js';
 import type { PcbWriteOperations } from './pcb-write-operations.js';
@@ -20,6 +21,7 @@ export interface DispatcherDomainRouterDependencies {
   systemApiOperations: SystemApiOperations;
   boardInspection: BoardInspectionOperations;
   exportOperations: ExportOperations;
+  extensionRpcOperations: ExtensionRpcOperations;
   designRuleCheckOperations: DesignRuleCheckOperations;
   canvasOperations: CanvasOperations;
   pcbWriteOperations: PcbWriteOperations;
@@ -97,6 +99,7 @@ export function createDispatcherDomainRouter(
     'export.odb': (params) => dependencies.exportOperations.exportOdb(params),
     'export.pdf': (params) => dependencies.exportOperations.exportPdf(params),
     'export.pickPlace': (params) => dependencies.exportOperations.exportPickPlace(params),
+    'extension.rpcCall': (params) => dependencies.extensionRpcOperations.call(params),
     'pcb.addSilkscreenLine': (params) => dependencies.pcbWriteOperations.addSilkscreenLine(params),
     'pcb.addText': (params) => dependencies.pcbWriteOperations.addText(params),
     'pcb.addTrack': (params) => dependencies.pcbWriteOperations.addTrack(params),

@@ -64,6 +64,32 @@ describe('local bridge follower relay', () => {
     }
   });
 
+  it('refuses oversized RPC frames before sending without disconnecting the follower', async () => {
+    const call = vi.fn(async () => ({ healthy: true }));
+    const server = new LocalBridgeRelayServer({
+      token: 'relay-secret',
+      maxPayloadBytes: 128 * 1024,
+      snapshot: () => snapshot(),
+      call,
+    });
+    const port = await server.start();
+    const client = new LocalBridgeRelayClient({ host: '127.0.0.1', port, token: 'relay-secret' });
+    try {
+      await client.connect();
+      await expect(
+        client.call('extension.rpcCall', { message: 'x'.repeat(200 * 1024) }, {}, 1000),
+      ).rejects.toMatchObject({ code: 'RPC_REQUEST_TOO_LARGE' });
+      expect(call).not.toHaveBeenCalled();
+      await expect(client.call('system.getStatus', {}, {}, 1000)).resolves.toEqual({
+        healthy: true,
+      });
+      expect(call).toHaveBeenCalledTimes(1);
+    } finally {
+      client.disconnect();
+      server.close();
+    }
+  });
+
   it('closes unauthenticated follower sockets after a bounded attach window', async () => {
     const server = new LocalBridgeRelayServer({
       token: 'relay-secret',
@@ -286,6 +312,10 @@ describe('local bridge follower relay', () => {
       const pending = client.call('system.getStatus', {}, {}, 5_000);
       client.disconnect();
       await expect(pending).rejects.toThrow('Local EasyEDA bridge follower disconnected.');
+      await expect(pending).rejects.not.toMatchObject({ code: 'BRIDGE_NOT_CONNECTED' });
+      await expect(client.call('extension.rpcCall', {}, {}, 50)).rejects.toMatchObject({
+        code: 'BRIDGE_NOT_CONNECTED',
+      });
     } finally {
       client.disconnect();
       server.close();
@@ -303,7 +333,12 @@ describe('local bridge follower relay', () => {
     await expect(server.start()).rejects.toThrow('already running');
 
     const client = new LocalBridgeRelayClient({ host: '127.0.0.1', port, token: 'relay-secret' });
-    await expect(client.call('system.getStatus', {}, {}, 50)).rejects.toThrow('not connected');
+    await expect(
+      client.call('extension.rpcCall', { topic: 'mcp.test' }, {}, 50),
+    ).rejects.toMatchObject({
+      code: 'BRIDGE_NOT_CONNECTED',
+      message: expect.stringContaining('not connected'),
+    });
 
     try {
       await client.connect();

@@ -3,7 +3,7 @@ import {
   REMOTE_RELAY_PROTOCOL_VERSION,
   type ToolRequestMessage,
 } from '../../../src/remote/protocol.js';
-import { RemoteGateway } from '../../../src/remote/gateway.js';
+import { RemoteGateway, type RemoteGatewayOptions } from '../../../src/remote/gateway.js';
 import type { RemoteIdentity } from '../../../src/remote/scope.js';
 
 function makeGateway(
@@ -60,6 +60,83 @@ function registerFakeExtension(gateway: RemoteGateway, dispatches: ToolRequestMe
 }
 
 describe('RemoteGateway', () => {
+  it('allows extension RPC only through a matching one-use MCP invocation grant', async () => {
+    const { gateway } = makeGateway(undefined, { toolRiskResolver: () => 'read' });
+    const dispatches: ToolRequestMessage[] = [];
+    const session = registerFakeExtension(gateway, dispatches);
+    const identity: RemoteIdentity = { userId: 'user-a', scopes: ['easyeda.project_admin'] };
+    const code = gateway.createPairingCode({ identity, sessionId: session.sessionId });
+    expect(gateway.completePairing({ identity, code, sessionId: session.sessionId })).toBe(true);
+    const input = { topic: 'mcp.demo.echo', timeoutMs: 1000, confirmWrite: true };
+    const route = {
+      identity,
+      sessionId: session.sessionId,
+      toolName: 'extension.rpcCall',
+      riskLevel: 'read' as const,
+      input: { ...input, message: null },
+    };
+    await expect(
+      gateway.routeToolRequest({ ...route, identity: readIdentity }),
+    ).resolves.toMatchObject({ ok: false, code: 'SCOPE_MISSING' });
+    await expect(gateway.routeToolRequest(route)).resolves.toMatchObject({
+      ok: false,
+      code: 'APPROVAL_NOT_APPROVED',
+    });
+    const invocation = {
+      identity,
+      sessionId: session.sessionId,
+      toolName: 'easyeda_extension_call',
+      riskLevel: 'destructive' as const,
+      input,
+    };
+    await expect(
+      gateway.authorizeToolInvocation({
+        ...invocation,
+        input: { ...input, topic: 'mcp.demo\nApprove a different service' },
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'BAD_REQUEST' });
+    const approve = async (toolName: string) => {
+      const pending = await gateway.authorizeToolInvocation({ ...invocation, toolName });
+      if (pending.ok || !pending.approvalId) throw Error('expected approval');
+      expect(
+        gateway.resolveApprovalFromExtension({
+          sessionId: session.sessionId,
+          approvalId: pending.approvalId,
+          result: 'approved',
+        }),
+      ).toBe(true);
+      const grant = await gateway.authorizeToolInvocation({
+        ...invocation,
+        toolName,
+        approvalId: pending.approvalId,
+      });
+      if (!grant.ok) throw Error('expected grant');
+      return grant.grantId;
+    };
+    const unrelated = await approve('easyeda_api_call');
+    await expect(gateway.routeToolRequest({ ...route, grantId: unrelated })).resolves.toMatchObject(
+      { ok: false, code: 'APPROVAL_NOT_APPROVED' },
+    );
+    const grantId = await approve('easyeda_extension_call');
+    await expect(
+      gateway.routeToolRequest({
+        ...route,
+        grantId,
+        input: { ...route.input, topic: 'mcp.demo.other' },
+      }),
+    ).resolves.toMatchObject({ ok: false, code: 'APPROVAL_NOT_APPROVED' });
+    expect(dispatches).toHaveLength(0);
+    await expect(gateway.routeToolRequest({ ...route, grantId })).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(dispatches[0]).toMatchObject({ riskLevel: 'destructive', requiresApproval: true });
+    await expect(gateway.routeToolRequest({ ...route, grantId })).resolves.toMatchObject({
+      ok: false,
+      code: 'APPROVAL_NOT_APPROVED',
+    });
+    expect(dispatches).toHaveLength(1);
+  });
+
   it('pairs a fake extension and routes a read request', async () => {
     const { gateway } = makeGateway();
     const dispatches: ToolRequestMessage[] = [];

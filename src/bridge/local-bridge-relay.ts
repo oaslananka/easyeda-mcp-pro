@@ -6,6 +6,15 @@ import { type BridgeHello } from './protocol.js';
 export const LOCAL_BRIDGE_RELAY_PROTOCOL_VERSION = 1 as const;
 const DEFAULT_RELAY_AUTH_TIMEOUT_MS = 2_000;
 const DEFAULT_MAX_RELAY_CLIENTS = 32;
+// Older owners do not advertise the relay limit. Use the smallest legal
+// aggregate capacity (8 * 1024) until an owner advertises its actual budget.
+const MIN_RELAY_PAYLOAD_BYTES = 8192;
+
+function relayPayloadLimit(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+    ? value
+    : MIN_RELAY_PAYLOAD_BYTES;
+}
 
 export type SharedBridgeState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -188,6 +197,7 @@ export class LocalBridgeRelayServer {
           JSON.stringify({
             type: 'attached',
             protocolVersion: LOCAL_BRIDGE_RELAY_PROTOCOL_VERSION,
+            maxPayloadBytes: this.options.maxPayloadBytes,
             snapshot: this.options.snapshot(),
           }),
         );
@@ -248,6 +258,7 @@ export class LocalBridgeRelayClient extends EventEmitter {
   private socket: WebSocket | null = null;
   private attached = false;
   private requestCounter = 0;
+  private maxPayloadBytes = MIN_RELAY_PAYLOAD_BYTES;
   private readonly pending = new Map<string, PendingRelayRequest>();
 
   constructor(private readonly endpoint: LocalBridgeRelayEndpoint) {
@@ -256,6 +267,7 @@ export class LocalBridgeRelayClient extends EventEmitter {
 
   async connect(timeoutMs = 1_500): Promise<SharedBridgeSnapshot> {
     if (this.socket) throw new Error('Local bridge follower relay is already connected.');
+    this.maxPayloadBytes = MIN_RELAY_PAYLOAD_BYTES;
     const socket = new WebSocket(`ws://${this.endpoint.host}:${this.endpoint.port}`);
     this.socket = socket;
 
@@ -301,6 +313,8 @@ export class LocalBridgeRelayClient extends EventEmitter {
 
         if (!this.attached && message.type === 'attached' && isRecord(message.snapshot)) {
           this.attached = true;
+          this.maxPayloadBytes = relayPayloadLimit(message.maxPayloadBytes);
+
           if (!settled) {
             settled = true;
             clearTimeout(timer);
@@ -344,7 +358,7 @@ export class LocalBridgeRelayClient extends EventEmitter {
     });
   }
 
-  call<TResult>(
+  async call<TResult>(
     method: string,
     params: unknown,
     options: RelayCallOptions,
@@ -352,10 +366,33 @@ export class LocalBridgeRelayClient extends EventEmitter {
   ): Promise<TResult> {
     const socket = this.socket;
     if (!socket || !this.attached || socket.readyState !== WebSocket.OPEN) {
-      return Promise.reject(new Error('Local EasyEDA bridge owner relay is not connected.'));
+      return Promise.reject(
+        Object.assign(new Error('Local EasyEDA bridge owner relay is not connected.'), {
+          code: 'BRIDGE_NOT_CONNECTED',
+        }),
+      );
     }
 
     const id = `relay_${process.pid}_${++this.requestCounter}`;
+    const payload = JSON.stringify({
+      type: 'call',
+      id,
+      method,
+      params,
+      timeoutMs: options.timeoutMs,
+      traceparent: options.traceparent,
+    });
+    if (
+      method === 'extension.rpcCall' &&
+      Buffer.byteLength(payload, 'utf8') > this.maxPayloadBytes
+    ) {
+      return Promise.reject(
+        Object.assign(new Error('RPC request exceeds the owner relay payload budget.'), {
+          code: 'RPC_REQUEST_TOO_LARGE',
+        }),
+      );
+    }
+
     return new Promise<TResult>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
@@ -368,16 +405,7 @@ export class LocalBridgeRelayClient extends EventEmitter {
         reject,
         timer,
       });
-      socket.send(
-        JSON.stringify({
-          type: 'call',
-          id,
-          method,
-          params,
-          timeoutMs: options.timeoutMs,
-          traceparent: options.traceparent,
-        }),
-      );
+      socket.send(payload);
     });
   }
 

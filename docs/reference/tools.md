@@ -40,6 +40,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_export_odb`                               | `experimental` | `low`    | Experimental ODB++ archive export using EasyEDA Pro BETA API. Returns an archive for inspection, not verified fabrication data. Do not use in production.                                                                                                                                                                     |
 | `easyeda_export_pdf`                               | `pro`          | `low`    | Export the schematic and/or board layout to PDF.                                                                                                                                                                                                                                                                              |
 | `easyeda_export_pick_place`                        | `pro`          | `low`    | Export pick-and-place (centroid) file for PCB assembly. Contains component reference, position, rotation, and layer.                                                                                                                                                                                                          |
+| `easyeda_extension_call`                           | `experimental` | `high`   | Experimental: call a service another EasyEDA extension registered with sys_MessageBus.rpcServicePublic under an mcp. topic. Disabled unless the topic is listed in BRIDGE_EXTENSION_RPC_TOPICS. Sends JSON data only; the service, not this server, decides what it does. May mutate designs; requires confirmWrite=true.     |
 | `easyeda_get_capabilities`                         | `core`         | `low`    | Return server capabilities, including available profiles, enabled feature flags, and supported operations.                                                                                                                                                                                                                    |
 | `easyeda_get_feature_flags`                        | `core`         | `low`    | Return current feature flag values.                                                                                                                                                                                                                                                                                           |
 | `easyeda_get_server_config`                        | `core`         | `low`    | Return safe (redacted) server configuration. Secrets are never exposed.                                                                                                                                                                                                                                                       |
@@ -1265,6 +1266,38 @@ Returns a JSON object matching the schema:
   exported: boolean;
   not_available: boolean(optional);
   error: string(optional);
+}
+```
+
+---
+
+## `easyeda_extension_call`
+
+**Profile:** `experimental` | **Risk Level:** `high`
+
+> Experimental: call a service another EasyEDA extension registered with sys_MessageBus.rpcServicePublic under an mcp. topic. Disabled unless the topic is listed in BRIDGE_EXTENSION_RPC_TOPICS. Sends JSON data only; the service, not this server, decides what it does. May mutate designs; requires confirmWrite=true.
+
+### Input Parameters
+
+| Parameter      | Type             | Required | Description                                                            |
+| -------------- | ---------------- | -------- | ---------------------------------------------------------------------- |
+| `confirmWrite` | `'true'`         | Yes      | Explicit approval for this potentially destructive service invocation. |
+| `topic`        | `string`         | Yes      | Public message-bus topic in the mcp. namespace, e.g. mcp.rcp.checkNet. |
+| `message`      | `any (optional)` | No       | JSON payload passed as the single argument to the service handler.     |
+| `timeoutMs`    | `number`         | Yes      | How long the service may take to reply.                                |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  topic: string;
+  ok: boolean;
+  result: any(optional);
+  disabled: boolean(optional);
+  error: string(optional);
+  outcomeUnknown: boolean(optional);
 }
 ```
 

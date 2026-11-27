@@ -88,6 +88,7 @@ export default defineConfig({
         items: [
           { text: 'MCP Tool Reference', link: '/reference/tools' },
           { text: 'Configuration', link: '/guide/configuration' },
+          { text: 'Extension RPC (Experimental)', link: '/guide/extension-rpc' },
           { text: 'EasyEDA Compatibility', link: '/reference/easyeda-compatibility' },
           { text: 'Save, Export & Recovery', link: '/reference/save-export-rollback-safety' },
           { text: 'Bridge Contract', link: '/reference/bridge-contract' },

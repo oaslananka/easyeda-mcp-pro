@@ -166,6 +166,8 @@ export async function createServer(
       TOOL_SCOPES: config.TOOL_SCOPES,
       MCP_BRIDGE_BACKEND: config.MCP_BRIDGE_BACKEND,
       MCP_REMOTE_SESSION_ID: config.MCP_REMOTE_SESSION_ID,
+      BRIDGE_EXTENSION_RPC_TOPICS: config.BRIDGE_EXTENSION_RPC_TOPICS,
+      BRIDGE_MAX_PAYLOAD_SIZE: config.BRIDGE_MAX_PAYLOAD_SIZE,
       hostedOAuthResource: options.hostedOAuthResource,
     },
     remote: remoteGateway ? { gateway: remoteGateway } : undefined,

@@ -148,6 +148,14 @@ const EASYEDA_HOST_RE = /^(?:.+\.)?(?:easyeda\.com|lceda\.cn)$/i;
 const EXTENSION_PROTOCOL_RE = /^(?:chrome-extension|moz-extension):$/;
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
+function assertRpcRequestBudget(method: string, message: string, maxPayloadBytes: number): void {
+  if (method === 'extension.rpcCall' && Buffer.byteLength(message, 'utf8') > maxPayloadBytes) {
+    throw Object.assign(new Error('RPC request exceeds the active bridge payload budget.'), {
+      code: 'RPC_REQUEST_TOO_LARGE',
+    });
+  }
+}
+
 export class BridgeManager extends EventEmitter {
   public state: BridgeState = 'disconnected';
   public hello: BridgeHello | null = null;
@@ -220,7 +228,7 @@ export class BridgeManager extends EventEmitter {
     return new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.off('connected', onConnected);
-        reject(new Error('Bridge not connected'));
+        reject(Object.assign(new Error('Bridge not connected'), { code: 'BRIDGE_NOT_CONNECTED' }));
       }, timeoutMs);
       const onConnected = () => {
         clearTimeout(timer);
@@ -1108,13 +1116,25 @@ export class BridgeManager extends EventEmitter {
 
     const ws = this.ws;
     if (this.state !== 'connected' || !ws) {
-      if (this._ownershipConflict) throw new Error(this._ownershipConflict.message);
-      throw Object.assign(new Error(`Bridge not connected. Cannot call method "${method}".`), {
-        code: 'BRIDGE_NOT_CONNECTED',
-      });
+      throw Object.assign(
+        new Error(
+          this._ownershipConflict?.message ??
+            `Bridge not connected. Cannot call method "${method}".`,
+        ),
+        { code: 'BRIDGE_NOT_CONNECTED' },
+      );
     }
 
     const id = `req_${++this.requestIdCounter}`;
+    const message = JSON.stringify({
+      id,
+      type: 'request',
+      method,
+      params,
+      timeoutMs,
+      traceparent: opts?.traceparent,
+    });
+    assertRpcRequestBudget(method, message, this.config.BRIDGE_MAX_PAYLOAD_SIZE);
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -1138,15 +1158,6 @@ export class BridgeManager extends EventEmitter {
         method,
         startedAt: Date.now(),
         timeoutMs,
-      });
-
-      const message = JSON.stringify({
-        id,
-        type: 'request',
-        method,
-        params,
-        timeoutMs,
-        traceparent: opts?.traceparent,
       });
 
       ws.send(message);

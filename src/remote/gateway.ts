@@ -64,6 +64,14 @@ export type RemoteGatewayErrorCode =
   | 'REMOTE_TOOL_UNSUPPORTED'
   | 'REMOTE_EXTENSION_TIMEOUT';
 
+// Only these dispatcher refusals are proven to precede public RPC invocation.
+const ExtensionRpcRefusalCodeSchema = z.enum([
+  'UNSUPPORTED_RUNTIME',
+  'INVALID_PARAMS',
+  'CONFIRM_WRITE_REQUIRED',
+  'REMOTE_EXECUTION_NOT_ENABLED',
+]);
+
 export type RemoteGatewayFailure = {
   ok: false;
   status: number;
@@ -71,6 +79,8 @@ export type RemoteGatewayFailure = {
   message: string;
   approvalId?: string;
   approvalExpiresAt?: string;
+  extensionRpcRefusalCode?: z.infer<typeof ExtensionRpcRefusalCodeSchema>;
+  outcomeUnknown?: true;
 };
 
 export type RemoteGatewayToolResult =
@@ -194,10 +204,33 @@ class RemoteDispatchTimeoutError extends Error {
 }
 
 class RemoteSessionUnavailableError extends Error {
-  constructor(readonly sessionId: string) {
+  constructor(
+    readonly sessionId: string,
+    readonly dispatched = false,
+  ) {
     super(`Remote extension session ${sessionId} became unavailable during dispatch.`);
     this.name = 'RemoteSessionUnavailableError';
   }
+}
+
+// Only pending socket requests may already have executed; a closed socket
+// detected before sending or a queued request rejected before dispatch cannot.
+function withDispatchUncertainty(
+  failure: RemoteGatewayFailure,
+  risk: RemoteRiskLevel,
+  error: unknown,
+): RemoteGatewayFailure {
+  const mayHaveExecuted =
+    error instanceof RemoteDispatchTimeoutError ||
+    (error instanceof RemoteSessionUnavailableError && error.dispatched);
+  if (risk === 'read' || !mayHaveExecuted) return failure;
+  return {
+    ...failure,
+    outcomeUnknown: true,
+    message:
+      failure.message +
+      ' The operation outcome is unknown; it may still be running or have completed side effects. Inspect the target state before retrying.',
+  };
 }
 
 async function dispatchWithDeadline(
@@ -263,7 +296,10 @@ function isUnsupportedRemoteMethod(code: string | undefined): boolean {
   return code === 'METHOD_NOT_ALLOWED' || code === 'METHOD_NOT_FOUND';
 }
 
-function relayExtensionFailure(error?: { code: string; message: string }): RemoteGatewayFailure {
+function relayExtensionFailure(
+  method: string,
+  error?: { code: string; message: string },
+): RemoteGatewayFailure {
   if (error?.code === 'PROJECT_INACTIVE') {
     return gatewayError(
       409,
@@ -278,11 +314,16 @@ function relayExtensionFailure(error?: { code: string; message: string }): Remot
       `${error?.code}: ${error?.message ?? 'Remote extension does not support this method.'}`,
     );
   }
-  return gatewayError(
+  const failure = gatewayError(
     502,
     'REMOTE_EXTENSION_ERROR',
     error?.message ?? 'Remote extension returned an error.',
   );
+  if (method === EXTENSION_RPC_METHOD) {
+    const refusal = ExtensionRpcRefusalCodeSchema.safeParse(error?.code);
+    if (refusal.success) return { ...failure, extensionRpcRefusalCode: refusal.data };
+  }
+  return failure;
 }
 
 function scopeStringToList(value: unknown): string[] {
@@ -430,6 +471,39 @@ function projectIdentity(project?: ExtensionSession['activeProject']): string | 
     return `name:${project.documentType}:${project.projectName}:${project.url ?? ''}`;
   }
   return project?.url ? `url:${project.url}` : undefined;
+}
+
+const EXTENSION_RPC_METHOD = 'extension.rpcCall';
+const EXTENSION_RPC_TOOL = 'easyeda_extension_call';
+
+// Only the bounded, validated service selector is displayed; never include
+// arbitrary service message data in the native approval dialog.
+function approvalActionLabel(toolName: string, input: unknown): string | undefined {
+  if (toolName !== EXTENSION_RPC_TOOL) return 'MCP tool';
+  const parsed = z
+    .object({ topic: z.string().regex(/^mcp\.[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$/) })
+    .safeParse(input);
+  return parsed.success ? `MCP tool (service topic: ${parsed.data.topic})` : undefined;
+}
+
+function sessionConsentEligible(
+  input: { sessionApprovalEligible?: boolean; riskLevel: RemoteRiskLevel },
+  effectiveRisk: RemoteRiskLevel,
+): boolean {
+  return input.sessionApprovalEligible === true && effectiveRisk === input.riskLevel;
+}
+
+function extensionRpcGrantInput(input: unknown): unknown {
+  // The MCP handler sends an explicit null for an omitted message.
+  const parsed = z
+    .object({
+      topic: z.string(),
+      message: z.unknown().optional(),
+      timeoutMs: z.number(),
+      confirmWrite: z.literal(true),
+    })
+    .safeParse(input);
+  return parsed.success ? { ...parsed.data, message: parsed.data.message ?? null } : input;
 }
 
 const DESTRUCTIVE_TOOL_RE =
@@ -656,6 +730,7 @@ export class RemoteGateway {
   }
 
   private resolveEffectiveRisk(toolName: string, assertedRisk?: RemoteRiskLevel): RemoteRiskLevel {
+    if (toolName === EXTENSION_RPC_METHOD || toolName === EXTENSION_RPC_TOOL) return 'destructive';
     const intrinsic = this.toolRiskResolver?.(toolName) ?? defaultToolRiskHeuristic(toolName);
     if (!intrinsic) return assertedRisk ?? 'read';
     const rank: Record<RemoteRiskLevel, number> = { read: 0, export: 1, write: 2, destructive: 3 };
@@ -1112,6 +1187,12 @@ export class RemoteGateway {
     return true;
   }
 
+  private invocationGrantHash(toolName: string, input: unknown, originalHash: string): string {
+    return toolName === EXTENSION_RPC_TOOL
+      ? this.hashInput(extensionRpcGrantInput(input))
+      : originalHash;
+  }
+
   async authorizeToolInvocation(input: {
     identity?: RemoteIdentity;
     sessionId?: string;
@@ -1138,11 +1219,13 @@ export class RemoteGateway {
     });
     if (!route.ok) return route;
 
+    const actionLabel = approvalActionLabel(input.toolName, input.input);
+    if (!actionLabel) return gatewayError(400, 'BAD_REQUEST', 'Invalid extension RPC topic.');
     const now = this.now();
     const inputHash = this.hashInput(input.input);
     // A caller may assert a lower risk than the server-resolved tool policy.
     // A temporary native grant can never lower the effective risk tier.
-    const consentEligible = input.sessionApprovalEligible && effectiveRisk === input.riskLevel;
+    const consentEligible = sessionConsentEligible(input, effectiveRisk);
     const reusable = Boolean(
       consentEligible && this.hasProjectSessionGrant(identity, route.session, effectiveRisk, now),
     );
@@ -1155,7 +1238,7 @@ export class RemoteGateway {
         riskLevel: effectiveRisk,
         inputHash,
         now,
-        actionLabel: 'MCP tool',
+        actionLabel,
         sessionApprovalEligible: consentEligible,
         retryMessage:
           'Approval was requested in EasyEDA. Retry the same MCP tool call with remoteApprovalId after the user decides.',
@@ -1189,7 +1272,7 @@ export class RemoteGateway {
         sessionId: route.session.sessionId,
         toolName: input.toolName,
         riskLevel: effectiveRisk,
-        inputHash,
+        inputHash: this.invocationGrantHash(input.toolName, input.input, inputHash),
       },
       now,
     );
@@ -1200,17 +1283,61 @@ export class RemoteGateway {
     return this.invocationGrants.revoke(grantId);
   }
 
-  async routeToolRequest(input: {
-    identity?: RemoteIdentity;
-    sessionId?: string;
-    toolName: string;
-    riskLevel: RemoteRiskLevel;
-    input?: unknown;
-    approvalId?: string;
-    grantId?: string;
-    deadlineMs?: number;
-  }): Promise<RemoteGatewayToolResult> {
-    const effectiveRisk = this.resolveEffectiveRisk(input.toolName, input.riskLevel);
+  private validateDispatchGrant(
+    input: {
+      grantId: string;
+      userId: string;
+      sessionId: string;
+      riskLevel: RemoteRiskLevel;
+      toolName: string;
+      input?: unknown;
+    },
+    now: Date,
+  ): boolean {
+    if (input.toolName !== EXTENSION_RPC_METHOD) {
+      return this.invocationGrants.validate(
+        {
+          grantId: input.grantId,
+          userId: input.userId,
+          sessionId: input.sessionId,
+          riskLevel: input.riskLevel,
+        },
+        now,
+      );
+    }
+    const valid = this.invocationGrants.validate(
+      {
+        grantId: input.grantId,
+        userId: input.userId,
+        sessionId: input.sessionId,
+        riskLevel: input.riskLevel,
+        toolName: EXTENSION_RPC_TOOL,
+        inputHash: this.hashInput(extensionRpcGrantInput(input.input)),
+      },
+      now,
+    );
+    // RPC is one external action, never a reusable multi-method grant.
+    return valid && this.invocationGrants.revoke(input.grantId);
+  }
+
+  private rejectRawExtensionRpc(
+    toolName: string,
+    grantId?: string,
+  ): RemoteGatewayFailure | undefined {
+    if (toolName === EXTENSION_RPC_METHOD && !grantId) {
+      return gatewayError(
+        403,
+        'APPROVAL_NOT_APPROVED',
+        'Extension RPC requires the allowlisted MCP tool invocation; direct relay dispatch is disabled.',
+      );
+    }
+    return undefined;
+  }
+
+  private dispatchScopeFailure(
+    input: { identity?: RemoteIdentity; sessionId?: string; toolName: string },
+    effectiveRisk: RemoteRiskLevel,
+  ): RemoteGatewayFailure | undefined {
     const scope = checkRemoteScope(input.identity, effectiveRisk, this.now());
     if (!scope.ok) {
       this.audit.record({
@@ -1225,12 +1352,30 @@ export class RemoteGateway {
       });
       return gatewayError(scope.code === 'SCOPE_MISSING' ? 403 : 401, scope.code, scope.message);
     }
+    return undefined;
+  }
+
+  async routeToolRequest(input: {
+    identity?: RemoteIdentity;
+    sessionId?: string;
+    toolName: string;
+    riskLevel: RemoteRiskLevel;
+    input?: unknown;
+    approvalId?: string;
+    grantId?: string;
+    deadlineMs?: number;
+  }): Promise<RemoteGatewayToolResult> {
+    const effectiveRisk = this.resolveEffectiveRisk(input.toolName, input.riskLevel);
+    const scopeFailure = this.dispatchScopeFailure(input, effectiveRisk);
+    if (scopeFailure) return scopeFailure;
 
     const identity = input.identity;
     if (!identity) {
       return gatewayError(401, 'IDENTITY_MISSING', 'Remote identity is required.');
     }
 
+    const rawRpcFailure = this.rejectRawExtensionRpc(input.toolName, input.grantId);
+    if (rawRpcFailure) return rawRpcFailure;
     const route = this.resolveProjectBoundConnection({
       identity,
       riskLevel: effectiveRisk,
@@ -1244,12 +1389,14 @@ export class RemoteGateway {
     const inputHash = this.hashInput(input.input);
     if (requiresApproval(effectiveRisk)) {
       if (input.grantId) {
-        const validGrant = this.invocationGrants.validate(
+        const validGrant = this.validateDispatchGrant(
           {
             grantId: input.grantId,
             userId: identity.userId,
             sessionId: route.session.sessionId,
             riskLevel: effectiveRisk,
+            toolName: input.toolName,
+            input: input.input,
           },
           now,
         );
@@ -1360,7 +1507,7 @@ export class RemoteGateway {
           errorCode: response.error?.code ?? 'REMOTE_EXTENSION_ERROR',
           durationMs: Date.now() - startedAt,
         });
-        return relayExtensionFailure(response.error);
+        return relayExtensionFailure(input.toolName, response.error);
       }
       this.audit.record({
         event: 'remote.tool.completed',
@@ -1400,11 +1547,12 @@ export class RemoteGateway {
         errorCode,
         durationMs: Date.now() - startedAt,
       });
-      return gatewayError(
+      const failure = gatewayError(
         sessionUnavailable ? 424 : timedOut ? 504 : 502,
         errorCode,
         error instanceof Error ? error.message : String(error),
       );
+      return withDispatchUncertainty(failure, effectiveRisk, error);
     }
   }
 
@@ -1586,7 +1734,7 @@ export class RemoteGateway {
       const currentSessionId = sessionId;
       if (!currentSessionId) return;
       this.disconnect(currentSessionId);
-      rejectPending(new RemoteSessionUnavailableError(currentSessionId));
+      rejectPending(new RemoteSessionUnavailableError(currentSessionId, true));
       sessionId = undefined;
     };
 

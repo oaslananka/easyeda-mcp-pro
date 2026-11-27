@@ -119,7 +119,7 @@ function registeredInputSchema(tool: ToolDefinition, context: ToolContext): z.Zo
 
 type RemoteGatewayFailure = Extract<RemoteGatewayToolResult, { ok: false }>;
 
-class RemoteRelayRouteError extends Error {
+export class RemoteRelayRouteError extends Error {
   constructor(readonly failure: RemoteGatewayFailure) {
     // Some MCP clients display only text content and drop structuredContent.
     // The short-lived approval ID is still bound to the exact user, session,
@@ -787,6 +787,8 @@ function toolFailureResponse(tool: ToolDefinition, context: ToolContext, err: un
   }
 
   if (err instanceof RemoteRelayRouteError) {
+    // The gateway knows whether a non-read operation may have been dispatched.
+    const outcomeUnknown = err.failure.outcomeUnknown === true;
     const response = structuredErrorResponse({
       errorCode: ErrorCodes.REMOTE_RELAY,
       message: err.message,
@@ -796,6 +798,7 @@ function toolFailureResponse(tool: ToolDefinition, context: ToolContext, err: un
         status: err.failure.status,
         approvalId: err.failure.approvalId,
         approvalExpiresAt: err.failure.approvalExpiresAt,
+        ...(outcomeUnknown ? { outcomeUnknown: true } : {}),
       },
     });
     if (err.failure.code !== 'SCOPE_MISSING') return response;
@@ -846,6 +849,8 @@ export async function handleRegisteredToolCall(
     if (confirmError) return confirmError;
 
     const parsed = tool.inputSchema.parse(domainInputForTool(context, input) ?? {});
+    const refusal = tool.preflightRefusal?.(context, parsed);
+    if (refusal !== undefined) return formatToolSuccess(tool, refusal);
     const result = await executeToolWithMetrics(context, tool, raw, extra, parsed);
     return formatToolSuccess(tool, result);
   } catch (err) {

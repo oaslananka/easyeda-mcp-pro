@@ -200,7 +200,20 @@ describe('BridgeManager', () => {
   it('should throw when calling a method while disconnected', async () => {
     const config = createTestConfig();
     const manager = createTestManager(config);
-    await expect(manager.call('test.method')).rejects.toThrow('Bridge not connected');
+    await expect(manager.call('test.method')).rejects.toMatchObject({
+      code: 'BRIDGE_NOT_CONNECTED',
+      message: expect.stringContaining('Bridge not connected'),
+    });
+  });
+
+  it('reports a pre-dispatch connection wait timeout with a stable code', async () => {
+    const manager = createTestManager(createTestConfig({ BRIDGE_WAIT_FOR_EDA_MS: 20 }));
+    const listenersBefore = manager.listenerCount('connected');
+    await expect(manager.call('extension.rpcCall', { topic: 'mcp.test' })).rejects.toMatchObject({
+      code: 'BRIDGE_NOT_CONNECTED',
+      message: expect.stringContaining('Bridge not connected'),
+    });
+    expect(manager.listenerCount('connected')).toBe(listenersBefore);
   });
 
   it('should disconnect cleanly', () => {
@@ -1192,6 +1205,25 @@ describe('BridgeManager - reconnect', () => {
 });
 
 describe('BridgeManager - call() round trip', () => {
+  it('refuses oversized native RPC frames without disconnecting the bridge', async () => {
+    const { manager, socket } = await setupSecureConnection({ BRIDGE_MAX_PAYLOAD_SIZE: 16 * 1024 });
+    const received: string[] = [];
+    socket.on('message', (raw) => {
+      const msg = JSON.parse(raw.toString()) as { id: string; type: string; method: string };
+      if (msg.type !== 'request') return;
+      received.push(msg.method);
+      socket.send(
+        JSON.stringify({ id: msg.id, type: 'response', ok: true, result: { healthy: true } }),
+      );
+    });
+    await expect(
+      manager.call('extension.rpcCall', { message: '😀'.repeat(5000) }),
+    ).rejects.toMatchObject({ code: 'RPC_REQUEST_TOO_LARGE' });
+    await expect(manager.call('system.getStatus', {})).resolves.toEqual({ healthy: true });
+    expect(received).toEqual(['system.getStatus']);
+    expect(manager.connected).toBe(true);
+  });
+
   it('resolves call() when the client sends a matching response', async () => {
     const { manager, socket } = await setupSecureConnection();
 
@@ -1413,7 +1445,10 @@ describe('BridgeManager - waitForConnection', () => {
   it('rejects after the timeout when never connected', async () => {
     const config = createTestConfig();
     const manager = createTestManager(config);
-    await expect(manager.waitForConnection(20)).rejects.toThrow('Bridge not connected');
+    await expect(manager.waitForConnection(20)).rejects.toMatchObject({
+      code: 'BRIDGE_NOT_CONNECTED',
+      message: 'Bridge not connected',
+    });
   });
 
   it('resolves once a connection is established', async () => {
@@ -1678,6 +1713,10 @@ describe('BridgeManager - process ownership', () => {
         blockedByOtherInstance: true,
         ownerPid: child.pid,
         ownerPort,
+      });
+      await expect(manager.call('extension.rpcCall')).rejects.toMatchObject({
+        code: 'BRIDGE_NOT_CONNECTED',
+        message: expect.stringMatching(/another easyeda-mcp-pro process/i),
       });
       manager.disconnect('test complete');
     } finally {

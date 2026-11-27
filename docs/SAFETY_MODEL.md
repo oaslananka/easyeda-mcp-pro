@@ -881,6 +881,27 @@ a short-lived, same-client/same-native-project session grant for up to 30 minute
 and destructive operations retain per-action approval. Read-only report generators that happen to be organized in
 the export group are classified `read-only` and do not inherit export risk merely from that group.
 
+### 1.5 Extension RPC (`easyeda_extension_call`)
+
+`easyeda_extension_call` (experimental) lets an agent call a service that another EasyEDA extension
+registered on the public message bus with `eda.sys_MessageBus.rpcServicePublic('mcp.<name>', fn)`.
+The bridge forwards JSON data only: it never sends or evaluates code, so this is not a raw-execution
+path.
+
+- **Opt-in at both ends.** The extension enforces the `mcp.` topic namespace, so only services that
+  deliberately register under it are reachable. Private-bus services and other public topics are
+  not. The server additionally requires every topic to be listed in `BRIDGE_EXTENSION_RPC_TOPICS`
+  (exact topics or `mcp.<prefix>*`). When it is empty, the tool reports `disabled` without calling the
+  bridge.
+- **Classified as `external-action`.** The server can't inspect what a third-party service does, so it
+  does not claim the call is read-only. Arbitrary service effects are high risk: Remote Relay
+  requires `destructive` approval and `easyeda.project_admin`, and every invocation requires
+  `confirmWrite: true` and a local write scope. Only allow trusted services; the service must
+  guard its own design target and writes. A timeout is not cancellation or proof of no side
+  effects: inspect the service state before retrying. Raw relay dispatch is disabled; only a matching single-use MCP invocation grant can dispatch the RPC.
+- **Bounded.** Requests are limited to 256 KiB of JSON, replies to 256 KiB or half the negotiated transport limit if smaller, and the
+  service timeout to 60 s. Calls are refused while the extension and server versions differ.
+
 ---
 
 ## 2. The `confirmWrite` Safety Parameter

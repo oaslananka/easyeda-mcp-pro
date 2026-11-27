@@ -214,6 +214,13 @@
       "isSecret": true
     },
     {
+      "name": "BRIDGE_EXTENSION_RPC_TOPICS",
+      "description": "Opt-in, comma-separated mcp.* public message-bus topics (exact or prefix*) that easyeda_extension_call may invoke; empty disables it",
+      "format": "string",
+      "defaultSource": "runtime",
+      "status": "active"
+    },
+    {
       "name": "EASYEDA_DEV_BRIDGE",
       "description": "Enable EasyEDA dev bridge mode",
       "format": "boolean",
