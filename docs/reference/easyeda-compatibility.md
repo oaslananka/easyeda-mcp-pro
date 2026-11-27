@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.24.2               | 1.24.2                | 1.24.2            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.24.1               | 1.24.1                | 1.24.1            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.24.0               | 1.24.0                | 1.24.0            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.23.1               | 1.23.1                | 1.23.1            | Live validated  | 2026-11-27 | 2027-02-25 |
@@ -91,6 +92,54 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-dcf6831-v1242-rpc-outline
+
+Record ID: `easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-dcf6831-v1242-rpc-outline`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `4.1.105.0339a6cd`                                                                                      |
+| Electron                                 | `not independently recorded`                                                                            |
+| Chromium                                 | `not independently recorded` (Chromium version not independently measured in this exact-candidate run.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                      |
+| Kernel                                   | `7.0.0-44-generic`                                                                                      |
+| Architecture                             | `x86_64`                                                                                                |
+| Node.js used by validation server        | `24.22.3`                                                                                               |
+| Validation package version               | `1.24.2`                                                                                                |
+| Fix version represented by evidence      | `1.24.2`                                                                                                |
+| Compatibility-sensitive base commit      | `dcf683171c7505368ce339e9374a5c42c9ca29ef`                                                              |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                |
+| Installed extension package metadata     | `1.24.2`                                                                                                |
+| Live-validated extension package SHA-256 | `954037a04e725066301bcbc36b5843202a812e4e8d1fa9a8ee0fab09ee75461e`                                      |
+| Live-validated extension package size    | `253594 bytes`                                                                                          |
+| Loader-reported version                  | `1.24.2`                                                                                                |
+| Bridge contract                          | `1.0.0`                                                                                                 |
+| Dispatcher                               | `baked`                                                                                                 |
+| Method registry hash                     | `2a1dbe73076c707d`                                                                                      |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                       |
+
+The installed extension package and loader both reported version `1.24.2` during this validation.
+
+### Capability evidence
+
+| Capability                                            | Level  | Status    | Result                                                                                                                                                                                                                                                                                            | Evidence                                                                                                                                                                                                                                          |
+| ----------------------------------------------------- | ------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact 1.24.2 installation and Local MCP handshake     | `live` | `passed`  | Two byte-identical extension builds; official Extension Manager import and cold startup. Matching server and extension 1.24.2, 88 methods, baked dispatcher, no registry or version mismatch. Exact candidate uses the updated locked Hono 4.13.23, ws 8.23.1 and undici 8.14.0 dependency graph. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.24.2-dcf6831-rpc-outline.json), [PR #1189](https://github.com/oaslananka/easyeda-mcp-pro/pull/1189)      |
+| Opt-in public message-bus RPC and refusal handling    | `live` | `passed`  | Real synthetic extension echo; missing confirmation and disallowed topic refused; service timeout and oversized reply remain unknown; following echo succeeds; PCB inventory unchanged. Offline default 30 s refusal reports known non-dispatch.                                                  | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.24.2-dcf6831-rpc-outline.json), [PR #1177](https://github.com/oaslananka/easyeda-mcp-pro/pull/1177)      |
+| Owner and follower runtime version and RPC forwarding | `live` | `passed`  | Two real MCP stdio processes; follower health reports owner 1.24.2, follower echo and owner echo after follower close succeed.                                                                                                                                                                    | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.24.2-dcf6831-rpc-outline.json), [PR #1179](https://github.com/oaslananka/easyeda-mcp-pro/pull/1179)      |
+| Guarded native rectangular outline creation           | `live` | `passed`  | Pro profile requires target; wrong/missing target and existing outline refused. After isolated fixture preparation, created 50 × 30 mm outline and measured it back; duplicate refused, other primitives unchanged, original and both fixture files unchanged.                                    | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.24.2-dcf6831-rpc-outline.json), [PR #1178](https://github.com/oaslananka/easyeda-mcp-pro/pull/1178)      |
+| Durable save/reopen and autorouting                   | `live` | `blocked` | Not exercised in this exact candidate; prior 1.24.0 single-text cold-reopen evidence is historical and legacy-runtime durability remains unresolved.                                                                                                                                              | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.24.2-dcf6831-rpc-outline.json), [Issue #1126](https://github.com/oaslananka/easyeda-mcp-pro/issues/1126) |
+| Authenticated Hosted and independent-user acceptance  | `live` | `blocked` | Not exercised in these isolated local runs.                                                                                                                                                                                                                                                       | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.24.2-dcf6831-rpc-outline.json), [Issue #850](https://github.com/oaslananka/easyeda-mcp-pro/issues/850)   |
+
+### Known limitations
+
+- Only isolated Ubuntu x86_64 EasyEDA Pro 4.1.105 was live-validated. Native Windows/macOS, Electron/Chromium and graphics/3D were not independently measured; nonfatal GPU initialization diagnostics occurred.
+- RPC acceptance uses an isolated synthetic extension with public message-bus services; no arbitrary third-party service, authenticated Hosted runtime, OAuth, remembered trust or independent-user acceptance is claimed.
+- Outline creation was performed only after a deliberate guarded fixture preparation in a separate disposable project copy; existing-outline refusal and read-back dimensions do not establish durable save/reopen, autorouting, fabrication or engineering sign-off.
+- Earlier single-text cold-reopen, engineering review, export and via scenarios remain historical evidence, not rerun claims.
 
 ## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-b1c846a-v1241-rpc-outline
 
