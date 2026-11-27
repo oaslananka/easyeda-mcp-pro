@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.21.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.20.0...easyeda-mcp-pro-v1.21.0) (2026-11-27)
+
+
+### Features
+
+* **pcb:** correlate declared return pads with filled contour evidence ([#1164](https://github.com/oaslananka/easyeda-mcp-pro/issues/1164)) ([a09b2f9](https://github.com/oaslananka/easyeda-mcp-pro/commit/a09b2f972b7af7fffac0eb280014a74aaaa9b089)), closes [#842](https://github.com/oaslananka/easyeda-mcp-pro/issues/842)
+* **pcb:** group declared switching loop path evidence ([#1162](https://github.com/oaslananka/easyeda-mcp-pro/issues/1162)) ([2889905](https://github.com/oaslananka/easyeda-mcp-pro/commit/28899057f0c4dff2dbd9966ddf9163a5ba3f453d)), closes [#842](https://github.com/oaslananka/easyeda-mcp-pro/issues/842)
+
 ## [1.20.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.19.1...easyeda-mcp-pro-v1.20.0) (2026-11-27)
 
 
