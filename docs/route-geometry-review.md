@@ -900,3 +900,60 @@ candidate does not prove physical copper contact, plating, a closed/shared
 return path, current capacity or electrical adequacy; the overall status
 and electrical continuity remain `UNKNOWN` and engineering sign-off is
 false. No board write, rebuild or automatic routing is performed.
+
+### Optional selected via / filled contour annulus candidate
+
+For a via without an observed line chain, request one exact through-via and
+one exact source-linked filled contour using `nativeViaPourAnnulus` on
+`easyeda_pcb_route_geometry_review`. This is an individual-contour observation,
+not a reconstructed copper plane. First use `easyeda_pcb_vias` to find the
+via and `easyeda_pcb_pours` to find the exact pour and its optional
+`fillRecordIds` list (omitted when IDs are incomplete, ambiguous or over the
+32-record bound). The IDs are discovery metadata, not proof of usable
+contours. Supply exact native pour, fill and via
+identities and net/layer, independently sourced dimensions in mm, and a
+calibrated native-coordinate-to-contour transform. For example (fixture
+specific values and illustrative identities; do not reuse calibration blindly):
+
+```json
+{
+  "projectId": "your-native-project-uuid",
+  "nativeViaPourAnnulus": {
+    "viaPrimitiveId": "observed-via-id",
+    "pourPrimitiveId": "observed-pour-id",
+    "fillId": "observed-fill-id",
+    "expectedNet": "GND",
+    "expectedLayer": 15,
+    "transform": {
+      "scale": 0.1,
+      "invertY": false,
+      "source": "Independent source/native contour coordinate comparison"
+    },
+    "diameterMm": 0.7,
+    "drillDiameterMm": 0.3,
+    "source": "Independent source via dimensions"
+  }
+}
+```
+
+The read checks complete focus-bound via and line inventory, exact matching
+native via geometry, directly reported type 0 with no blind rule, and unique
+source/derived pour IDs. The selected fill must be a closed, line-only,
+zero-width filled contour with matching geometry and unique fill-ID inventory
+from both native reads. Up to 32 fill IDs and 8,192 selected contour vertices
+(including closure) are supported; unselected geometry is not merged or
+validated as a union. Repeated contours retain their distinct IDs. Top,
+bottom and native inner copper layer codes are supported as identity labels,
+not as proof of stackup. Native via dimensions are in mil; the nominal
+diameter and hole must agree with independent dimensions within 0.002 mm
+(geometry comparison tolerance, not a design rule). The conservative annulus
+uses the smaller outer and larger inner radius. The deterministic finite
+sample requires a strictly interior witness with more than 0.001 mm margin.
+
+`native_via_pour_annulus_review` returns the selected identities, available
+fill IDs, calibration and dimension provenance, and a geometric candidate or
+`UNKNOWN` with reason. Caller sources are not independently authenticated.
+No sample does not establish disconnection. Native via-layer flashing,
+physical span, plating, shared return path, electrical continuity and
+manufacturing readiness remain unverified. Other findings and existing
+pad-only annulus behavior are unchanged.

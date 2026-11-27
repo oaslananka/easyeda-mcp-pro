@@ -179,6 +179,46 @@ describe('PCB Read Tools', () => {
     });
   });
 
+  it('exposes discoverable fill IDs only for a bounded consistent native association', async () => {
+    const tool = registry.get('easyeda_pcb_pours');
+    const item = {
+      primitiveId: 'e336',
+      net: 'GND',
+      layer: 15,
+      fillMethod: 'solid',
+      pourName: 'GND',
+      locked: false,
+      copperLinkStatus: 'present',
+      pouredId: 'e336',
+      fillRecordCount: 2,
+      fillRecordIds: ['copper11', 'copper16'],
+    };
+    bridgeCall.mockResolvedValue({ total: 1, items: [item] });
+    const result = await tool?.handler(context, { projectId: 'proj-123' });
+    expect(tool?.outputSchema.parse(result)).toEqual(result);
+    expect(result).toMatchObject({ pours: [{ fillRecordIds: ['copper11', 'copper16'] }] });
+    for (const bad of [
+      { ...item, fillRecordIds: ['copper11', 'copper11'] },
+      { ...item, fillRecordIds: ['copper11', ' '] },
+      {
+        ...item,
+        fillRecordIds: Array.from({ length: 33 }, (_, i) => 'copper' + i),
+        fillRecordCount: 33,
+      },
+      { ...item, fillRecordCount: 3 },
+      { ...item, copperLinkStatus: 'mismatch' },
+      { ...item, pouredId: 'other' },
+    ]) {
+      bridgeCall.mockResolvedValue({ total: 1, items: [bad] });
+      const r = (await tool?.handler(context, { projectId: 'proj-123' })) as {
+        pours: Record<string, unknown>[];
+      };
+      expect(tool?.outputSchema.parse(r)).toEqual(r);
+      expect(r.pours[0]?.fillRecordIds).toBeUndefined();
+      expect(r.pours[0]?.fillRecordCount).toBe(bad.fillRecordCount);
+    }
+  });
+
   it('easyeda_pcb_pours does not present disconnected bridge failures as empty copper', async () => {
     const tool = registry.get('easyeda_pcb_pours');
     bridgeCall.mockRejectedValue(Error('No focused PCB document'));

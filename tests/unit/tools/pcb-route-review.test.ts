@@ -611,6 +611,130 @@ describe('native PCB route geometry review MCP contract', () => {
     ],
   };
 
+  it('reports selected via/contour overlap without claiming electrical or physical continuity', async () => {
+    const base = bridgeCall.getMockImplementation();
+    const declaration = {
+      viaPrimitiveId: 'via-1',
+      pourPrimitiveId: 'pour1',
+      fillId: 'copper0',
+      expectedNet: 'CLK',
+      expectedLayer: 15,
+      transform: { scale: 0.1, invertY: false, source: 'fixture coordinate calibration' },
+      diameterMm: 0.762,
+      drillDiameterMm: 0.254,
+      source: 'fixture via dimensions',
+    };
+    let mode = '';
+    let focus = 'pcb-1';
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'api.read')
+        return { result: { uuid: focus, documentType: 3, parentProjectUuid: 'project-1' } };
+      if (method === 'pcb.listPourAnnulusGeometry') {
+        if (mode === 'throw') throw Error('beta unavailable');
+        if (mode === 'changed-focus') focus = 'pcb-2';
+        return {
+          evidence: 'native_source_linked_via_contour',
+          pourPrimitiveId: mode === 'wrong-pour' ? 'other' : 'pour1',
+          net: mode === 'wrong-net' ? 'GND' : 'CLK',
+          layer: mode === 'wrong-layer' ? 16 : 15,
+          fill:
+            mode === 'wrong-fill'
+              ? { ...annulusReply.fill, id: 'other' }
+              : mode === 'distant'
+                ? {
+                    ...annulusReply.fill,
+                    path: {
+                      complexPolygon: [[200, 200, 'L', 300, 200, 300, 300, 200, 300, 200, 200]],
+                    },
+                  }
+                : annulusReply.fill,
+          availableFillIds:
+            mode === 'duplicate-fill'
+              ? ['copper0', 'copper0']
+              : mode === 'missing-fill'
+                ? ['copper1']
+                : ['copper0', 'copper1'],
+          via: {
+            primitiveId: mode === 'wrong-via' ? 'other' : 'via-1',
+            net: 'CLK',
+            x: mode === 'wrong-position' ? 101 : 100,
+            y: 100,
+            diameter: 30,
+            holeDiameter: 10,
+            viaType: mode === 'blind' ? 1 : 0,
+          },
+          electricalContinuity: 'UNKNOWN',
+        };
+      }
+      return base?.(method);
+    });
+    const r = await run({ nativeViaPourAnnulus: declaration });
+    expect(r.native_via_pour_annulus_review).toMatchObject({
+      status: 'GEOMETRIC_OVERLAP_CANDIDATE',
+      fill_id: 'copper0',
+      available_fill_ids: ['copper0', 'copper1'],
+      physical_span_status: 'UNKNOWN',
+      electrical_continuity_status: 'UNKNOWN',
+      engineering_sign_off: false,
+    });
+    expect(r.native_via_pour_annulus_review.witness.minimum_margin_mm).toBeGreaterThan(0.001);
+    const mismatch = await run({ nativeViaPourAnnulus: { ...declaration, diameterMm: 0.9 } });
+    expect(mismatch.native_via_pour_annulus_review.status).toBe('UNKNOWN');
+    for (const invalid of [
+      'wrong-pour',
+      'wrong-net',
+      'wrong-layer',
+      'wrong-fill',
+      'duplicate-fill',
+      'missing-fill',
+      'wrong-via',
+      'wrong-position',
+      'blind',
+      'changed-focus',
+      'throw',
+      'distant',
+    ]) {
+      mode = invalid;
+      focus = 'pcb-1';
+      const result = (await run({ nativeViaPourAnnulus: declaration }))
+        .native_via_pour_annulus_review;
+      expect(result.status, invalid).toBe('UNKNOWN');
+      expect(result.witness, invalid).toBeUndefined();
+      expect(result.physical_span_status).toBe('UNKNOWN');
+      if (invalid !== 'distant') expect(result.evidence, invalid).toBe('unavailable');
+    }
+    mode = '';
+    focus = 'pcb-1';
+    for (const invalid of [
+      { ...declaration, expectedNet: 'GND' },
+      { ...declaration, viaPrimitiveId: 'absent' },
+    ]) {
+      bridgeCall.mockClear();
+      const result = (await run({ nativeViaPourAnnulus: invalid })).native_via_pour_annulus_review;
+      expect(result.evidence).toBe('unavailable');
+      expect(bridgeCall.mock.calls.some(([m]) => m === 'pcb.listPourAnnulusGeometry')).toBe(false);
+    }
+    context.bridge.registryMismatch = true;
+    expect(
+      (await run({ nativeViaPourAnnulus: declaration })).native_via_pour_annulus_review.evidence,
+    ).toBe('unavailable');
+    context.bridge.registryMismatch = false;
+    const schema = registry.get('easyeda_pcb_route_geometry_review')?.inputSchema;
+    for (const invalid of [
+      { ...declaration, expectedLayer: 3 },
+      { ...declaration, fillId: '' },
+      { ...declaration, diameterMm: 0.2 },
+      { ...declaration, transform: { ...declaration.transform, scale: 0 } },
+      { ...declaration, source: '' },
+    ])
+      expect(
+        schema?.safeParse({ projectId: 'project-1', nativeViaPourAnnulus: invalid }).success,
+      ).toBe(false);
+    const legacy = await run();
+    expect(legacy.native_via_pour_annulus_review).toBeUndefined();
+    expect(legacy.findings).toEqual(r.findings);
+  });
+
   it('reports a source-linked round annulus candidate on the exact requested native pad', async () => {
     const base = bridgeCall.getMockImplementation();
     bridgeCall.mockImplementation(async (method: string, params: unknown) => {

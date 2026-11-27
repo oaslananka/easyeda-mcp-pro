@@ -118,6 +118,136 @@ function fixture(mode = '') {
 }
 
 describe('bounded native pour annulus geometry', () => {
+  it('reads one exact via and selected filled contour without merging repeated geometry', async () => {
+    const { operations, runtime } = fixture();
+    const fill = (id: string) => ({
+      id,
+      fill: true,
+      lineWidth: 0,
+      path: { getSource: () => ring },
+    });
+    const derived = native({
+      PrimitiveId: 'p1',
+      PourPrimitiveId: 'p1',
+      Layer: 15,
+      PourFills: [fill('a'), fill('b')],
+    });
+    runtime.PCB_PrimitivePour = {
+      getAll: async () => [
+        {
+          ...native({ PrimitiveId: 'p1', Net: 'GND', Layer: 15 }),
+          getCopperRegion: async () => derived,
+        },
+      ],
+    };
+    runtime.PCB_PrimitivePoured = { getAll: async () => [derived] };
+    const via = native({
+      PrimitiveId: 'v1',
+      Net: 'GND',
+      X: 500,
+      Y: 500,
+      Diameter: 30,
+      HoleDiameter: 10,
+      ViaType: 0,
+      DesignRuleBlindViaName: '',
+    });
+    runtime.PCB_PrimitiveVia = { getAll: async () => [via] };
+    const d = {
+      kind: 'via',
+      pourPrimitiveId: 'p1',
+      expectedNet: 'GND',
+      expectedLayer: 15,
+      fillId: 'b',
+      viaPrimitiveId: 'v1',
+    };
+    expect(await operations.listPourAnnulusGeometry(d)).toMatchObject({
+      evidence: 'native_source_linked_via_contour',
+      fill: { id: 'b' },
+      availableFillIds: ['a', 'b'],
+      via: {
+        primitiveId: 'v1',
+        net: 'GND',
+        x: 500,
+        y: 500,
+        diameter: 30,
+        holeDiameter: 10,
+        viaType: 0,
+      },
+      electricalContinuity: 'UNKNOWN',
+    });
+    for (const bad of [
+      { ...d, fillId: 'missing' },
+      { ...d, expectedNet: 'VCC' },
+      { ...d, viaPrimitiveId: 'p1' },
+      { ...d, pads: requested.pads },
+    ]) {
+      expect(await operations.listPourAnnulusGeometry(bad)).toMatchObject({
+        evidence: 'unavailable',
+      });
+    }
+    const unknown = async () =>
+      expect(await operations.listPourAnnulusGeometry(d)).toMatchObject({
+        evidence: 'unavailable',
+      });
+    for (const layer of [3, 12, 45, 15.5]) {
+      expect(
+        await operations.listPourAnnulusGeometry({ ...d, expectedLayer: layer }),
+      ).toMatchObject({ evidence: 'unavailable' });
+    }
+    via.getState_ViaType = () => 1;
+    await unknown();
+    via.getState_ViaType = () => 0;
+    via.getState_DesignRuleBlindViaName = () => 'blind';
+    await unknown();
+    via.getState_DesignRuleBlindViaName = () => '';
+    via.getState_Diameter = () => 10;
+    await unknown();
+    via.getState_Diameter = () => 30;
+    runtime.PCB_PrimitiveVia = { getAll: async () => [via, via] };
+    await unknown();
+    runtime.PCB_PrimitiveVia = { getAll: async () => [via] };
+    derived.getState_PourFills = () => [fill('b'), fill('b')];
+    await unknown();
+    derived.getState_PourFills = () => Array.from({ length: 33 }, (_, i) => fill('f' + i));
+    await unknown();
+    const largeRing = [
+      0,
+      0,
+      'L',
+      ...Array.from({ length: 4263 }, (_, i) => [(100 * (i + 1)) / 4263, 0]).flat(),
+      100,
+      100,
+      0,
+      100,
+      0,
+      0,
+    ];
+    derived.getState_PourFills = () => [
+      fill('a'),
+      { ...fill('b'), path: { getSource: () => largeRing } },
+    ];
+    expect(await operations.listPourAnnulusGeometry(d)).toMatchObject({
+      evidence: 'native_source_linked_via_contour',
+      fill: { id: 'b', path: { complexPolygon: [largeRing] } },
+    });
+    const malformed = [0, 0, 'ARC', 100, 0, 100, 100, 0, 0];
+    derived.getState_PourFills = () => [{ ...fill('b'), path: { getSource: () => malformed } }];
+    await unknown();
+    derived.getState_PourFills = () => [fill('a'), fill('b')];
+    runtime.PCB_PrimitivePoured = {
+      getAll: async () => [
+        native({ PrimitiveId: 'p1', PourPrimitiveId: 'p1', Layer: 15, PourFills: [fill('b')] }),
+      ],
+    };
+    await unknown();
+    runtime.PCB_PrimitivePoured = {
+      getAll: async () => {
+        throw Error('beta failure');
+      },
+    };
+    await unknown();
+  });
+
   it('correlates exact native pour and derived fill plus selected pad metadata', async () => {
     const { operations, pour } = fixture();
     expect(await operations.listPourAnnulusGeometry(requested)).toEqual({
