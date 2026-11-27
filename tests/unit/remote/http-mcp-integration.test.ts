@@ -18,6 +18,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer as createNetServer } from 'node:net';
+import { WebSocket } from 'ws';
 
 async function reservePort(): Promise<number> {
   const server = createNetServer();
@@ -423,6 +424,91 @@ describe('Remote Relay MCP HTTP integration', () => {
     });
     expect(retry.structuredContent?.details).not.toHaveProperty('outcomeUnknown');
     expect(harness.dispatched).toHaveLength(1);
+  }, 15_000);
+
+  it('distinguishes an in-flight RPC socket close from a pre-dispatch refusal', async () => {
+    const harness = await createHarness(false, true);
+    cleanup.push(harness.close);
+    const pairingCode = harness.gateway.createPairingCode({ identity: harness.identity });
+    const socket = new WebSocket(harness.baseUrl.replace('http:', 'ws:') + '/remote/relay');
+    const messages: Record<string, unknown>[] = [];
+    socket.on('message', (raw) => messages.push(JSON.parse(raw.toString())));
+    cleanup.push(async () => {
+      if (socket.readyState === WebSocket.CLOSED) return;
+      await new Promise<void>((resolve) => {
+        socket.once('close', () => resolve());
+        socket.terminate();
+      });
+    });
+    await waitFor(() => socket.readyState === WebSocket.OPEN);
+    socket.send(
+      JSON.stringify({
+        protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+        type: 'register_session',
+        messageId: 'rpc-socket-registration',
+        timestamp: new Date().toISOString(),
+        mode: 'hosted',
+        extensionVersion: '1.23.1',
+        capabilities: [],
+        activeProject: {
+          projectName: 'Disposable remote socket fixture',
+          documentType: 'schematic',
+        },
+        pairingCode,
+      }),
+    );
+    await waitFor(() => messages.some((m) => m.type === 'session_registered'));
+    const registered = messages.find((m) => m.type === 'session_registered')!;
+    expect(registered.paired).toBe(true);
+    const sessionId = registered.sessionId as string;
+    const { client, transport } = harness.createClient('extension-rpc-socket-close-http');
+    await client.connect(transport);
+    const args = {
+      topic: 'mcp.demo.echo',
+      confirmWrite: true,
+      timeoutMs: 1000,
+      remoteSessionId: sessionId,
+    };
+    const pending = await client.callTool({ name: 'easyeda_extension_call', arguments: args });
+    expect(pending.structuredContent).toMatchObject({
+      details: { remoteCode: 'APPROVAL_REQUIRED' },
+    });
+    await waitFor(() => messages.some((m) => m.type === 'approval_request'));
+    const approval = messages.find((m) => m.type === 'approval_request')!;
+    const approvalId = approval.approvalId as string;
+    expect(
+      harness.gateway.resolveApprovalFromExtension({ sessionId, approvalId, result: 'approved' }),
+    ).toBe(true);
+    const inflight = client.callTool({
+      name: 'easyeda_extension_call',
+      arguments: { ...args, remoteApprovalId: approvalId },
+    });
+    await waitFor(() => messages.some((m) => m.type === 'tool_request'));
+    await new Promise<void>((resolve) => {
+      socket.once('close', () => resolve());
+      socket.close();
+    });
+    const response = await inflight;
+    expect(response.isError).toBe(true);
+    expect(response.structuredContent).toMatchObject({
+      errorCode: 'ERR_REMOTE_RELAY',
+      message: expect.stringMatching(/outcome is unknown.*inspect.*before retrying/i),
+      details: { remoteCode: 'SESSION_DISCONNECTED', status: 424, outcomeUnknown: true },
+    });
+    expect(response.content).toContainEqual({
+      type: 'text',
+      text: expect.stringMatching(/outcome is unknown.*inspect.*before retrying/i),
+    });
+    const retry = await client.callTool({
+      name: 'easyeda_extension_call',
+      arguments: { ...args, remoteApprovalId: approvalId },
+    });
+    expect(retry.isError).toBe(true);
+    expect(retry.structuredContent).toMatchObject({
+      details: { remoteCode: 'SESSION_DISCONNECTED' },
+    });
+    expect(retry.structuredContent?.details).not.toHaveProperty('outcomeUnknown');
+    expect(messages.filter((m) => m.type === 'tool_request')).toHaveLength(1);
   }, 15_000);
 
   it.each([false, true])(

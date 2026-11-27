@@ -80,6 +80,7 @@ export type RemoteGatewayFailure = {
   approvalId?: string;
   approvalExpiresAt?: string;
   extensionRpcRefusalCode?: z.infer<typeof ExtensionRpcRefusalCodeSchema>;
+  outcomeUnknown?: true;
 };
 
 export type RemoteGatewayToolResult =
@@ -203,10 +204,33 @@ class RemoteDispatchTimeoutError extends Error {
 }
 
 class RemoteSessionUnavailableError extends Error {
-  constructor(readonly sessionId: string) {
+  constructor(
+    readonly sessionId: string,
+    readonly dispatched = false,
+  ) {
     super(`Remote extension session ${sessionId} became unavailable during dispatch.`);
     this.name = 'RemoteSessionUnavailableError';
   }
+}
+
+// Only pending socket requests may already have executed; a closed socket
+// detected before sending or a queued request rejected before dispatch cannot.
+function withDispatchUncertainty(
+  failure: RemoteGatewayFailure,
+  risk: RemoteRiskLevel,
+  error: unknown,
+): RemoteGatewayFailure {
+  const mayHaveExecuted =
+    error instanceof RemoteDispatchTimeoutError ||
+    (error instanceof RemoteSessionUnavailableError && error.dispatched);
+  if (risk === 'read' || !mayHaveExecuted) return failure;
+  return {
+    ...failure,
+    outcomeUnknown: true,
+    message:
+      failure.message +
+      ' The operation outcome is unknown; it may still be running or have completed side effects. Inspect the target state before retrying.',
+  };
 }
 
 async function dispatchWithDeadline(
@@ -1523,11 +1547,12 @@ export class RemoteGateway {
         errorCode,
         durationMs: Date.now() - startedAt,
       });
-      return gatewayError(
+      const failure = gatewayError(
         sessionUnavailable ? 424 : timedOut ? 504 : 502,
         errorCode,
         error instanceof Error ? error.message : String(error),
       );
+      return withDispatchUncertainty(failure, effectiveRisk, error);
     }
   }
 
@@ -1709,7 +1734,7 @@ export class RemoteGateway {
       const currentSessionId = sessionId;
       if (!currentSessionId) return;
       this.disconnect(currentSessionId);
-      rejectPending(new RemoteSessionUnavailableError(currentSessionId));
+      rejectPending(new RemoteSessionUnavailableError(currentSessionId, true));
       sessionId = undefined;
     };
 

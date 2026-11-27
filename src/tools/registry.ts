@@ -787,16 +787,11 @@ function toolFailureResponse(tool: ToolDefinition, context: ToolContext, err: un
   }
 
   if (err instanceof RemoteRelayRouteError) {
-    // A terminal dispatch deadline must not hide the uncertainty of an already
-    // dispatched non-read operation behind a generic routing error.
-    const outcomeUnknown =
-      err.failure.code === 'REMOTE_EXTENSION_TIMEOUT' && remoteRiskForTool(tool) !== 'read';
+    // The gateway knows whether a non-read operation may have been dispatched.
+    const outcomeUnknown = err.failure.outcomeUnknown === true;
     const response = structuredErrorResponse({
       errorCode: ErrorCodes.REMOTE_RELAY,
-      message: outcomeUnknown
-        ? err.message +
-          ' The operation outcome is unknown; it may still be running or have completed side effects. Inspect the target state before retrying.'
-        : err.message,
+      message: err.message,
       details: {
         toolName: tool.name,
         remoteCode: err.failure.code,
