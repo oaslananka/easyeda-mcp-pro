@@ -67,7 +67,7 @@ async function createCanonicalFixture() {
   await write(
     join(root, '.github/workflows/ci.yml'),
     `steps:\n` +
-      `  - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024\n` +
+      `  - uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1\n` +
       `    with:\n` +
       `      version: '${pnpmVersion}'\n` +
       `      install: false\n` +

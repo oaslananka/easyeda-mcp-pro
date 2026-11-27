@@ -31,9 +31,9 @@ jobs:
         with:
           persist-credentials: false
 
-      # pnpm/setup v3.0.0
+      # pnpm/setup v3.2.0
       - name: Setup pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1
         with:
           version: '11.28.11'
           install: false

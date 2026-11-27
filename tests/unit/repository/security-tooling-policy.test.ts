@@ -352,7 +352,7 @@ describe('repository security tooling policy', () => {
     expect(workflow).not.toContain('pull-requests: write');
     expect(workflow).not.toContain('pull_request_target');
     expect(workflow).toContain('actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1');
-    expect(workflow).toContain('pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024');
+    expect(workflow).toContain('pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1');
     expect(workflow).toContain('actions/setup-node@820762786026740c76f36085b0efc47a31fe5020');
     expect(workflow).toContain('actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a');
     expect(workflow).toContain('persist-credentials: false');
