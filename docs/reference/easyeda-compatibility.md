@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.23.0               | 1.23.0                | 1.23.0            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.22.0               | 1.22.0                | 1.22.0            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.21.0               | 1.21.0                | 1.21.0            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.20.0               | 1.20.0                | 1.20.0            | Live validated  | 2026-11-27 | 2027-02-25 |
@@ -87,6 +88,52 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-f92e563-v1230-esd-return
+
+Record ID: `easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-f92e563-v1230-esd-return`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `4.1.105.0339a6cd`                                                                                      |
+| Electron                                 | `not independently recorded`                                                                            |
+| Chromium                                 | `not independently recorded` (Chromium version not independently measured in this exact-candidate run.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                      |
+| Kernel                                   | `7.0.0-43-generic`                                                                                      |
+| Architecture                             | `x86_64`                                                                                                |
+| Node.js used by validation server        | `24.22.3`                                                                                               |
+| Validation package version               | `1.23.0`                                                                                                |
+| Fix version represented by evidence      | `1.23.0`                                                                                                |
+| Compatibility-sensitive base commit      | `f92e56375de2bcadafb69757e148e6994a5fe6ef`                                                              |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                |
+| Installed extension package metadata     | `1.23.0`                                                                                                |
+| Live-validated extension package SHA-256 | `596efd514f8aa4191ef4e3da507f6ec35d5499d86a49f238bbd2301cab5ac1b6`                                      |
+| Live-validated extension package size    | `249067 bytes`                                                                                          |
+| Loader-reported version                  | `1.23.0`                                                                                                |
+| Bridge contract                          | `1.0.0`                                                                                                 |
+| Dispatcher                               | `baked`                                                                                                 |
+| Method registry hash                     | `25cb47ba3bf5ed23`                                                                                      |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                       |
+
+The installed extension package and loader both reported version `1.23.0` during this validation.
+
+### Capability evidence
+
+| Capability                                               | Level  | Status    | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Evidence                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------- | ------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact 1.23.0 installation and Local MCP handshake        | `live` | `passed`  | Two byte-identical extension builds, official isolated Extension Manager import and cold start. Healthy Local MCP server/extension 1.23.0, 87 methods, matching registry/version and baked dispatcher.                                                                                                                                                                                                                                                              | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.0-f92e563-esd-return.json), [PR #1171](https://github.com/oaslananka/easyeda-mcp-pro/pull/1171)                                                                         |
+| Declared ESD return via and selected contour correlation | `live` | `passed`  | Actual F103: U3.2 ie59ie20 / ie526 / ie634 and J1.5 ie251ie42 / ie549 / ie638, both layer-1 direct reciprocal line associations and individual interior annular candidates on selected GND ie1258/copper11 layer 15, 0.1 mm margin each. Swapped vias and wrong layer unavailable; wrong second diameter partial; duplicate rejected. Legacy findings, priorities, status, focus, inventory and fixture unchanged. Physical span and electrical continuity UNKNOWN. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.0-f92e563-esd-return.json), [PR #1170](https://github.com/oaslananka/easyeda-mcp-pro/pull/1170), [Issue #842](https://github.com/oaslananka/easyeda-mcp-pro/issues/842) |
+| Durable native writes and autorouting                    | `live` | `blocked` | Not exercised in this read-only pass. Prior native autoroute persistence limitation remains.                                                                                                                                                                                                                                                                                                                                                                        | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.0-f92e563-esd-return.json), [Issue #1126](https://github.com/oaslananka/easyeda-mcp-pro/issues/1126)                                                                    |
+| Authenticated Hosted and independent-user acceptance     | `live` | `blocked` | Not exercised in this local read-only run.                                                                                                                                                                                                                                                                                                                                                                                                                          | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.0-f92e563-esd-return.json), [Issue #850](https://github.com/oaslananka/easyeda-mcp-pro/issues/850)                                                                      |
+
+### Known limitations
+
+- Only isolated Ubuntu x86_64 and EasyEDA Pro 4.1.105 were live-validated. Windows/macOS native acceptance and Electron/Chromium versions were not independently measured. Nonfatal GPU initialization diagnostics occurred; graphics/3D were not validated.
+- Caller-declared ESD return identities, direct reciprocal line associations and individual annular witnesses on the same selected contour identity are separate focus-bound reads, not an atomic plane. No physical pad contact, plating, via flashing, physical span, common return current, electrical continuity, impedance, ESD immunity, or engineering/manufacturing approval is established. Unavailable evidence is not proof of disconnection.
+- Earlier crystal-network, buck return contour, export and via observations remain historical exact-source evidence; those scenarios were not rerun for this candidate.
+- No design mutation, save/reopen, native autorouting, authenticated Hosted/OAuth, remembered trust or independent-user acceptance was exercised.
 
 ## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-a6f17ab-v1220-crystal-network
 
