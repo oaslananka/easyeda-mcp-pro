@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.24.0...easyeda-mcp-pro-v1.24.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **deps:** update stable security and transport dependencies ([#1182](https://github.com/oaslananka/easyeda-mcp-pro/issues/1182)) ([e60e897](https://github.com/oaslananka/easyeda-mcp-pro/commit/e60e897cc88292dba32fd838aa39a8f045784cc3))
+
 ## [1.24.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.23.1...easyeda-mcp-pro-v1.24.0) (2026-11-27)
 
 
