@@ -4,14 +4,40 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { WebSocket } from 'ws';
-import { afterAll, describe, it, expect, vi } from 'vitest';
+import { WebSocket, type ClientOptions } from 'ws';
+import { afterAll, afterEach, describe, it, expect, vi } from 'vitest';
 import { EnvSchema } from '../../../src/config/env.js';
 import { BridgeManager, parsePortScanSpec } from '../../../src/bridge/manager.js';
 import { getLogger } from '../../../src/utils/logger.js';
 import { SERVER_VERSION } from '../../../src/config/version.js';
 
 const testDataDirs = new Set<string>();
+const testManagers = new Set<BridgeManager>();
+const testSockets = new Set<WebSocket>();
+const testListeners = new Set<ReturnType<typeof createServer>>();
+
+function createTestManager(config: ReturnType<typeof createTestConfig>): BridgeManager {
+  const manager = new BridgeManager(config);
+  testManagers.add(manager);
+  return manager;
+}
+
+// Explicit cleanup remains in the tests; release leftovers if setup or an
+// assertion fails before reaching it.
+afterEach(async () => {
+  try {
+    for (const manager of [...testManagers].reverse()) {
+      if (manager.state !== 'disconnected') manager.disconnect('test cleanup');
+    }
+    await Promise.all([...testSockets].map(closeTestSocket));
+    await Promise.all([...testListeners].map(closeTestPort));
+  } finally {
+    testManagers.clear();
+    testSockets.clear();
+    testListeners.clear();
+    vi.restoreAllMocks();
+  }
+});
 
 function createTestConfig(overrides: Record<string, unknown> = {}) {
   const dataDir =
@@ -31,33 +57,69 @@ afterAll(() => {
   for (const dataDir of testDataDirs) rmSync(dataDir, { recursive: true, force: true });
 });
 
-async function getFreePort(host = '127.0.0.1'): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
+async function bindTestPort(host = '127.0.0.1') {
+  const server = createServer();
+  await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(0, host, () => {
-      const address = server.address();
-      if (!address || typeof address === 'string') {
-        server.close(() => reject(new Error('Unable to allocate a local test port')));
-        return;
-      }
-      server.close(() => resolve(address.port));
+    server.listen(0, host, resolve);
+  });
+  testListeners.add(server);
+  const address = server.address();
+  if (!address || typeof address === 'string') {
+    await closeTestPort(server);
+    throw new Error('Unable to allocate a local test port');
+  }
+  return { server, port: address.port };
+}
+
+function closeTestPort(server: ReturnType<typeof createServer>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      testListeners.delete(server);
+      if (error) reject(error);
+      else resolve();
     });
   });
 }
 
-// A port returned by getFreePort is no longer reserved when its probe socket
-// closes. Let the bridge choose another independently sampled candidate if a
-// concurrent CI test/process takes the first port before connect() binds it.
+async function getFreePort(): Promise<number> {
+  const { server, port } = await bindTestPort();
+  await closeTestPort(server);
+  return port;
+}
+
+// Hold the probes together to guarantee distinct candidates with a bounded
+// allocation count. Another worker may claim one after release; connect()
+// can try the others. Tests must use the actual activePort.
 async function getFreePortCandidates(count = 3): Promise<string> {
-  const candidates = new Set<number>();
-  while (candidates.size < count) candidates.add(await getFreePort());
-  return [...candidates].join(',');
+  const probes: Awaited<ReturnType<typeof bindTestPort>>[] = [];
+  try {
+    for (let i = 0; i < count; i++) probes.push(await bindTestPort());
+    return probes.map(({ port }) => port).join(',');
+  } finally {
+    await Promise.all(probes.map(({ server }) => closeTestPort(server)));
+  }
+}
+
+function createTestSocket(port: number, options?: ClientOptions): WebSocket {
+  const socket = new WebSocket(`ws://127.0.0.1:${port}`, options);
+  testSockets.add(socket);
+  socket.once('close', () => testSockets.delete(socket));
+  return socket;
+}
+
+async function closeTestSocket(socket: WebSocket): Promise<void> {
+  if (socket.readyState === WebSocket.CLOSED) return;
+  const closed = waitForClose(socket);
+  // Canceling a still-connecting test client emits an error by design.
+  if (socket.readyState === WebSocket.CONNECTING) socket.once('error', () => {});
+  socket.terminate();
+  await closed;
 }
 
 function openSocket(port: number): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+    const ws = createTestSocket(port);
     ws.once('open', () => resolve(ws));
     ws.once('error', reject);
   });
@@ -104,7 +166,7 @@ async function setupSecureConnection(extraConfig: Record<string, unknown> = {}) 
     BRIDGE_TOKEN: 'test-secret-token',
     ...extraConfig,
   });
-  const manager = new BridgeManager(config);
+  const manager = createTestManager(config);
   await manager.connect();
   const port = manager.activePort;
 
@@ -118,14 +180,14 @@ async function setupSecureConnection(extraConfig: Record<string, unknown> = {}) 
 describe('BridgeManager', () => {
   it('should start in disconnected state', () => {
     const config = createTestConfig();
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     expect(manager.state).toBe('disconnected');
     expect(manager.connected).toBe(false);
   });
 
   it('should emit state change events', () => {
     const config = createTestConfig();
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     const states: string[] = [];
 
     manager.on('stateChanged', (state) => {
@@ -137,20 +199,20 @@ describe('BridgeManager', () => {
 
   it('should throw when calling a method while disconnected', async () => {
     const config = createTestConfig();
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await expect(manager.call('test.method')).rejects.toThrow('Bridge not connected');
   });
 
   it('should disconnect cleanly', () => {
     const config = createTestConfig();
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     manager.disconnect('test');
     expect(manager.state).toBe('disconnected');
   });
 
   it('should handle multiple disconnect calls gracefully', () => {
     const config = createTestConfig();
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     manager.disconnect('first');
     manager.disconnect('second');
     expect(manager.state).toBe('disconnected');
@@ -158,19 +220,19 @@ describe('BridgeManager', () => {
 
   it('should probe health endpoint', () => {
     const config = createTestConfig();
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     expect(manager.lastHeartbeatMs).toBe(0);
   });
 
   it('should report uptime as 0 when disconnected', () => {
     const config = createTestConfig();
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     expect(manager.uptimeMs).toBe(0);
   });
 
   it('should report activePort as 0 when not listening', () => {
     const config = createTestConfig();
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     expect(manager.activePort).toBe(0);
   });
 
@@ -182,7 +244,7 @@ describe('BridgeManager', () => {
       BRIDGE_HOST: '127.0.0.1',
       BRIDGE_PORT_SCAN: portCandidates,
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     let first: WebSocket | undefined;
     let second: WebSocket | undefined;
     try {
@@ -209,7 +271,7 @@ describe('BridgeManager', () => {
   });
 
   it('keeps an explicitly selected window against automatic takeover, but allows manual switching and reconnect after close', async () => {
-    const manager = new BridgeManager(
+    const manager = createTestManager(
       createTestConfig({
         BRIDGE_HOST: '127.0.0.1',
         BRIDGE_PORT_SCAN: await getFreePortCandidates(),
@@ -251,10 +313,11 @@ describe('BridgeManager', () => {
   });
 
   it('does not let a stale extension replace an active exact-version session', async () => {
-    const port = await getFreePort();
-    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
-    const manager = new BridgeManager(config);
+    const portCandidates = await getFreePortCandidates();
+    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: portCandidates });
+    const manager = createTestManager(config);
     await manager.connect();
+    const port = manager.activePort;
     const current = await openSocket(port);
     sendHandshake(current, { extensionVersion: SERVER_VERSION });
     await expect(waitForMessage(current)).resolves.toMatchObject({ type: 'hello' });
@@ -280,14 +343,15 @@ describe('BridgeManager', () => {
   });
 
   it('can replace a stale bridge client with a fresh exact-version extension', async () => {
-    const port = await getFreePort();
-    const manager = new BridgeManager(
+    const portCandidates = await getFreePortCandidates();
+    const manager = createTestManager(
       createTestConfig({
         BRIDGE_HOST: '127.0.0.1',
-        BRIDGE_PORT_SCAN: String(port),
+        BRIDGE_PORT_SCAN: portCandidates,
       }),
     );
     await manager.connect();
+    const port = manager.activePort;
     const stale = await openSocket(port);
     sendHandshake(stale, { extensionVersion: '1.8.1' });
     await expect(waitForMessage(stale)).resolves.toMatchObject({ type: 'hello' });
@@ -304,10 +368,11 @@ describe('BridgeManager', () => {
   });
 
   it('should log a warning if extension version mismatches', async () => {
-    const port = await getFreePort();
-    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
-    const manager = new BridgeManager(config);
+    const portCandidates = await getFreePortCandidates();
+    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: portCandidates });
+    const manager = createTestManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
     const logger = getLogger();
     const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
@@ -340,10 +405,11 @@ describe('BridgeManager', () => {
   });
 
   it('reports no version mismatch when the extension version matches the server version', async () => {
-    const port = await getFreePort();
-    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
-    const manager = new BridgeManager(config);
+    const portCandidates = await getFreePortCandidates();
+    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: portCandidates });
+    const manager = createTestManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
     const socket = await openSocket(port);
     socket.send(
@@ -368,28 +434,40 @@ describe('BridgeManager', () => {
     manager.disconnect('test complete');
   });
 
-  it('clears extensionVersion/easyedaVersion on disconnect', async () => {
-    const port = await getFreePort();
-    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
-    const manager = new BridgeManager(config);
-    await manager.connect();
+  it('clears extensionVersion/easyedaVersion on disconnect despite an occupied first port', async () => {
+    const { server: blocker, port: busyPort } = await bindTestPort();
+    const candidates = await getFreePortCandidates();
+    const config = createTestConfig({
+      BRIDGE_HOST: '127.0.0.1',
+      BRIDGE_PORT_SCAN: `${busyPort},${candidates}`,
+    });
+    const manager = createTestManager(config);
+    let socket: WebSocket | undefined;
+    try {
+      await manager.connect();
+      expect(parsePortScanSpec(candidates)).toContain(manager.activePort);
+      expect(manager.activePort).not.toBe(busyPort);
+      socket = await openSocket(manager.activePort);
+      sendHandshake(socket, { extensionVersion: SERVER_VERSION });
+      await expect(waitForMessage(socket)).resolves.toMatchObject({ type: 'hello' });
+      expect(manager.extensionVersion).toBe(SERVER_VERSION);
+      expect(manager.easyedaVersion).toBeDefined();
 
-    const socket = await openSocket(port);
-    sendHandshake(socket);
-    await expect(waitForMessage(socket)).resolves.toMatchObject({ type: 'hello' });
-    expect(manager.easyedaVersion).toBeDefined();
+      const closed = waitForClose(socket);
+      const disconnected = new Promise<void>((resolve) =>
+        manager.once('disconnected', () => resolve()),
+      );
+      socket.close();
+      await Promise.all([closed, disconnected]);
 
-    const closed = waitForClose(socket);
-    socket.close();
-    await closed;
-    // Give the manager's close handler a tick to run.
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    expect(manager.extensionVersion).toBeUndefined();
-    expect(manager.extensionVersionMismatch).toBe(false);
-    expect(manager.easyedaVersion).toBeUndefined();
-
-    manager.disconnect('test complete');
+      expect(manager.extensionVersion).toBeUndefined();
+      expect(manager.extensionVersionMismatch).toBe(false);
+      expect(manager.easyedaVersion).toBeUndefined();
+    } finally {
+      socket?.close();
+      manager.disconnect('test complete');
+      await closeTestPort(blocker);
+    }
   });
 });
 
@@ -401,7 +479,7 @@ describe('BridgeManager - token enforcement', () => {
       BRIDGE_PORT_SCAN: candidates,
       BRIDGE_TOKEN: 'secret123',
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
 
     const socket = await openSocket(manager.activePort);
@@ -420,7 +498,7 @@ describe('BridgeManager - token enforcement', () => {
       BRIDGE_PORT_SCAN: candidates,
       BRIDGE_TOKEN: 'secret123',
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
 
     const socket = await openSocket(manager.activePort);
@@ -438,7 +516,7 @@ describe('BridgeManager - token enforcement', () => {
       BRIDGE_PORT_SCAN: candidates,
       BRIDGE_TOKEN: 'secret123',
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
 
     const socket = await openSocket(manager.activePort);
@@ -455,25 +533,19 @@ describe('BridgeManager - token enforcement', () => {
 
 describe('BridgeManager - contested token listener ports', () => {
   it('enforces the token after falling back from a concurrently occupied port', async () => {
-    const occupied = createServer();
-    await new Promise<void>((resolve, reject) => {
-      occupied.once('error', reject);
-      occupied.listen(0, '127.0.0.1', resolve);
-    });
-    const address = occupied.address();
-    if (!address || typeof address === 'string') throw new Error('No occupied port');
-    const availablePort = await getFreePort();
-    const manager = new BridgeManager(
+    const { server: occupied, port: occupiedPort } = await bindTestPort();
+    const availablePorts = await getFreePortCandidates();
+    const manager = createTestManager(
       createTestConfig({
         BRIDGE_HOST: '127.0.0.1',
-        BRIDGE_PORT_SCAN: `${address.port},${availablePort}`,
+        BRIDGE_PORT_SCAN: `${occupiedPort},${availablePorts}`,
         BRIDGE_TOKEN: 'secret123',
       }),
     );
     let socket: WebSocket | undefined;
     try {
       await manager.connect();
-      expect(manager.activePort).toBe(availablePort);
+      expect(parsePortScanSpec(availablePorts)).toContain(manager.activePort);
       socket = await openSocket(manager.activePort);
       const closed = waitForClose(socket);
       sendHandshake(socket);
@@ -481,22 +553,23 @@ describe('BridgeManager - contested token listener ports', () => {
     } finally {
       socket?.close();
       manager.disconnect('test complete');
-      await new Promise<void>((resolve) => occupied.close(() => resolve()));
+      await closeTestPort(occupied);
     }
   });
 });
 
 describe('BridgeManager - origin validation', () => {
   it('rejects connection with unauthorized external browser origin', async () => {
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`, {
+    const ws = createTestSocket(port, {
       headers: { Origin: 'https://evil.example.com' },
     });
 
@@ -510,13 +583,14 @@ describe('BridgeManager - origin validation', () => {
   });
 
   it('accepts connection with authorized loopback, extension, or EasyEDA origin', async () => {
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
     for (const origin of [
       'https://pro.easyeda.com',
@@ -526,7 +600,7 @@ describe('BridgeManager - origin validation', () => {
       'chrome-extension://abcdefghijklmno',
       'moz-extension://abcdefghijklmno',
     ]) {
-      const ws = new WebSocket(`ws://127.0.0.1:${port}`, {
+      const ws = createTestSocket(port, {
         headers: { Origin: origin },
       });
 
@@ -540,7 +614,7 @@ describe('BridgeManager - origin validation', () => {
     }
 
     // Invalid url origin is rejected
-    const badWs = new WebSocket(`ws://127.0.0.1:${port}`, {
+    const badWs = createTestSocket(port, {
       headers: { Origin: ':::not-a-valid-url:::' },
     });
     const badResult = await new Promise<string>((resolve) => {
@@ -553,8 +627,8 @@ describe('BridgeManager - origin validation', () => {
   });
 
   it('rejects lookalike desktop origins and never trusts the desktop origin on non-loopback', () => {
-    const local = new BridgeManager(createTestConfig({ BRIDGE_HOST: '127.0.0.1' }));
-    const external = new BridgeManager(createTestConfig({ BRIDGE_HOST: '0.0.0.0' }));
+    const local = createTestManager(createTestConfig({ BRIDGE_HOST: '127.0.0.1' }));
+    const external = createTestManager(createTestConfig({ BRIDGE_HOST: '0.0.0.0' }));
     const originAllowed = (manager: BridgeManager, origin: string): boolean =>
       (
         manager as unknown as {
@@ -576,15 +650,16 @@ describe('BridgeManager - origin validation', () => {
   });
 
   it('drops chunk assemblies when capacity limit is reached', async () => {
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+    const ws = createTestSocket(port);
     await new Promise<void>((resolve, reject) => {
       ws.once('open', resolve);
       ws.once('error', reject);
@@ -608,13 +683,14 @@ describe('BridgeManager - origin validation', () => {
 
 describe('BridgeManager - protocol version validation', () => {
   it('should reject handshake with unsupported protocol version', async () => {
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
     const socket = await openSocket(port);
     socket.send(
@@ -634,13 +710,14 @@ describe('BridgeManager - protocol version validation', () => {
   });
 
   it('should accept handshake with supported protocol version', async () => {
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
     const socket = await openSocket(port);
     sendHandshake(socket);
@@ -657,19 +734,20 @@ describe('BridgeManager - protocol version validation', () => {
 describe('BridgeManager - method registry hash', () => {
   it('should compute methodRegistryHash from EasyedaApiMethodSchema', async () => {
     const config = createTestConfig();
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     expect(manager.methodRegistryHash).toBeTruthy();
     expect(manager.methodRegistryHash.length).toBe(16);
   });
 
   it('should include computed methodRegistryHash in hello', async () => {
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
     const socket = await openSocket(port);
     sendHandshake(socket);
@@ -682,11 +760,12 @@ describe('BridgeManager - method registry hash', () => {
   });
 
   it('fails closed on registry-hash mismatch while preserving status readback', async () => {
-    const port = await getFreePort();
-    const manager = new BridgeManager(
-      createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) }),
+    const portCandidates = await getFreePortCandidates();
+    const manager = createTestManager(
+      createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: portCandidates }),
     );
     await manager.connect();
+    const port = manager.activePort;
     const socket = await openSocket(port);
     sendHandshake(socket, { methodListHash: '0000000000000000', extensionVersion: SERVER_VERSION });
     await expect(waitForMessage(socket)).resolves.toMatchObject({ type: 'hello' });
@@ -719,11 +798,12 @@ describe('BridgeManager - method registry hash', () => {
   });
 
   it('allows scoped reads but fails closed on writes during version-only drift', async () => {
-    const port = await getFreePort();
-    const manager = new BridgeManager(
-      createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) }),
+    const portCandidates = await getFreePortCandidates();
+    const manager = createTestManager(
+      createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: portCandidates }),
     );
     await manager.connect();
+    const port = manager.activePort;
     const socket = await openSocket(port);
     sendHandshake(socket, {
       extensionVersion: SERVER_VERSION + '-older-active-dispatcher',
@@ -783,11 +863,12 @@ describe('BridgeManager - method registry hash', () => {
   });
 
   it('preserves normal write RPC dispatch when semantic versions and registry match', async () => {
-    const port = await getFreePort();
-    const manager = new BridgeManager(
-      createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) }),
+    const portCandidates = await getFreePortCandidates();
+    const manager = createTestManager(
+      createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: portCandidates }),
     );
     await manager.connect();
+    const port = manager.activePort;
     const socket = await openSocket(port);
     sendHandshake(socket, {
       extensionVersion: SERVER_VERSION,
@@ -809,11 +890,12 @@ describe('BridgeManager - method registry hash', () => {
   });
 
   it('does not block compatible methods solely because semantic versions differ', async () => {
-    const port = await getFreePort();
-    const manager = new BridgeManager(
-      createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) }),
+    const portCandidates = await getFreePortCandidates();
+    const manager = createTestManager(
+      createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: portCandidates }),
     );
     await manager.connect();
+    const port = manager.activePort;
     const socket = await openSocket(port);
     sendHandshake(socket, {
       extensionVersion: `${SERVER_VERSION}-stale-test-build`,
@@ -846,7 +928,7 @@ describe('BridgeManager - method registry hash', () => {
       BRIDGE_PORT_SCAN: candidates,
       BRIDGE_MAX_PAYLOAD_SIZE: 2_097_152,
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
 
     const socket = await openSocket(manager.activePort);
@@ -870,7 +952,7 @@ describe('BridgeManager - payload size limit', () => {
       BRIDGE_PORT_SCAN: portCandidates,
       BRIDGE_MAX_PAYLOAD_SIZE: 1024,
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
 
     const socket = await openSocket(manager.activePort);
@@ -884,7 +966,7 @@ describe('BridgeManager - payload size limit', () => {
 
   it('enforces the aggregate limit in UTF-8 bytes rather than UTF-16 string length', async () => {
     const portCandidates = await getFreePortCandidates();
-    const manager = new BridgeManager(
+    const manager = createTestManager(
       createTestConfig({
         BRIDGE_HOST: '127.0.0.1',
         BRIDGE_PORT_SCAN: portCandidates,
@@ -911,7 +993,7 @@ describe('BridgeManager - payload size limit', () => {
 
   it('accounts for duplicate chunk replacement without an undersized byte budget', async () => {
     const portCandidates = await getFreePortCandidates();
-    const manager = new BridgeManager(
+    const manager = createTestManager(
       createTestConfig({
         BRIDGE_HOST: '127.0.0.1',
         BRIDGE_PORT_SCAN: portCandidates,
@@ -942,7 +1024,7 @@ describe('BridgeManager - payload size limit', () => {
 
   it('accepts an exact-limit payload containing an emoji split across chunk boundaries', async () => {
     const portCandidates = await getFreePortCandidates();
-    const manager = new BridgeManager(
+    const manager = createTestManager(
       createTestConfig({
         BRIDGE_HOST: '127.0.0.1',
         BRIDGE_PORT_SCAN: portCandidates,
@@ -972,7 +1054,7 @@ describe('BridgeManager - payload size limit', () => {
 
   it('rejects a replacement that breaks a split emoji after an exact-cap assembly', async () => {
     const portCandidates = await getFreePortCandidates();
-    const manager = new BridgeManager(
+    const manager = createTestManager(
       createTestConfig({
         BRIDGE_HOST: '127.0.0.1',
         BRIDGE_PORT_SCAN: portCandidates,
@@ -1009,7 +1091,7 @@ describe('BridgeManager - payload size limit', () => {
       BRIDGE_PORT_SCAN: portCandidates,
       BRIDGE_MAX_PAYLOAD_SIZE: 1024,
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
 
     const socket = await openSocket(manager.activePort);
@@ -1049,13 +1131,14 @@ describe('BridgeManager - unknown method in incoming request', () => {
 
 describe('BridgeManager - reconnect', () => {
   it('should emit reconnecting event on disconnect', async () => {
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
     const reconnectingSpy = vi.fn();
     manager.on('reconnecting', reconnectingSpy);
@@ -1085,7 +1168,7 @@ describe('BridgeManager - reconnect', () => {
       BRIDGE_HOST: '127.0.0.1',
       BRIDGE_PORT_SCAN: portCandidates,
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
 
     const reconnectingSpy = vi.fn();
@@ -1233,12 +1316,7 @@ describe('BridgeManager - call() round trip', () => {
   });
 
   it('falls back to an actually bound bridge port when a concurrent process owns the first candidate', async () => {
-    const blockedPort = await getFreePort();
-    const blocker = createServer();
-    await new Promise<void>((resolve, reject) => {
-      blocker.once('error', reject);
-      blocker.listen(blockedPort, '127.0.0.1', resolve);
-    });
+    const { server: blocker, port: blockedPort } = await bindTestPort();
 
     try {
       const fallbackPorts = await getFreePortCandidates();
@@ -1254,9 +1332,7 @@ describe('BridgeManager - call() round trip', () => {
         manager.disconnect('test complete');
       }
     } finally {
-      await new Promise<void>((resolve, reject) => {
-        blocker.close((err) => (err ? reject(err) : resolve()));
-      });
+      await closeTestPort(blocker);
     }
   });
 
@@ -1336,7 +1412,7 @@ describe('BridgeManager - waitForConnection', () => {
 
   it('rejects after the timeout when never connected', async () => {
     const config = createTestConfig();
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await expect(manager.waitForConnection(20)).rejects.toThrow('Bridge not connected');
   });
 
@@ -1345,7 +1421,7 @@ describe('BridgeManager - waitForConnection', () => {
     // listener selected from independent candidates rather than the first probe.
     const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: portCandidates });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
 
     const waiter = manager.waitForConnection(2000);
@@ -1361,10 +1437,11 @@ describe('BridgeManager - waitForConnection', () => {
 
 describe('BridgeManager - malformed messages', () => {
   it('ignores non-JSON messages without crashing the connection', async () => {
-    const port = await getFreePort();
-    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
-    const manager = new BridgeManager(config);
+    const portCandidates = await getFreePortCandidates();
+    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: portCandidates });
+    const manager = createTestManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
     const socket = await openSocket(port);
     sendHandshake(socket);
@@ -1381,16 +1458,17 @@ describe('BridgeManager - malformed messages', () => {
 
   it('uses BRIDGE_HEARTBEAT_MS for the connected heartbeat schedule', async () => {
     const intervalSpy = vi.spyOn(globalThis, 'setInterval');
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
       BRIDGE_HEARTBEAT_MS: 1_234,
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
 
     try {
       await manager.connect();
+      const port = manager.activePort;
       const socket = await openSocket(port);
       sendHandshake(socket);
       await waitForMessage(socket);
@@ -1404,10 +1482,11 @@ describe('BridgeManager - malformed messages', () => {
   });
 
   it('updates lastHeartbeatMs and emits heartbeat on a heartbeat message', async () => {
-    const port = await getFreePort();
-    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: String(port) });
-    const manager = new BridgeManager(config);
+    const portCandidates = await getFreePortCandidates();
+    const config = createTestConfig({ BRIDGE_HOST: '127.0.0.1', BRIDGE_PORT_SCAN: portCandidates });
+    const manager = createTestManager(config);
     await manager.connect();
+    const port = manager.activePort;
 
     const heartbeatSpy = vi.fn();
     manager.on('heartbeat', heartbeatSpy);
@@ -1437,7 +1516,7 @@ function openBufferedSocket(
   port: number,
 ): Promise<{ socket: WebSocket; nextMessage: () => Promise<unknown> }> {
   return new Promise((resolve, reject) => {
-    const socket = new WebSocket(`ws://127.0.0.1:${port}`);
+    const socket = createTestSocket(port);
     const queue: unknown[] = [];
     const waiters: Array<(v: unknown) => void> = [];
 
@@ -1466,7 +1545,7 @@ describe('BridgeManager - pairing (non-loopback host)', () => {
       BRIDGE_PORT_SCAN: portCandidates,
       BRIDGE_TOKEN: 'pair-secret',
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
     const port = manager.activePort;
 
@@ -1497,7 +1576,7 @@ describe('BridgeManager - pairing (non-loopback host)', () => {
       BRIDGE_PORT_SCAN: portCandidates,
       BRIDGE_TOKEN: 'pair-secret',
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
     const port = manager.activePort;
 
@@ -1524,7 +1603,7 @@ describe('BridgeManager - pairing (non-loopback host)', () => {
       BRIDGE_PORT_SCAN: portCandidates,
       BRIDGE_TOKEN: 'pair-secret',
     });
-    const manager = new BridgeManager(config);
+    const manager = createTestManager(config);
     await manager.connect();
     const port = manager.activePort;
 
@@ -1591,8 +1670,8 @@ describe('BridgeManager - process ownership', () => {
         });
       });
 
-      const manager = new BridgeManager(
-        createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: String(await getFreePort()) }),
+      const manager = createTestManager(
+        createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: await getFreePortCandidates() }),
       );
       await expect(manager.connect()).rejects.toThrow(/another easyeda-mcp-pro process/i);
       expect(manager.ownershipConflict).toMatchObject({
@@ -1618,8 +1697,8 @@ describe('BridgeManager - process ownership', () => {
     mkdirSync(lockDir, { recursive: true });
     writeFileSync(join(lockDir, 'owner.json'), '{not-json');
 
-    const manager = new BridgeManager(
-      createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: String(await getFreePort()) }),
+    const manager = createTestManager(
+      createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: await getFreePortCandidates() }),
     );
 
     await expect(manager.connect()).rejects.toThrow(/no valid owner metadata/i);
@@ -1631,8 +1710,8 @@ describe('BridgeManager - process ownership', () => {
     const dataDir = mkdtempSync(join(tmpdir(), 'easyeda-bridge-owner-removed-'));
     testDataDirs.add(dataDir);
     const lockDir = join(dataDir, 'bridge-listener.lock');
-    const manager = new BridgeManager(
-      createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: String(await getFreePort()) }),
+    const manager = createTestManager(
+      createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: await getFreePortCandidates() }),
     );
 
     await manager.connect();
@@ -1647,8 +1726,8 @@ describe('BridgeManager - process ownership', () => {
     testDataDirs.add(dataDir);
     const lockDir = join(dataDir, 'bridge-listener.lock');
     const ownerFile = join(lockDir, 'owner.json');
-    const manager = new BridgeManager(
-      createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: String(await getFreePort()) }),
+    const manager = createTestManager(
+      createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: await getFreePortCandidates() }),
     );
 
     await manager.connect();
@@ -1667,23 +1746,26 @@ describe('BridgeManager - process ownership', () => {
   it('shares one EasyEDA listener across multiple local MCP managers', async () => {
     const dataDir = mkdtempSync(join(tmpdir(), 'easyeda-bridge-owner-'));
     testDataDirs.add(dataDir);
-    const ownerPort = await getFreePort();
-    const fallbackPort = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       DATA_DIR: dataDir,
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: `${ownerPort},${fallbackPort}`,
+      BRIDGE_PORT_SCAN: portCandidates,
     });
-    const owner = new BridgeManager(config);
-    const follower = new BridgeManager(config);
+    const owner = createTestManager(config);
+    const follower = createTestManager(config);
     let extension: WebSocket | undefined;
 
     try {
       await owner.connect();
       await follower.connect();
 
-      expect(owner.activePort).toBe(ownerPort);
+      const ownerPort = owner.activePort;
+      expect(parsePortScanSpec(portCandidates)).toContain(ownerPort);
       expect(follower.activePort).toBe(ownerPort);
+      expect(
+        JSON.parse(readFileSync(join(dataDir, 'bridge-listener.lock', 'owner.json'), 'utf8')),
+      ).toMatchObject({ pid: process.pid, port: ownerPort });
       expect(follower.state).toBe('connecting');
       expect(follower.ownershipConflict).toBeUndefined();
 
@@ -1721,21 +1803,24 @@ describe('BridgeManager - process ownership', () => {
   it('coordinates concurrent local MCP startup without binding fallback bridge ports', async () => {
     const dataDir = mkdtempSync(join(tmpdir(), 'easyeda-bridge-concurrent-start-'));
     testDataDirs.add(dataDir);
-    const ownerPort = await getFreePort();
-    const fallbackPort = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       DATA_DIR: dataDir,
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: `${ownerPort},${fallbackPort}`,
+      BRIDGE_PORT_SCAN: portCandidates,
     });
-    const first = new BridgeManager(config);
-    const second = new BridgeManager(config);
+    const first = createTestManager(config);
+    const second = createTestManager(config);
 
     try {
       await Promise.all([first.connect(), second.connect()]);
 
-      expect(first.activePort).toBe(ownerPort);
+      const ownerPort = first.activePort;
+      expect(parsePortScanSpec(portCandidates)).toContain(ownerPort);
       expect(second.activePort).toBe(ownerPort);
+      expect(
+        JSON.parse(readFileSync(join(dataDir, 'bridge-listener.lock', 'owner.json'), 'utf8')),
+      ).toMatchObject({ pid: process.pid, port: ownerPort });
       expect(first.ownershipConflict).toBeUndefined();
       expect(second.ownershipConflict).toBeUndefined();
       expect([first.state, second.state]).toEqual(['connecting', 'connecting']);
@@ -1756,7 +1841,7 @@ describe('BridgeManager - process ownership', () => {
       BRIDGE_HOST: '127.0.0.1',
       BRIDGE_PORT_SCAN: candidates,
     });
-    const owner = new BridgeManager(config);
+    const owner = createTestManager(config);
     let extension: WebSocket | undefined;
     let child: ReturnType<typeof spawn> | undefined;
 
@@ -1874,14 +1959,14 @@ describe('BridgeManager - process ownership', () => {
   it('automatically promotes a follower after the original owner exits', async () => {
     const dataDir = mkdtempSync(join(tmpdir(), 'easyeda-bridge-failover-'));
     testDataDirs.add(dataDir);
-    const port = await getFreePort();
+    const portCandidates = await getFreePortCandidates();
     const config = createTestConfig({
       DATA_DIR: dataDir,
       BRIDGE_HOST: '127.0.0.1',
-      BRIDGE_PORT_SCAN: String(port),
+      BRIDGE_PORT_SCAN: portCandidates,
     });
-    const owner = new BridgeManager(config);
-    const follower = new BridgeManager(config);
+    const owner = createTestManager(config);
+    const follower = createTestManager(config);
     let extension: WebSocket | undefined;
 
     try {
@@ -1893,12 +1978,16 @@ describe('BridgeManager - process ownership', () => {
       await vi.waitFor(
         () => {
           expect(follower.state).toBe('connecting');
-          expect(follower.activePort).toBe(port);
+          expect(parsePortScanSpec(portCandidates)).toContain(follower.activePort);
           expect(follower.ownershipConflict).toBeUndefined();
         },
         { timeout: 4_000, interval: 25 },
       );
 
+      const port = follower.activePort;
+      expect(
+        JSON.parse(readFileSync(join(dataDir, 'bridge-listener.lock', 'owner.json'), 'utf8')),
+      ).toMatchObject({ pid: process.pid, port });
       extension = await openSocket(port);
       sendHandshake(extension, {
         extensionVersion: SERVER_VERSION,
@@ -1943,14 +2032,15 @@ describe('BridgeManager - process ownership', () => {
       }),
     );
 
-    const port = await getFreePort();
-    const manager = new BridgeManager(
-      createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: String(port) }),
+    const portCandidates = await getFreePortCandidates();
+    const manager = createTestManager(
+      createTestConfig({ DATA_DIR: dataDir, BRIDGE_PORT_SCAN: portCandidates }),
     );
 
     try {
       await manager.connect();
-      expect(manager.activePort).toBe(port);
+      const port = manager.activePort;
+      expect(parsePortScanSpec(portCandidates)).toContain(port);
       expect(manager.ownershipConflict).toBeUndefined();
       const owner = JSON.parse(
         await import('node:fs').then(({ readFileSync }) =>
@@ -1969,41 +2059,37 @@ describe('BridgeManager - process ownership', () => {
 
 describe('BridgeManager - port fallback', () => {
   it('falls back to the next port when the first is already in use', async () => {
-    const busyPort = await getFreePort();
-    const blocker = createServer();
-    await new Promise<void>((resolve) => blocker.listen(busyPort, '127.0.0.1', resolve));
+    const { server: blocker, port: busyPort } = await bindTestPort();
 
     try {
-      const freePort = await getFreePort();
+      const freePorts = await getFreePortCandidates();
       const config = createTestConfig({
         BRIDGE_HOST: '127.0.0.1',
-        BRIDGE_PORT_SCAN: `${busyPort},${freePort}`,
+        BRIDGE_PORT_SCAN: `${busyPort},${freePorts}`,
       });
-      const manager = new BridgeManager(config);
+      const manager = createTestManager(config);
       await manager.connect();
 
-      expect(manager.activePort).toBe(freePort);
+      expect(parsePortScanSpec(freePorts)).toContain(manager.activePort);
       manager.disconnect('test complete');
     } finally {
-      await new Promise<void>((resolve) => blocker.close(() => resolve()));
+      await closeTestPort(blocker);
     }
   });
 
   it('throws when every candidate port is unavailable', async () => {
-    const busyPort = await getFreePort();
-    const blocker = createServer();
-    await new Promise<void>((resolve) => blocker.listen(busyPort, '127.0.0.1', resolve));
+    const { server: blocker, port: busyPort } = await bindTestPort();
 
     try {
       const config = createTestConfig({
         BRIDGE_HOST: '127.0.0.1',
         BRIDGE_PORT_SCAN: String(busyPort),
       });
-      const manager = new BridgeManager(config);
+      const manager = createTestManager(config);
       await expect(manager.connect()).rejects.toThrow();
       expect(manager.state).toBe('error');
     } finally {
-      await new Promise<void>((resolve) => blocker.close(() => resolve()));
+      await closeTestPort(blocker);
     }
   });
 });
