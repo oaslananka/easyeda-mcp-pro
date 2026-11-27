@@ -1,4 +1,12 @@
 import {
+  esdReturnViaPairSchema,
+  esdReturnViaEvidenceSchema,
+  selectEsdReturn,
+  reviewEsdReturn,
+  type EsdPadContacts,
+  type EsdReturnSource,
+} from './pcb-esd-return-correlation.js';
+import {
   crystalNetworkRoles,
   selectCrystalNetworkLegs,
   reviewCrystalNetworkTopology,
@@ -159,6 +167,11 @@ const placementRelationSchema = z
     first: exactNetSchema.describe('Exact native PCB component designator, e.g. U1.'),
     second: exactNetSchema.describe('Exact second PCB component designator, e.g. C1.'),
     padPairs: z.array(nativePadPairSchema).min(1).max(2).optional(),
+    esdReturnViaPair: esdReturnViaPairSchema
+      .optional()
+      .describe(
+        'Explicit two-via ESD return correlation on one selected contour; not electrical continuity.',
+      ),
     crystalNetworkLeg: z
       .enum(crystalNetworkRoles)
       .optional()
@@ -393,6 +406,33 @@ function validateCrystalNetworkRequest(
   }
 }
 
+function validateEsdReturnRequest(
+  value: {
+    placementRelations?: z.infer<typeof placementRelationSchema>[];
+    includeNativePadContacts?: boolean;
+    nativePadContactMode?: 'centre-only';
+    nativeViaAdjacency?: unknown;
+    nativeViaPourAnnulus?: unknown;
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (
+    value.placementRelations?.some((r) => r.esdReturnViaPair !== undefined) &&
+    (!selectEsdReturn(value.placementRelations) ||
+      (!value.includeNativePadContacts && value.nativePadContactMode === undefined) ||
+      value.nativeViaAdjacency !== undefined ||
+      value.nativeViaPourAnnulus !== undefined ||
+      value.placementRelations.reduce((n, r) => n + (r.padPairs?.length ?? 0), 0) > 4)
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['placementRelations'],
+      message:
+        'Declare one exact ESD return pad pair, source, two distinct selected vias and native contact opt-in within the four-pair budget; standalone via options conflict.',
+    });
+  }
+}
+
 const inputSchema = z
   .object({
     projectId: projectIdSchema,
@@ -472,6 +512,7 @@ const inputSchema = z
     }
     validateSwitchingLoopRequest(value, ctx);
     validateCrystalNetworkRequest(value, ctx);
+    validateEsdReturnRequest(value, ctx);
     const priority = value.placementPriorityContext;
     if (priority !== undefined && !value.placementRelations?.length) {
       ctx.addIssue({
@@ -767,6 +808,7 @@ const placementReviewSchema = z.object({
   review_priorities: z.array(placementPrioritySchema).max(8).optional(),
   switching_loop_topology: switchingLoopTopologySchema.optional(),
   crystal_network_topology: crystalNetworkTopologySchema.optional(),
+  esd_return_via_evidence: esdReturnViaEvidenceSchema.optional(),
   limitations: z.array(z.string()),
   engineering_sign_off: z.literal(false),
 });
@@ -1088,7 +1130,12 @@ async function readNativePairAssociations(
   projectId: string,
   ids: { first: string; second: string },
   found: NativePadPairFinding,
-  routeSource: { tracks: NativeTrack[]; complete: boolean; focusedPcbId?: string },
+  routeSource: {
+    tracks: NativeTrack[];
+    complete: boolean;
+    focusedPcbId?: string;
+    esdContacts?: EsdPadContacts;
+  },
   centreOnly: boolean,
 ) {
   if (!ctx.bridge.connected || ctx.bridge.registryMismatch || ctx.bridge.extensionVersionMismatch) {
@@ -1131,6 +1178,7 @@ async function readNativePairAssociations(
         'Focused PCB changed during native pad connection reads.',
       );
     }
+    routeSource.esdContacts?.set(found, { first, second });
     return reviewNativePadAssociations(
       first,
       second,
@@ -1162,7 +1210,12 @@ async function enrichPlacementPadEvidence(
   components: NativePlacement[],
   placement: ReturnType<typeof reviewPlacementRelations>,
   errors: string[],
-  routeSource: { tracks: NativeTrack[]; complete: boolean; focusedPcbId?: string },
+  routeSource: {
+    tracks: NativeTrack[];
+    complete: boolean;
+    focusedPcbId?: string;
+    esdContacts?: EsdPadContacts;
+  },
   includeNativePadContacts: boolean,
   centreOnly: boolean,
 ) {
@@ -1366,6 +1419,38 @@ async function optionalPlacementReview(
   };
 }
 
+function createEsdEvidenceCapture(
+  relations: z.infer<typeof placementRelationSchema>[] | undefined,
+) {
+  const esd = selectEsdReturn(relations ?? []);
+  const esdContacts: EsdPadContacts | undefined = esd ? new Map() : undefined;
+  return { esd, esdContacts };
+}
+
+async function optionalEsdPlacement(
+  ctx: ToolContext,
+  projectId: string,
+  selected: ReturnType<typeof selectEsdReturn>,
+  result: Awaited<ReturnType<typeof optionalPlacementReview>>,
+  source: EsdReturnSource,
+  readFocus: () => Promise<string | undefined>,
+) {
+  const placement = result.placement_review;
+  if (!selected || !placement) return result;
+  const evidence = await reviewEsdReturn(
+    ctx,
+    projectId,
+    selected,
+    placement.findings[selected.index],
+    {
+      ...source,
+      complete: source.complete && placement.input_evidence.collection_complete,
+    },
+    readFocus,
+  );
+  return { placement_review: { ...placement, esd_return_via_evidence: evidence } };
+}
+
 function optionalNativeCurrentReview(
   declaration: z.infer<typeof nativeTraceCurrentDeclarationSchema> | undefined,
   route: Awaited<ReturnType<typeof collectRouteEvidence>>,
@@ -1497,6 +1582,7 @@ export function registerPcbRouteReviewTools(
               placementAvailable,
             );
 
+      const { esd, esdContacts } = createEsdEvidenceCapture(placementRelations);
       let padObservations: Map<string, unknown> | undefined;
       if (placement && placementRelations) {
         padObservations = await enrichPlacementPadEvidence(
@@ -1506,7 +1592,12 @@ export function registerPcbRouteReviewTools(
           placementComponents,
           placement,
           errors,
-          { tracks, complete: geometry.input_evidence.collection_complete, focusedPcbId },
+          {
+            tracks,
+            complete: geometry.input_evidence.collection_complete,
+            focusedPcbId,
+            esdContacts,
+          },
           requestPadContacts,
           nativePadContactMode === 'centre-only',
         );
@@ -1558,6 +1649,21 @@ export function registerPcbRouteReviewTools(
         },
         () => readFocusedPcbId(ctx, projectId),
       );
+      const esdPlacement = await optionalEsdPlacement(
+        ctx,
+        projectId,
+        esd,
+        placementResult,
+        {
+          tracks,
+          vias,
+          complete: geometry.input_evidence.collection_complete,
+          focusedPcbId,
+          pads: padObservations,
+          contacts: esdContacts,
+        },
+        () => readFocusedPcbId(ctx, projectId),
+      );
       return {
         project_id: projectId,
         ...geometry,
@@ -1565,7 +1671,7 @@ export function registerPcbRouteReviewTools(
         ...viaPourAnnulus,
         ...viaAdjacency,
         ...sensitiveSpacing,
-        ...placementResult,
+        ...esdPlacement,
         ...(pair === undefined ? {} : { differential_pair: pair }),
         ...(nativeCurrent === undefined ? {} : { trace_current_review: nativeCurrent }),
         overall_status: aggregateReviewStatus(

@@ -1122,3 +1122,86 @@ unverified. Even all four observed chains leave
 `engineering_sign_off: false`. Missing evidence does not prove
 disconnection. Collect remaining physical and return-path evidence
 and independently check the actual device requirements.
+
+### Review selected ESD return vias and a filled contour
+
+When a connector and its protection device have separately routed return
+stubs into a reference plane, the absence of a same-layer line chain does
+not establish a disconnected return. After discovering the exact pad, via
+and filled-contour identities, opt in to `esdReturnViaPair` on one
+`esd-entry` relation with one declared return pad pair and a source:
+
+```json
+{
+  "projectId": "your-native-project-uuid",
+  "nativePadContactMode": "centre-only",
+  "placementRelations": [
+    {
+      "first": "U3",
+      "second": "J1",
+      "kind": "esd-entry",
+      "constraintSource": "Caller-sourced schematic and PCB pad/net map",
+      "padPairs": [{ "firstPin": "2", "secondPin": "5", "expectedNet": "GND" }],
+      "esdReturnViaPair": {
+        "pourPrimitiveId": "observed-pour-id",
+        "fillId": "observed-fill-id",
+        "expectedLayer": 15,
+        "transform": {
+          "scale": 0.1,
+          "invertY": false,
+          "source": "Independent source/native contour calibration"
+        },
+        "vias": [
+          {
+            "viaPrimitiveId": "observed-first-pad-return-via",
+            "diameterMm": 0.7,
+            "drillDiameterMm": 0.3,
+            "source": "Independent first via dimensions"
+          },
+          {
+            "viaPrimitiveId": "observed-second-pad-return-via",
+            "diameterMm": 0.7,
+            "drillDiameterMm": 0.3,
+            "source": "Independent second via dimensions"
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+The IDs, layer, dimensions and calibration are fixture-specific examples,
+not defaults or design requirements. The two via declarations follow the
+first/second pad order and must name distinct vias. Discover the identities
+with existing PCB reads; proximity alone does not establish a relationship.
+Native pad contact opt-in is required and the existing four-pad-pair
+budget applies. The selected relation can accompany ordinary signal or
+supply placement relations within that budget. Do not combine it with
+standalone `nativeViaAdjacency` or `nativeViaPourAnnulus` options in the
+same request: the tool uses the existing bounded readers for the two selected
+vias and the two individual contour observations.
+
+`placement_review.esd_return_via_evidence` reports
+`both_selected_contour_candidates`, `partial_selected_contour_candidates`
+or `unavailable`. Each positive endpoint names the exact component, pin,
+pad, native directly associated line and reciprocal via identity, the line
+layer, interior witness and next action. The line's identity, net, type and
+layer must agree with the pad association and reciprocal native via/line
+read, and the layer must equal the observed pad layer. The selected via and
+its individual contour evidence must pass the existing source-linked via
+annulus checks. Ambiguous identities, an unavailable source, missing
+reciprocal anchor or unavailable geometric witness cannot establish a
+positive candidate. The output identifies which endpoint needs more
+evidence. Existing findings, priority ordering and overall status do not
+change.
+
+The two contour observations refer to the same **selected contour identity**
+in separate focus-bound reads; they are not an atomic snapshot, a verified
+union of plane contours, or evidence of the same physical copper geometry
+throughout the reads. The tool does not infer a device's ESD topology,
+choose the nearest via, verify pad contact, plating, via-layer flashing,
+physical span, shared return current, impedance, ESD immunity or engineering
+approval. Electrical continuity and physical span always remain `UNKNOWN`,
+with `engineering_sign_off: false`. Missing evidence is not proof of
+disconnection.
