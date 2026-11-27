@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-v1200-native-exports-and-via-contours-compatibility",
+  "recordedAtUtc": "2026-11-27T00:45:50Z",
+  "candidate": {
+    "releasePullRequest": 1146,
+    "exactCommit": "eea5504abbe301ca179d6296181e60ff8f78d8d5",
+    "treeSha1": "67ad7f15a4a1f9f780da8f2e5df93b929004344b",
+    "packageVersion": "1.20.0",
+    "compatibilitySensitiveTreeSha1": {
+      "easyeda-bridge-extension/src": "8ddb19ceb5bc53855e3dcd2aaa3cb84c91c5b2f9",
+      "src/bridge": "404ec8961d98af12aca7df838b0f9d8953b2a2f3",
+      "src/remote": "7fcd33c262536ec1cba79c49e4ad24615663633a",
+      "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+      "src/tools": "ef4c277f3acff4acc12dcc564cb927d3fd36acd9",
+      "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+    },
+    "extensionSha256": "da7e3c8e8eb35f58511ce9196405f63b4964c409d05b279e06b0826f8e03b90e",
+    "extensionBytes": 249064,
+    "reproducibleBuilds": 2,
+    "matchingSha256": true,
+    "matchingSizeBytes": true
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-43-generic",
+    "nodeVersion": "24.22.3"
+  },
+  "editor": {
+    "version": "4.1.105.0339a6cd",
+    "electronVersion": "not independently recorded",
+    "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+    "chromiumVersion": "not independently recorded",
+    "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+  },
+  "extension": {
+    "installedPackageVersion": "1.20.0",
+    "loaderReportedVersion": "1.20.0",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "25cb47ba3bf5ed23",
+    "activeDispatcher": "baked",
+    "dispatcherBuildId": "d460cxee5axa9d5",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "packageSha256": "da7e3c8e8eb35f58511ce9196405f63b4964c409d05b279e06b0826f8e03b90e",
+    "packageSizeBytes": 249064
+  },
+  "runtimeIdentity": {
+    "health": "ok",
+    "serverVersion": "1.20.0",
+    "extensionVersion": "1.20.0",
+    "registryMismatch": false,
+    "versionMismatch": false,
+    "connected": true,
+    "bridgeVersion": "1.0.0",
+    "easyedaVersion": "4.1.105",
+    "methodRegistryHash": "25cb47ba3bf5ed23",
+    "methodCount": 87,
+    "dispatcher": "d460cxee5axa9d5",
+    "source": "loader_status",
+    "devMode": false
+  },
+  "fixture": {
+    "project": "Two isolated disposable local projects: PCB/schematic export fixture and F103 imported PCB; no personal design",
+    "schematic": "Focused schematic and PCB; no design write",
+    "disposable": true,
+    "readOnly": true
+  },
+  "liveAcceptance": {
+    "officialInstallExit": 0,
+    "viaContourPhaseExit": 0,
+    "exportPhaseExit": 0,
+    "schematicExport": {
+      "kind": "schematic_svg",
+      "exported": true,
+      "mime_type": "image/svg+xml",
+      "byte_length": 135508,
+      "sha256": "7d52172218da266d263a7702a31f4e26c9573411925a96b8a89497222a736052"
+    },
+    "pcbExports": [
+      {
+        "kind": "ipc_d356",
+        "exported": true,
+        "mime_type": "text/plain",
+        "byte_length": 8818,
+        "sha256": "76666d50f109db99fad700853c38a6066170e86a0bd87cbfe18d1c9b83611603"
+      },
+      {
+        "kind": "ipc2581",
+        "exported": false,
+        "not_available": true,
+        "error": "EasyEDA did not return a ipc2581 file for the focused document."
+      },
+      {
+        "kind": "pcb_info",
+        "exported": true,
+        "mime_type": "text/plain",
+        "byte_length": 795,
+        "sha256": "7a2de2673a05f8a391b7610816034abbe7a52c2b7f363475fad8fbdcc0ef770e"
+      },
+      {
+        "kind": "test_points",
+        "exported": true,
+        "mime_type": "text/csv",
+        "byte_length": 44,
+        "sha256": "ab3c3931a562d4bdf3464d3a59d4434b85b999d2f025334db08426fb512bf994"
+      },
+      {
+        "kind": "pads_layout",
+        "exported": true,
+        "mime_type": "application/zip",
+        "byte_length": 33963,
+        "sha256": "62d351e75eadc4b453bc3825f27562633a5b2cfee07c914dbd6694eeffffec33"
+      }
+    ],
+    "padsZip": {
+      "crcVerified": true,
+      "entries": [
+        {
+          "type": "schematic text",
+          "bytes": 66985
+        },
+        {
+          "type": "PCB ASCII",
+          "bytes": 119169
+        },
+        {
+          "type": "PCB decal library",
+          "bytes": 8335
+        }
+      ]
+    },
+    "localFileDelivery": {
+      "kind": "ipc_d356",
+      "bytes": 8818,
+      "sha256": "f239a2b417be209e78de41bea27907e495c7c6f5a79e759887cf588869f6e76a",
+      "confined": true
+    },
+    "wrongDocumentTypesRejected": true,
+    "focusTransitionVerified": true,
+    "schematicWireCount": 34,
+    "schematicReadbackUnchanged": true,
+    "pcbInventoryUnchanged": true,
+    "exportFixtureSha256": "e0036ab8e6765237882798b05575afa181164389b5821cb0e0ce0d83d96a394f",
+    "f103FixtureSha256": "2b5ca348006aa331585bfcf5eec5d846eb264423bec6791b0d1e3455016de6ad",
+    "bothFixturesUnchanged": true,
+    "f103Inventory": {
+      "components": 40,
+      "tracks": 444,
+      "vias": 224
+    },
+    "innerFillCounts": [10, 20],
+    "viaContourPositiveCount": 3,
+    "viaContourMinimumMarginMm": 0.09999999999999998,
+    "viaContourNegativeControls": ["wrong-net", "missing-fill", "wrong-dimension", "no-witness"],
+    "legacyFindingsUnchanged": true,
+    "physicalSpanStatus": "UNKNOWN",
+    "electricalContinuityStatus": "UNKNOWN",
+    "engineeringSignOff": false,
+    "allPhaseCleanupVerified": true,
+    "resultEnvelopeSha256": {
+      "officialInstall": "361a8d897384ec4606b57ad5de1e4c9350de873f314cbd3f20582afa3ed35ff7",
+      "viaContourRun": "97ea28f9f40f725ee8d1f1ff391f95c12789068fda2e4746c71b4f4074ff2f19",
+      "viaContourSummary": "3df9ca7b315ec53276f30a72e411fb59d42e847581b657fd4186f6051d2ceb48",
+      "exportRun": "13b1aad6238b122795ddc24443476e27501e0b4aa2ae2297331f1baefd7497a2",
+      "runtimeIdentity": "db0dd0ac618b20f561fe2c0dd84f8dc17f049d5b6e11ece40622484ed0691b12",
+      "pcbExports": "e8e295d1c8728b0e1d28128731888cd92923e42976ee23ef929c4fc80570dbeb",
+      "schematicExport": "95f9a64fec3eb5b12d83b84468aa7deefbb6eb6faa9c373f77c1609242e572c8",
+      "focusReturn": "5fee6838e40f1a2c36bb6816da9d62148e32aa6461e79bd02e8b94b2ebf35b25"
+    }
+  },
+  "knownLimitations": [
+    "Only isolated Ubuntu 24.04.5 x86_64 and EasyEDA Pro 4.1.105 were live-validated; Windows/macOS evidence is automated CI only. Electron/Chromium versions were not independently measured. Nonfatal GPU initialization diagnostics occurred; graphics/3D were not validated.",
+    "IPC-2581C returned no accepted native file on the disposable fixture. PADS ZIP CRC and three expected entry types were checked, not complete interchange semantics. Test-point CSV was emitted, not proof of testability. Exported files are not manufacturing approval.",
+    "Via/filled-contour observations are individual geometric overlap candidates only; no verified plane union, native layer flashing, plating, physical span, electrical continuity or engineering sign-off. Four negative observations remained UNKNOWN.",
+    "No design mutation, save/reopen persistence, native autorouting, authenticated Hosted/OAuth, remembered trust, or independent-user acceptance was exercised in this run. Prior native durability limitation remains unresolved."
+  ]
+}
