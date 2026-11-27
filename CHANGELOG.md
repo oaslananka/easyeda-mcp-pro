@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.24.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.23.1...easyeda-mcp-pro-v1.24.0) (2026-11-27)
+
+
+### Features
+
+* **extension:** add opt-in public message-bus RPC with per-call confirmation and bounded payloads ([#1177](https://github.com/oaslananka/easyeda-mcp-pro/issues/1177)) ([a16069a](https://github.com/oaslananka/easyeda-mcp-pro/commit/a16069a1a9c8e652d2f884991431e9e6491f42c1))
+* **pcb:** create a rectangular board outline in the pro profile ([#1178](https://github.com/oaslananka/easyeda-mcp-pro/issues/1178)) ([cc25be7](https://github.com/oaslananka/easyeda-mcp-pro/commit/cc25be774071b19cad3751a3dbc7a447ed1860c6))
+
+
+### Bug Fixes
+
+* **bridge:** report the owning server version when following another local bridge ([#1179](https://github.com/oaslananka/easyeda-mcp-pro/issues/1179)) ([a85fde2](https://github.com/oaslananka/easyeda-mcp-pro/commit/a85fde2db2be11dd7df0473d4e10e424ab172702))
+
 ## [1.23.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.23.0...easyeda-mcp-pro-v1.23.1) (2026-11-27)
 
 
