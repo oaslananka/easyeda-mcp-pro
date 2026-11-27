@@ -144,6 +144,15 @@ export async function createServer(
       get registryMismatch() {
         return bridge.registryMismatch;
       },
+      get bridgeRole() {
+        return bridge instanceof BridgeManager ? bridge.bridgeRole : undefined;
+      },
+      get ownerServerVersion() {
+        return bridge instanceof BridgeManager ? bridge.ownerServerVersion : undefined;
+      },
+      get ownerVersionMismatch() {
+        return bridge instanceof BridgeManager ? bridge.ownerVersionMismatch : undefined;
+      },
       get ownershipConflict() {
         return bridge instanceof BridgeManager ? bridge.ownershipConflict : undefined;
       },

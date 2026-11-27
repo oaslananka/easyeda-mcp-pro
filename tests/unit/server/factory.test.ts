@@ -64,6 +64,9 @@ vi.mock('../../../src/bridge/manager.js', () => ({
     easyedaVersion = '2.0.0';
     extensionVersion = '0.20.0';
     extensionVersionMismatch = true;
+    bridgeRole = 'follower';
+    ownerServerVersion = undefined;
+    ownerVersionMismatch = true;
     get ownershipConflict() {
       return mocks.ownershipConflict;
     }
@@ -233,6 +236,9 @@ describe('createServer', () => {
     expect(instance.context.bridge.easyedaVersion).toBe('2.0.0');
     expect(instance.context.bridge.extensionVersion).toBe('0.20.0');
     expect(instance.context.bridge.extensionVersionMismatch).toBe(true);
+    expect(instance.context.bridge.bridgeRole).toBe('follower');
+    expect(instance.context.bridge.ownerServerVersion).toBeUndefined();
+    expect(instance.context.bridge.ownerVersionMismatch).toBe(true);
   });
 
   it('exposes keylessSourcingEnabled through the tool context config', async () => {

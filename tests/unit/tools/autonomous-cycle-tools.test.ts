@@ -77,7 +77,25 @@ describe('autonomous cycle tools', () => {
       success: false,
       status: 'native_outcome_unknown',
       projectId: 'p1',
+      errorCode: 'BRIDGE_ERROR',
     });
+  });
+
+  it('surfaces only the structured bridge error code, never the native message', async () => {
+    const tool = registry.get('easyeda_document_activate')!;
+    call.mockRejectedValue(
+      Object.assign(new Error('refused C:/private/design.eprj2'), {
+        code: 'EXTENSION_VERSION_MISMATCH',
+      }),
+    );
+    const result = await tool.handler(context, { projectId: 'p1', documentId: 'pcb1' });
+    expect(result).toEqual({
+      success: false,
+      status: 'native_outcome_unknown',
+      projectId: 'p1',
+      errorCode: 'EXTENSION_VERSION_MISMATCH',
+    });
+    expect(JSON.stringify(result)).not.toContain('private');
   });
 
   it('easyeda_project_create requires confirmWrite and waits longer than a plain call', async () => {

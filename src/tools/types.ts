@@ -112,6 +112,12 @@ export interface ToolContext {
     loaderVersion?: string;
     /** True when the extension dispatcher's method list differs from the server registry. */
     registryMismatch?: boolean;
+    /** Whether this process owns the bridge listener or forwards to another local owner. */
+    bridgeRole?: 'owner' | 'follower';
+    /** Server version of the process that talks to the extension; undefined if unknown. */
+    ownerServerVersion?: string;
+    /** True while forwarding to an owner of another or unknown server version. */
+    ownerVersionMismatch?: boolean;
     /** Details about a live local process that currently owns the bridge listener. */
     ownershipConflict?: BridgeOwnershipConflict;
     /** Read-only OS-account native zone lease status; no unlock or owner disclosure. */
