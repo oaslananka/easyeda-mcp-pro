@@ -13,6 +13,7 @@ export const EXTENSION_RPC_MAX_TIMEOUT_MS = 60_000;
 const EXTENSION_RPC_MIN_TIMEOUT_MS = 100;
 /** Depth for serializing the service reply; deeper levels come back as "[MaxDepth]". */
 const EXTENSION_RPC_RESULT_DEPTH = 10;
+const MAX_MESSAGE_BYTES = 256 * 1024;
 
 export interface ExtensionRpcDependencies {
   readFirstPath: ApiRuntime['readFirstPath'];
@@ -56,6 +57,27 @@ export function createExtensionRpcOperations({
         'Register the service with eda.sys_MessageBus.rpcServicePublic("mcp.<name>", handler).',
       );
     }
+    if (params.confirmWrite !== true) {
+      throw createBridgeError(
+        'CONFIRM_WRITE_REQUIRED',
+        'Extension RPC requires confirmWrite=true.',
+        'Obtain explicit approval for this service invocation.',
+      );
+    }
+    const message = params.message ?? null;
+    let bytes = Infinity;
+    try {
+      bytes = new TextEncoder().encode(JSON.stringify(message)).byteLength;
+    } catch {
+      // Non-serializable input is refused before touching the message bus.
+    }
+    if (bytes > MAX_MESSAGE_BYTES) {
+      throw createBridgeError(
+        'INVALID_PARAMS',
+        'Extension RPC payload must be JSON and at most 256 KiB.',
+        'Reduce the message payload.',
+      );
+    }
     const bus = readFirstPath<unknown>(['SYS_MessageBus', 'sys_MessageBus']);
     if (!isPublicMessageBus(bus)) {
       throw createBridgeError(
@@ -67,21 +89,21 @@ export function createExtensionRpcOperations({
     const timeoutMs = boundedTimeout(params.timeoutMs);
     let reply: unknown;
     try {
-      reply = await bus.rpcCallPublic(topic, params.message ?? null, timeoutMs);
+      reply = await bus.rpcCallPublic(topic, message, timeoutMs);
     } catch (error) {
       // EasyEDA rejects with no reason when no service answers before the timeout,
       // which covers both an unregistered topic and a service that is too slow.
       if (error === undefined || error === null || error === '') {
         throw createBridgeError(
           'EXTENSION_RPC_NO_REPLY',
-          `Extension RPC ${topic} got no reply within ${timeoutMs} ms.`,
-          'Check that the extension providing this topic is installed and enabled, or raise timeoutMs.',
+          `Extension RPC ${topic} got no reply within ${timeoutMs} ms; the outcome is unknown. The service may still be running.`,
+          'Inspect service state before retrying; check that the extension is installed and enabled.',
         );
       }
       throw createBridgeError(
         'EXTENSION_RPC_FAILED',
-        `Extension RPC ${topic} failed: ${error instanceof Error ? error.message : String(error)}`,
-        'Check that the extension providing this topic is installed, enabled and registered.',
+        `Extension RPC ${topic} failed; the outcome is unknown. The service may have side effects.`,
+        'Inspect service state before retrying; check that the extension is installed, enabled and registered.',
       );
     }
     return {

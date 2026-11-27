@@ -20,12 +20,39 @@ function makeOperations(bus: unknown) {
 }
 
 describe('extension RPC operations', () => {
+  it.each([undefined, false, 'true'])(
+    'refuses unconfirmed invocation (%j)',
+    async (confirmWrite) => {
+      const rpcCallPublic = vi.fn();
+      const { operations, readFirstPath } = makeOperations({ rpcCallPublic });
+      await expect(operations.call({ topic: 'mcp.ping', confirmWrite })).rejects.toMatchObject({
+        code: 'CONFIRM_WRITE_REQUIRED',
+      });
+      expect(readFirstPath).not.toHaveBeenCalled();
+      expect(rpcCallPublic).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses oversized bridge payload before calling a service', async () => {
+    const rpcCallPublic = vi.fn();
+    const { operations } = makeOperations({ rpcCallPublic });
+    await expect(
+      operations.call({ topic: 'mcp.ping', confirmWrite: true, message: 'é'.repeat(140_000) }),
+    ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+    expect(rpcCallPublic).not.toHaveBeenCalled();
+  });
+
   it('calls an opted-in public service and returns its JSON reply', async () => {
     const rpcCallPublic = vi.fn(async () => ({ violations: [{ net: 'USB_DP', gapMm: 0.4 }] }));
     const { readFirstPath, operations } = makeOperations({ rpcCallPublic });
 
     await expect(
-      operations.call({ topic: 'mcp.rcp.checkNet', message: { net: 'USB_DP' }, timeoutMs: 5000 }),
+      operations.call({
+        confirmWrite: true,
+        topic: 'mcp.rcp.checkNet',
+        message: { net: 'USB_DP' },
+        timeoutMs: 5000,
+      }),
     ).resolves.toEqual({
       topic: 'mcp.rcp.checkNet',
       timeoutMs: 5000,
@@ -39,10 +66,10 @@ describe('extension RPC operations', () => {
     const rpcCallPublic = vi.fn(async () => 'ok');
     const { operations } = makeOperations({ rpcCallPublic });
 
-    await operations.call({ topic: 'mcp.ping' });
-    await operations.call({ topic: 'mcp.ping', timeoutMs: 10 ** 9 });
-    await operations.call({ topic: 'mcp.ping', timeoutMs: 1 });
-    await operations.call({ topic: 'mcp.ping', timeoutMs: 1.5 });
+    await operations.call({ confirmWrite: true, topic: 'mcp.ping' });
+    await operations.call({ confirmWrite: true, topic: 'mcp.ping', timeoutMs: 10 ** 9 });
+    await operations.call({ confirmWrite: true, topic: 'mcp.ping', timeoutMs: 1 });
+    await operations.call({ confirmWrite: true, topic: 'mcp.ping', timeoutMs: 1.5 });
 
     expect(rpcCallPublic.mock.calls.map((c) => [c[1], c[2]])).toEqual([
       [null, EXTENSION_RPC_DEFAULT_TIMEOUT_MS],
@@ -67,7 +94,9 @@ describe('extension RPC operations', () => {
     const rpcCallPublic = vi.fn();
     const { readFirstPath, operations } = makeOperations({ rpcCallPublic });
 
-    await expect(operations.call({ topic })).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
+    await expect(operations.call({ confirmWrite: true, topic })).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+    });
     expect(readFirstPath).not.toHaveBeenCalled();
     expect(rpcCallPublic).not.toHaveBeenCalled();
   });
@@ -76,7 +105,9 @@ describe('extension RPC operations', () => {
     'fails closed when the public message bus is unavailable (%#)',
     async (bus) => {
       const { operations } = makeOperations(bus);
-      await expect(operations.call({ topic: 'mcp.ping' })).rejects.toMatchObject({
+      await expect(
+        operations.call({ confirmWrite: true, topic: 'mcp.ping' }),
+      ).rejects.toMatchObject({
         code: 'UNSUPPORTED_RUNTIME',
       });
     },
@@ -84,13 +115,15 @@ describe('extension RPC operations', () => {
 
   it('reports a failing or missing service as EXTENSION_RPC_FAILED', async () => {
     const rpcCallPublic = vi.fn(async () => {
-      throw new Error('timeout');
+      throw new Error('private /tmp/design.eprj2');
     });
     const { operations } = makeOperations({ rpcCallPublic });
 
-    await expect(operations.call({ topic: 'mcp.rcp.checkNet' })).rejects.toMatchObject({
+    await expect(
+      operations.call({ confirmWrite: true, topic: 'mcp.rcp.checkNet' }),
+    ).rejects.toMatchObject({
       code: 'EXTENSION_RPC_FAILED',
-      message: expect.stringContaining('mcp.rcp.checkNet failed: timeout'),
+      message: expect.stringContaining('outcome is unknown'),
     });
   });
 
@@ -101,10 +134,10 @@ describe('extension RPC operations', () => {
       const { operations } = makeOperations({ rpcCallPublic });
 
       await expect(
-        operations.call({ topic: 'mcp.demo.missing', timeoutMs: 2000 }),
+        operations.call({ confirmWrite: true, topic: 'mcp.demo.missing', timeoutMs: 2000 }),
       ).rejects.toMatchObject({
         code: 'EXTENSION_RPC_NO_REPLY',
-        message: 'Extension RPC mcp.demo.missing got no reply within 2000 ms.',
+        message: expect.stringContaining('outcome is unknown'),
       });
     },
   );
@@ -115,7 +148,9 @@ describe('extension RPC operations', () => {
     const rpcCallPublic = vi.fn(async () => ({ fn: () => 1, deep }));
     const { operations } = makeOperations({ rpcCallPublic });
 
-    const reply = (await operations.call({ topic: 'mcp.shape' })) as { result: unknown };
+    const reply = (await operations.call({ confirmWrite: true, topic: 'mcp.shape' })) as {
+      result: unknown;
+    };
     expect(JSON.stringify(reply.result)).toContain('[MaxDepth]');
     expect(JSON.stringify(reply.result)).not.toContain('__methods');
   });

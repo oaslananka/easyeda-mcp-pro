@@ -41,21 +41,24 @@ export function registerExtensionRpcTools(registry: ToolRegistry, _config: EnvCo
       'Experimental: call a service another EasyEDA extension registered with ' +
       'sys_MessageBus.rpcServicePublic under an mcp. topic. Disabled unless the topic is listed in ' +
       'BRIDGE_EXTENSION_RPC_TOPICS. Sends JSON data only; the service, not this server, decides ' +
-      'what it does.',
+      'what it does. May mutate designs; requires confirmWrite=true.',
     profile: 'experimental',
     evidence: ['pro-api-types'],
-    risk: 'medium',
-    confirmWrite: false,
+    risk: 'high',
+    confirmWrite: true,
     sideEffect: 'external-action',
     group: 'diagnostics',
     version: '1.0.0',
     annotations: {
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: false,
       openWorldHint: true,
     },
     inputSchema: z.object({
+      confirmWrite: z
+        .literal(true)
+        .describe('Explicit approval for this potentially destructive service invocation.'),
       topic: z
         .string()
         .regex(TOPIC_PATTERN)
@@ -78,13 +81,17 @@ export function registerExtensionRpcTools(registry: ToolRegistry, _config: EnvCo
       result: z.unknown().optional(),
       disabled: z.boolean().optional(),
       error: z.string().optional(),
+      outcomeUnknown: z.boolean().optional(),
     }),
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { topic, message, timeoutMs } = params as {
+      const { topic, message, timeoutMs, confirmWrite } = params as {
         topic: string;
         message?: unknown;
         timeoutMs: number;
+        confirmWrite: true;
       };
+      if (confirmWrite !== true)
+        return { topic, ok: false, error: 'confirmWrite=true is required.' };
       const configured = ctx.config.BRIDGE_EXTENSION_RPC_TOPICS;
       const allowlist = parseExtensionRpcTopics(typeof configured === 'string' ? configured : '');
       if (allowlist.length === 0) {
@@ -114,16 +121,36 @@ export function registerExtensionRpcTools(registry: ToolRegistry, _config: EnvCo
       try {
         const reply = await ctx.bridge.call(
           'extension.rpcCall',
-          { topic, message: message ?? null, timeoutMs },
+          { topic, message: message ?? null, timeoutMs, confirmWrite },
           { timeoutMs: timeoutMs + BRIDGE_TIMEOUT_MARGIN_MS },
         );
-        const result =
-          reply && typeof reply === 'object' && 'result' in reply
-            ? (reply as { result: unknown }).result
-            : undefined;
-        return { topic, ok: true, result };
+        const response = z
+          .object({ topic: z.literal(topic), timeoutMs: z.literal(timeoutMs), result: z.unknown() })
+          .safeParse(reply);
+        if (!response.success || response.data.result === undefined) {
+          return {
+            topic,
+            ok: false,
+            outcomeUnknown: true,
+            error:
+              'No verified service reply; the outcome is unknown. Inspect the service before retrying.',
+          };
+        }
+        return { topic, ok: true, result: response.data.result };
       } catch (err) {
-        return { topic, ok: false, error: err instanceof Error ? err.message : String(err) };
+        const code = (err as { code?: unknown } | null)?.code;
+        const detail =
+          code === 'EXTENSION_RPC_NO_REPLY'
+            ? 'No service reply within the timeout'
+            : 'Extension RPC failed';
+        return {
+          topic,
+          ok: false,
+          outcomeUnknown: true,
+          error:
+            detail +
+            '; the outcome is unknown. The service may still be running; inspect before retrying.',
+        };
       }
     },
   });

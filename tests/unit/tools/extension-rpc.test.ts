@@ -5,7 +5,12 @@ import {
   parseExtensionRpcTopics,
   registerExtensionRpcTools,
 } from '../../../src/tools/L1_extension_rpc.js';
-import { remoteRiskForTool, ToolRegistry } from '../../../src/tools/registry.js';
+import {
+  getRequiredToolScopes,
+  isToolScopeAllowedByServer,
+  remoteRiskForTool,
+  ToolRegistry,
+} from '../../../src/tools/registry.js';
 import { type ToolContext } from '../../../src/tools/types.js';
 
 describe('easyeda_extension_call', () => {
@@ -21,7 +26,10 @@ describe('easyeda_extension_call', () => {
 
   const run = (input: Record<string, unknown>, topics = 'mcp.rcp.*') => {
     const tool = registry.get('easyeda_extension_call')!;
-    return tool.handler(contextWith(topics), tool.inputSchema.parse(input));
+    return tool.handler(
+      contextWith(topics),
+      tool.inputSchema.parse({ confirmWrite: true, ...input }),
+    );
   };
 
   beforeEach(() => {
@@ -30,13 +38,23 @@ describe('easyeda_extension_call', () => {
     bridgeCall = vi.fn();
   });
 
-  it('is an experimental external action that needs remote write approval', () => {
+  it('is an experimental external action that needs destructive remote approval and local write scope', () => {
     const tool = registry.get('easyeda_extension_call')!;
     expect(tool.profile).toBe('experimental');
     expect(tool.sideEffect).toBe('external-action');
     expect(tool.annotations.readOnlyHint).toBe(false);
     expect(tool.annotations.openWorldHint).toBe(true);
-    expect(remoteRiskForTool(tool)).toBe('write');
+    expect(remoteRiskForTool(tool)).toBe('destructive');
+    expect(tool.confirmWrite).toBe(true);
+    expect(tool.annotations.destructiveHint).toBe(true);
+    expect(getRequiredToolScopes(tool)).toEqual(['diagnostics:write']);
+    expect(isToolScopeAllowedByServer(tool, 'easyeda:read')).toBe(false);
+    expect(isToolScopeAllowedByServer(tool, 'diagnostics:read')).toBe(false);
+    expect(isToolScopeAllowedByServer(tool, 'diagnostics:write')).toBe(true);
+    expect(tool.inputSchema.safeParse({ topic: 'mcp.rcp.ping' }).success).toBe(false);
+    expect(tool.inputSchema.safeParse({ topic: 'mcp.rcp.ping', confirmWrite: false }).success).toBe(
+      false,
+    );
   });
 
   it('forwards an allowlisted call and returns the service reply', async () => {
@@ -54,20 +72,25 @@ describe('easyeda_extension_call', () => {
 
     expect(bridgeCall).toHaveBeenCalledWith(
       'extension.rpcCall',
-      { topic: 'mcp.rcp.checkNet', message: { net: 'USB_DP' }, timeoutMs: 20_000 },
+      {
+        topic: 'mcp.rcp.checkNet',
+        message: { net: 'USB_DP' },
+        timeoutMs: 20_000,
+        confirmWrite: true,
+      },
       { timeoutMs: 25_000 },
     );
     expect(result).toEqual({ topic: 'mcp.rcp.checkNet', ok: true, result: { violations: [] } });
   });
 
   it('sends null when no message is given and defaults the timeout', async () => {
-    bridgeCall.mockResolvedValue({ result: 'pong' });
+    bridgeCall.mockResolvedValue({ topic: 'mcp.rcp.ping', timeoutMs: 10_000, result: 'pong' });
 
     await run({ topic: 'mcp.rcp.ping' });
 
     expect(bridgeCall).toHaveBeenCalledWith(
       'extension.rpcCall',
-      { topic: 'mcp.rcp.ping', message: null, timeoutMs: 10_000 },
+      { topic: 'mcp.rcp.ping', message: null, timeoutMs: 10_000, confirmWrite: true },
       { timeoutMs: 15_000 },
     );
   });
@@ -103,25 +126,49 @@ describe('easyeda_extension_call', () => {
   });
 
   it('reports bridge and service failures as ok=false', async () => {
-    bridgeCall.mockRejectedValue(new Error('Extension RPC mcp.rcp.checkNet failed: timeout'));
+    bridgeCall.mockRejectedValue(
+      Object.assign(new Error('private /tmp/design.eprj2'), { code: 'EXTENSION_RPC_NO_REPLY' }),
+    );
 
     const result = await run({ topic: 'mcp.rcp.checkNet' });
 
-    expect(result).toMatchObject({ ok: false, error: expect.stringMatching(/timeout/) });
+    expect(result).toMatchObject({
+      ok: false,
+      outcomeUnknown: true,
+      error: expect.stringMatching(/outcome is unknown/),
+    });
+    expect(JSON.stringify(result)).not.toContain('/tmp/design.eprj2');
+  });
+
+  it.each([
+    null,
+    {},
+    { topic: 'mcp.other', result: null },
+    { topic: 'mcp.rcp.checkNet', result: null, timeoutMs: 123 },
+  ])('does not report success for an unverified response (%j)', async (reply) => {
+    bridgeCall.mockResolvedValue(reply);
+    expect(await run({ topic: 'mcp.rcp.checkNet' })).toMatchObject({
+      ok: false,
+      outcomeUnknown: true,
+    });
   });
 
   it.each(['rcp.checkNet', 'mcp.', 'mcp.a b', 'MCP.x', 'mcp.' + 'a'.repeat(121)])(
     'rejects topic %j at the schema boundary',
     (topic) => {
       const tool = registry.get('easyeda_extension_call')!;
-      expect(tool.inputSchema.safeParse({ topic }).success).toBe(false);
+      expect(tool.inputSchema.safeParse({ topic, confirmWrite: true }).success).toBe(false);
     },
   );
 
   it('rejects out-of-range timeouts at the schema boundary', () => {
     const tool = registry.get('easyeda_extension_call')!;
-    expect(tool.inputSchema.safeParse({ topic: 'mcp.x', timeoutMs: 50 }).success).toBe(false);
-    expect(tool.inputSchema.safeParse({ topic: 'mcp.x', timeoutMs: 60_001 }).success).toBe(false);
+    expect(
+      tool.inputSchema.safeParse({ topic: 'mcp.x', timeoutMs: 50, confirmWrite: true }).success,
+    ).toBe(false);
+    expect(
+      tool.inputSchema.safeParse({ topic: 'mcp.x', timeoutMs: 60_001, confirmWrite: true }).success,
+    ).toBe(false);
   });
 });
 

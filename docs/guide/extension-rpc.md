@@ -24,8 +24,7 @@ eda.sys_MessageBus.rpcServicePublic('mcp.rcp.checkNet', async (message) => {
 - The handler receives one argument. Pack request fields into an object.
 - Return JSON-serializable data. Functions and native objects are reduced to descriptions, and
   nesting deeper than 10 levels is cut off.
-- If the service can change the design, guard those writes inside the service. The bridge can't
-  inspect what a service does.
+- Only allow trusted services. They may mutate designs or perform external actions. The bridge can't inspect what a service does; the service must guard its own target and writes.
 
 ## 2. Allow the topic on the MCP server
 
@@ -43,12 +42,19 @@ The tool is in the `experimental` profile, so also set `TOOL_PROFILE=experimenta
 ```json
 {
   "tool": "easyeda_extension_call",
-  "arguments": { "topic": "mcp.rcp.checkNet", "message": { "net": "USB_DP" }, "timeoutMs": 20000 }
+  "arguments": {
+    "topic": "mcp.rcp.checkNet",
+    "message": { "net": "USB_DP" },
+    "timeoutMs": 20000,
+    "confirmWrite": true
+  }
 }
 ```
 
+Each invocation needs explicit `confirmWrite: true` and a write-capable server scope. A configured allowlist does not grant per-invocation consent.
+
 The result is `{ "topic", "ok": true, "result": <service reply> }`. When something goes wrong, `ok` is
-`false` and `error` explains why. `disabled: true` means the allowlist is empty.
+`false` and `error` explains why. `outcomeUnknown: true` means a dispatched service may have performed a side effect or may still be running; inspect its state before retrying. `disabled: true` means the allowlist is empty.
 
 ## Limits and safety
 
@@ -59,5 +65,5 @@ The result is `{ "topic", "ok": true, "result": <service reply> }`. When somethi
 | Service timeout | 100 ms – 60 s (default 10 s)                           |
 | Version drift   | Refused while the extension and server versions differ |
 
-Remote Relay treats every call as a `write` (`external-action`) and asks for approval. See
+Remote Relay treats every call as `destructive` (high-risk `external-action`), requires the `easyeda.project_admin` scope, and asks for approval on every call. See
 [Safety Model §1.5](../SAFETY_MODEL.md#_1-5-extension-rpc-easyeda-extension-call).

@@ -894,9 +894,11 @@ path.
   (exact topics or `mcp.<prefix>*`). When it is empty, the tool reports `disabled` without calling the
   bridge.
 - **Classified as `external-action`.** The server can't inspect what a third-party service does, so it
-  does not claim the call is read-only. Remote Relay maps it to `write` approval. Locally there is no
-  `confirmWrite` gate: enabling a topic in `BRIDGE_EXTENSION_RPC_TOPICS` is the acknowledgment. A
-  service that changes the design should guard its own writes.
+  does not claim the call is read-only. Arbitrary service effects are high risk: Remote Relay
+  requires `destructive` approval and `easyeda.project_admin`, and every invocation requires
+  `confirmWrite: true` and a local write scope. Only allow trusted services; the service must
+  guard its own design target and writes. A timeout is not cancellation or proof of no side
+  effects: inspect the service state before retrying.
 - **Bounded.** Requests are limited to 256 KiB of JSON, replies to `BRIDGE_MAX_PAYLOAD_SIZE`, and the
   service timeout to 60 s. Calls are refused while the extension and server versions differ.
 
