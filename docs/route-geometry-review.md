@@ -1047,3 +1047,78 @@ No sample does not establish disconnection. Native via-layer flashing,
 physical span, plating, shared return path, electrical continuity and
 manufacturing readiness remain unverified. Other findings and existing
 pad-only annulus behavior are unchanged.
+
+### Review a declared crystal support network
+
+To group four signal and load-capacitor relationships for an explicitly
+declared two-pin crystal network, mark the relations with
+`crystalNetworkLeg`. Use exact native PCB designators, pin numbers, net
+names and caller-sourced schematic or footprint evidence. For example:
+
+```json
+{
+  "projectId": "your-exact-native-project-uuid",
+  "nativePadContactMode": "centre-only",
+  "placementRelations": [
+    {
+      "first": "U1",
+      "second": "Y1",
+      "kind": "crystal",
+      "crystalNetworkLeg": "oscillator-in",
+      "constraintSource": "Caller-declared schematic and footprint pin map",
+      "padPairs": [{ "firstPin": "5", "secondPin": "1", "expectedNet": "/HSE_IN" }]
+    },
+    {
+      "first": "U1",
+      "second": "Y1",
+      "kind": "crystal",
+      "crystalNetworkLeg": "oscillator-out",
+      "constraintSource": "Caller-declared schematic and footprint pin map",
+      "padPairs": [{ "firstPin": "6", "secondPin": "3", "expectedNet": "/HSE_OUT" }]
+    },
+    {
+      "first": "Y1",
+      "second": "C11",
+      "kind": "crystal",
+      "crystalNetworkLeg": "load-in",
+      "constraintSource": "Caller-declared schematic and footprint pin map",
+      "padPairs": [{ "firstPin": "1", "secondPin": "1", "expectedNet": "/HSE_IN" }]
+    },
+    {
+      "first": "Y1",
+      "second": "C10",
+      "kind": "crystal",
+      "crystalNetworkLeg": "load-out",
+      "constraintSource": "Caller-declared schematic and footprint pin map",
+      "padPairs": [{ "firstPin": "3", "secondPin": "1", "expectedNet": "/HSE_OUT" }]
+    }
+  ]
+}
+```
+
+The roles must name the same oscillator host and crystal on two distinct
+pins/nets, with a separate load component on each matching crystal pin
+and net. All four roles are required. This uses the existing four-pair
+native contact budget; do not add other pad pairs to the same request.
+Either existing native contact opt-in mode is supported.
+
+The optional `placement_review.crystal_network_topology` result orders
+the four roles consistently and reports `all_line_chains_observed`,
+`partial_line_chains_observed` or `unavailable`, plus `missing_roles`,
+exact selected pad/line identities, native layer, declaration source
+and a next review action per role. A repeated crystal pad is expected
+to refer to the same physical identity. Aliased or contradictory
+identities, incomplete collection or a changed focused PCB prevent a
+group observation. Shared line segments may appear in more than one
+leg; no aggregate length is inferred. Individual findings and priority
+ordering remain unchanged.
+
+This is a source-bound, read-only, non-atomic observation of selected
+signal-side line chains, not an oscillator circuit validator. The
+capacitor ground paths, load capacitance, startup, drive level, physical
+pad contact, electrical continuity, EMI and placement adequacy remain
+unverified. Even all four observed chains leave
+`electrical_continuity_status: UNKNOWN` and
+`engineering_sign_off: false`. Missing evidence does not prove
+disconnection. Collect remaining physical and return-path evidence
+and independently check the actual device requirements.
