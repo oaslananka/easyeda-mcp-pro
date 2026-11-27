@@ -94,6 +94,21 @@ describe('extension RPC operations', () => {
     });
   });
 
+  it.each([undefined, null, ''])(
+    'reports a reasonless rejection (%j) as no reply within the timeout',
+    async (reason) => {
+      const rpcCallPublic = vi.fn(() => Promise.reject(reason));
+      const { operations } = makeOperations({ rpcCallPublic });
+
+      await expect(
+        operations.call({ topic: 'mcp.demo.missing', timeoutMs: 2000 }),
+      ).rejects.toMatchObject({
+        code: 'EXTENSION_RPC_NO_REPLY',
+        message: 'Extension RPC mcp.demo.missing got no reply within 2000 ms.',
+      });
+    },
+  );
+
   it('serializes non-JSON replies without methods and with bounded depth', async () => {
     let deep: Record<string, unknown> = { leaf: true };
     for (let i = 0; i < 20; i++) deep = { next: deep };

@@ -69,6 +69,15 @@ export function createExtensionRpcOperations({
     try {
       reply = await bus.rpcCallPublic(topic, params.message ?? null, timeoutMs);
     } catch (error) {
+      // EasyEDA rejects with no reason when no service answers before the timeout,
+      // which covers both an unregistered topic and a service that is too slow.
+      if (error === undefined || error === null || error === '') {
+        throw createBridgeError(
+          'EXTENSION_RPC_NO_REPLY',
+          `Extension RPC ${topic} got no reply within ${timeoutMs} ms.`,
+          'Check that the extension providing this topic is installed and enabled, or raise timeoutMs.',
+        );
+      }
       throw createBridgeError(
         'EXTENSION_RPC_FAILED',
         `Extension RPC ${topic} failed: ${error instanceof Error ? error.message : String(error)}`,
