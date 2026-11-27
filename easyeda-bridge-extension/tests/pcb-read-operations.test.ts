@@ -75,6 +75,46 @@ describe('PCB read operations', () => {
     expect(requireActivePcbContext).toHaveBeenCalledOnce();
   });
 
+  it('lists bounded unique source-linked fill identities without guessing missing IDs', async () => {
+    const fills: unknown[][] = [
+      [
+        { id: 'copper11', fill: true },
+        { id: 'copper16', fill: true },
+      ],
+      [{ id: 'same' }, { id: 'same' }],
+      [{ id: 'valid' }, { fill: true }],
+      [{ id: ' padded' }],
+      Array.from({ length: 33 }, (_, i) => ({ id: 'copper' + i })),
+      [],
+    ];
+    const { operations } = makeOperations({
+      PCB_PrimitivePour: {
+        getAll: async () =>
+          fills.map((records, i) => ({
+            getState_PrimitiveId: () => 'pour' + i,
+            getState_Net: () => 'GND',
+            getState_Layer: () => 15,
+            getCopperRegion: async () => ({
+              getState_PrimitiveId: () => 'pour' + i,
+              getState_PourPrimitiveId: () => 'pour' + i,
+              getState_PourFills: () => records,
+            }),
+          })),
+      },
+    });
+    const r = (await operations.listPours()) as { items: Record<string, unknown>[] };
+    expect(r.items[0]).toMatchObject({
+      copperLinkStatus: 'present',
+      fillRecordCount: 2,
+      fillRecordIds: ['copper11', 'copper16'],
+    });
+    expect(
+      r.items
+        .slice(1)
+        .every((item) => item.copperLinkStatus === 'present' && item.fillRecordIds === undefined),
+    ).toBe(true);
+  });
+
   it('keeps missing, unsupported, and mismatched native copper readbacks distinct', async () => {
     const { operations } = makeOperations({
       PCB_PrimitivePour: {

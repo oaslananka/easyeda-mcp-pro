@@ -554,10 +554,10 @@ function roundDiameter(shape: unknown, kind: string): number | undefined {
     : undefined;
 }
 
-function closedLineContour(ring: unknown): Point[] | undefined {
+function closedLineContour(ring: unknown, maxVertices = MAX_ANNULUS_VERTICES): Point[] | undefined {
   if (
     !Array.isArray(ring) ||
-    ring.length > MAX_ANNULUS_VERTICES * 2 + 1 ||
+    ring.length > maxVertices * 2 + 1 ||
     ring[2] !== 'L' ||
     ring.length % 2 !== 1 ||
     !ring.slice(3).every((v) => typeof v === 'number' && Number.isFinite(v))
@@ -795,4 +795,39 @@ export function reviewCopperAnnulusCandidates(input: NativeCopperAnnulusInput) {
       reviewAnnulusPad(p, input, drills.get(String(p.primitiveId)), fill.id, ring),
     ),
   };
+}
+
+/** Selected individual contour only; no union or via-layer flashing inference.
+ * Independent caller-sourced dimensions bound the native nominal annulus. */
+export function reviewViaContourWitness(input: {
+  contour: unknown;
+  transform: CopperCenterTransform;
+  x: number;
+  y: number;
+  diameter: number;
+  holeDiameter: number;
+  diameterMm: number;
+  drillDiameterMm: number;
+}): CopperAnnulusOutcome['witness'] {
+  const nativeDiameter = input.diameter * ANNULUS_MIL_TO_MM;
+  const nativeDrill = input.holeDiameter * ANNULUS_MIL_TO_MM;
+  if (
+    !validTransform(input.transform) ||
+    !annulusPositive(input.diameterMm) ||
+    !annulusPositive(input.drillDiameterMm) ||
+    !annulusPositive(nativeDiameter) ||
+    !annulusPositive(nativeDrill) ||
+    Math.abs(nativeDiameter - input.diameterMm) > 0.002 ||
+    Math.abs(nativeDrill - input.drillDiameterMm) > 0.002
+  )
+    return;
+  const inner = Math.max(nativeDrill, input.drillDiameterMm) / 2;
+  const outer = Math.min(nativeDiameter, input.diameterMm) / 2;
+  if (outer <= inner) return;
+  const center = { x: input.x * ANNULUS_MIL_TO_MM, y: input.y * ANNULUS_MIL_TO_MM };
+  if (!boundedAnnulusPoint(center)) return;
+  const vertices = closedLineContour(input.contour, 8192);
+  const ring = vertices && inNativePadMm(vertices, input.transform);
+  if (!ring) return;
+  return annulusWitness(center, inner, outer, ring);
 }

@@ -180,6 +180,30 @@ function normalizeRegionItem(item: Record<string, unknown>): Record<string, unkn
   });
 }
 
+const fillRecordIdsSchema = z
+  .array(
+    z
+      .string()
+      .min(1)
+      .max(128)
+      .refine((id) => id.trim() === id),
+  )
+  .min(1)
+  .max(32)
+  .refine((ids) => new Set(ids).size === ids.length);
+function normalizePourItem(item: Record<string, unknown>): Record<string, unknown> {
+  const { fillRecordIds, ...rest } = item;
+  const ids = fillRecordIdsSchema.safeParse(fillRecordIds);
+  if (
+    !ids.success ||
+    item.copperLinkStatus !== 'present' ||
+    item.pouredId !== item.primitiveId ||
+    item.fillRecordCount !== ids.data.length
+  )
+    return rest;
+  return { ...rest, fillRecordIds: ids.data };
+}
+
 /** Shared handler for the PCB list-* tools: call the bridge, map its
  *  {total, items} shape onto the caller-provided list key, and degrade to
  *  an empty (not_available) list instead of throwing — "no PCB tab focused"
@@ -411,11 +435,12 @@ function registerPcbReadTools(
     name: 'easyeda_pcb_pours',
     title: 'Inspect PCB copper pours and associated fills',
     description:
-      'Read native PCB copper Pour boundaries and associated Poured fills: IDs, net, layer and fill count. ' +
-      'Missing, unsupported and mismatched beta API results stay distinct from verified associations. ' +
+      'Read native copper Pour boundaries and associated Poured fills: IDs, net, layer, count and bounded unique fill record IDs when available. ' +
+      'Distinguishes missing, unsupported and mismatched beta API results from verified associations. ' +
       'Requires exact focused project and PCB. Read-only; no rebuild, create, or edit.',
     bridgeMethod: 'pcb.listPours',
     listKey: 'pours',
+    mapItem: normalizePourItem,
     itemSchema: z.object({
       primitiveId: z.string().min(1),
       net: z.string(),
@@ -426,6 +451,9 @@ function registerPcbReadTools(
       copperLinkStatus: z.enum(['present', 'absent', 'unavailable', 'mismatch']),
       pouredId: z.string().optional(),
       fillRecordCount: z.number().int().nonnegative().optional(),
+      fillRecordIds: fillRecordIdsSchema
+        .optional()
+        .describe('Complete bounded source-linked fill ID list, not validated contour geometry.'),
       readbackError: z.string().optional(),
     }),
   });

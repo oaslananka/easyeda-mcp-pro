@@ -1,4 +1,7 @@
-import { createPourAnnulusGeometryReader } from './pcb-pour-annulus-operations.js';
+import {
+  boundedFillRecordIds,
+  createPourAnnulusGeometryReader,
+} from './pcb-pour-annulus-operations.js';
 import type { ApiRuntime } from './api-runtime.js';
 import { createViaLineAdjacencyReader } from './pcb-via-adjacency-operations.js';
 import { createComponentPadConnectionReader } from './pcb-pad-connection-operations.js';
@@ -227,7 +230,13 @@ async function readCopperAssociation(
     }
     const fills = readState(derived, 'PourFills');
     if (!Array.isArray(fills)) return { copperLinkStatus: 'unavailable' };
-    return { copperLinkStatus: 'present', pouredId: derivedId, fillRecordCount: fills.length };
+    const fillRecordIds = boundedFillRecordIds(fills);
+    return {
+      copperLinkStatus: 'present',
+      pouredId: derivedId,
+      fillRecordCount: fills.length,
+      ...(fillRecordIds ? { fillRecordIds } : {}),
+    };
   } catch (error) {
     return {
       copperLinkStatus: 'unavailable',

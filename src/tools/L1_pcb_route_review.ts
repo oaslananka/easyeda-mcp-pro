@@ -1,4 +1,9 @@
 import {
+  nativeViaPourAnnulusSchema,
+  viaPourAnnulusResultSchema,
+  optionalViaPourAnnulusReview,
+} from './pcb-via-pour-annulus-review.js';
+import {
   optionalSensitiveLineSpacingReview,
   sensitiveLineSpacingSchema,
   sensitiveLineSpacingResultSchema,
@@ -367,6 +372,11 @@ const inputSchema = z
       .describe(
         'Opt-in source-linked single filled copper contour and selected circular plated pad annulus candidates; explicit caller-sourced coordinate and drill units. No electrical continuity proof.',
       ),
+    nativeViaPourAnnulus: nativeViaPourAnnulusSchema
+      .optional()
+      .describe(
+        'Opt-in single exact via and individual source-linked filled contour with caller-sourced calibration/dimensions; geometric overlap candidate only, no electrical contact.',
+      ),
     nativeViaAdjacency: nativeViaAdjacencySchema
       .optional()
       .describe(
@@ -707,6 +717,7 @@ const outputSchema = z.object({
   trace_current_review: nativeTraceCurrentResultSchema.optional(),
   via_adjacency_review: z.array(viaAdjacencyResultSchema).max(4).optional(),
   native_pour_annulus_review: pourAnnulusResultSchema.optional(),
+  native_via_pour_annulus_review: viaPourAnnulusResultSchema.optional(),
   engineering_sign_off: z.literal(false),
 });
 
@@ -928,6 +939,7 @@ function requestsIndependentNativeSource(input: z.infer<typeof inputSchema>): bo
   return (
     input.nativeViaAdjacency !== undefined ||
     input.nativePourAnnulus !== undefined ||
+    input.nativeViaPourAnnulus !== undefined ||
     input.sensitiveLineSpacing !== undefined
   );
 }
@@ -1236,6 +1248,7 @@ export function registerPcbRouteReviewTools(
         nativePadContactMode,
         nativeViaAdjacency,
         nativePourAnnulus,
+        nativeViaPourAnnulus,
         traceCurrent,
       } = input;
       const requestPadContacts = includeNativePadContacts || nativePadContactMode !== undefined;
@@ -1346,10 +1359,18 @@ export function registerPcbRouteReviewTools(
         { complete: geometry.input_evidence.collection_complete, focusedPcbId },
         () => readFocusedPcbId(ctx, projectId),
       );
+      const viaPourAnnulus = await optionalViaPourAnnulusReview(
+        ctx,
+        projectId,
+        nativeViaPourAnnulus,
+        { tracks, vias, complete: geometry.input_evidence.collection_complete, focusedPcbId },
+        () => readFocusedPcbId(ctx, projectId),
+      );
       return {
         project_id: projectId,
         ...geometry,
         ...pourAnnulus,
+        ...viaPourAnnulus,
         ...viaAdjacency,
         ...sensitiveSpacing,
         ...(placement === undefined

@@ -18,10 +18,12 @@ interface SelectedPad {
   padNumber: string;
   primitiveId: string;
 }
-interface Declaration {
+interface PourIdentity {
   pourPrimitiveId: string;
   expectedNet: string;
   expectedLayer: number;
+}
+interface Declaration extends PourIdentity {
   pads: SelectedPad[];
 }
 
@@ -104,12 +106,12 @@ function finite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 1_000_000;
 }
 
-function lineContour(raw: unknown): (string | number)[] | undefined {
+function lineContour(raw: unknown, maxTokens = MAX_TOKENS): (string | number)[] | undefined {
   const ring = Array.isArray(raw) && raw.length === 1 ? raw[0] : raw;
   if (
     !Array.isArray(ring) ||
     ring.length < 9 ||
-    ring.length > MAX_TOKENS ||
+    ring.length > maxTokens ||
     ring.length % 2 !== 1 ||
     ring[2] !== 'L'
   )
@@ -120,13 +122,15 @@ function lineContour(raw: unknown): (string | number)[] | undefined {
     : undefined;
 }
 
+async function matchesPour(value: unknown, d: PourIdentity) {
+  return (
+    (await state(value, 'PrimitiveId')) === d.pourPrimitiveId &&
+    (await state(value, 'PourPrimitiveId')) === d.pourPrimitiveId &&
+    (await state(value, 'Layer')) === d.expectedLayer
+  );
+}
 async function linkedFill(value: unknown, d: Declaration) {
-  if (
-    (await state(value, 'PrimitiveId')) !== d.pourPrimitiveId ||
-    (await state(value, 'PourPrimitiveId')) !== d.pourPrimitiveId ||
-    (await state(value, 'Layer')) !== d.expectedLayer
-  )
-    return;
+  if (!(await matchesPour(value, d))) return;
   const fills = await state(value, 'PourFills');
   if (!Array.isArray(fills) || fills.length !== 1) return;
   const f = record(fills[0]);
@@ -136,7 +140,7 @@ async function linkedFill(value: unknown, d: Declaration) {
   return { id: f.id, fill: true, lineWidth: 0, path: { complexPolygon: [ring] } };
 }
 
-async function readFill(pours: unknown, poured: unknown, d: Declaration) {
+async function sourceLinkedPair(pours: unknown, poured: unknown, d: PourIdentity) {
   const source = (await index(await invoke(pours, 'getAll'), MAX_POURS))?.get(d.pourPrimitiveId);
   if (
     !source ||
@@ -149,8 +153,14 @@ async function readFill(pours: unknown, poured: unknown, d: Declaration) {
   const bySource = await index(derived, MAX_POURS, 'PourPrimitiveId');
   const expected = byId?.get(d.pourPrimitiveId);
   if (!expected || bySource?.get(d.pourPrimitiveId) !== expected) return;
-  const a = await linkedFill(expected, d);
-  const b = await linkedFill(await invoke(source, 'getCopperRegion'), d);
+  return { source, expected };
+}
+
+async function readFill(pours: unknown, poured: unknown, d: Declaration) {
+  const pair = await sourceLinkedPair(pours, poured, d);
+  if (!pair) return;
+  const a = await linkedFill(pair.expected, d);
+  const b = await linkedFill(await invoke(pair.source, 'getCopperRegion'), d);
   return a && b && JSON.stringify(a) === JSON.stringify(b) ? a : undefined;
 }
 
@@ -275,11 +285,10 @@ async function readPads(native: unknown, d: Declaration) {
 
 /** Focus/project checks wrap this reader in readProjectScoped. This is a
  * bounded native observation, not an atomic snapshot or connectivity test. */
-export function createPourAnnulusGeometryReader({
-  requireActivePcbContext,
-  readFirstPath,
-}: PcbReadOperationDependencies) {
+export function createPourAnnulusGeometryReader(deps: PcbReadOperationDependencies) {
+  const { requireActivePcbContext, readFirstPath } = deps;
   return async (raw: unknown): Promise<unknown> => {
+    if (record(raw).kind === 'via') return viaContour(raw, deps);
     const d = declaration(raw);
     if (!d) return unavailable('invalid-annulus-declaration');
     await requireActivePcbContext();
@@ -304,4 +313,119 @@ export function createPourAnnulusGeometryReader({
       return unavailable('native-annulus-read-failed');
     }
   };
+}
+
+type ViaDeclaration = PourIdentity & { fillId: string; viaPrimitiveId: string };
+
+function viaDeclaration(raw: unknown): ViaDeclaration | undefined {
+  const d = record(raw);
+  if (
+    d.kind !== 'via' ||
+    'pads' in d ||
+    !token(d.pourPrimitiveId) ||
+    !token(d.expectedNet) ||
+    !token(d.fillId) ||
+    !token(d.viaPrimitiveId) ||
+    d.viaPrimitiveId === d.pourPrimitiveId
+  )
+    return;
+  const layer = d.expectedLayer;
+  if (
+    typeof layer !== 'number' ||
+    !Number.isInteger(layer) ||
+    !(layer === 1 || layer === 2 || (layer >= 15 && layer <= 44))
+  )
+    return;
+  return {
+    pourPrimitiveId: d.pourPrimitiveId,
+    expectedNet: d.expectedNet,
+    expectedLayer: layer,
+    fillId: d.fillId,
+    viaPrimitiveId: d.viaPrimitiveId,
+  };
+}
+
+/** Discovery identities only: no claim that their geometry is supported. */
+export function boundedFillRecordIds(fills: unknown[]): string[] | undefined {
+  if (fills.length < 1 || fills.length > 32) return;
+  const ids = fills.map((f) => record(f).id);
+  if (!ids.every(token) || new Set(ids).size !== ids.length) return;
+  return [...ids].sort();
+}
+
+async function selectedFill(value: unknown, d: ViaDeclaration) {
+  if (!(await matchesPour(value, d))) return;
+  const fills = await state(value, 'PourFills');
+  if (!Array.isArray(fills)) return;
+  const ids = boundedFillRecordIds(fills);
+  if (!ids) return;
+  const selected = record(fills.find((f) => record(f).id === d.fillId));
+  if (selected.fill !== true || selected.lineWidth !== 0) return;
+  const ring = lineContour(await invoke(selected.path, 'getSource'), 16385);
+  if (!ring) return;
+  return {
+    availableFillIds: ids,
+    fill: { id: d.fillId, fill: true, lineWidth: 0, path: { complexPolygon: [ring] } },
+  };
+}
+
+async function selectedVia(native: unknown, d: ViaDeclaration) {
+  const via = (await index(await invoke(native, 'getAll'), 600))?.get(d.viaPrimitiveId);
+  if (!via || (await state(via, 'Net')) !== d.expectedNet || (await state(via, 'ViaType')) !== 0)
+    return;
+  const rule = await state(via, 'DesignRuleBlindViaName');
+  if (rule !== '' && rule !== null) return;
+  const x = await state(via, 'X'),
+    y = await state(via, 'Y');
+  const diameter = await state(via, 'Diameter'),
+    holeDiameter = await state(via, 'HoleDiameter');
+  if (
+    !finite(x) ||
+    !finite(y) ||
+    !finite(diameter) ||
+    !finite(holeDiameter) ||
+    holeDiameter <= 0 ||
+    diameter <= holeDiameter
+  )
+    return;
+  return {
+    primitiveId: d.viaPrimitiveId,
+    net: d.expectedNet,
+    x,
+    y,
+    diameter,
+    holeDiameter,
+    viaType: 0,
+  };
+}
+
+async function viaContour(raw: unknown, deps: PcbReadOperationDependencies) {
+  const d = viaDeclaration(raw);
+  if (!d) return unavailable('invalid-via-contour-declaration');
+  await deps.requireActivePcbContext();
+  try {
+    const pair = await sourceLinkedPair(
+      deps.readFirstPath(['PCB_PrimitivePour', 'pcb_PrimitivePour']),
+      deps.readFirstPath(['PCB_PrimitivePoured', 'pcb_PrimitivePoured']),
+      d,
+    );
+    if (!pair) return unavailable('source-linked-filled-region-unverified');
+    const a = await selectedFill(pair.expected, d);
+    const b = await selectedFill(await invoke(pair.source, 'getCopperRegion'), d);
+    if (!a || !b || JSON.stringify(a) !== JSON.stringify(b))
+      return unavailable('selected-contour-unverified');
+    const via = await selectedVia(deps.readFirstPath(['PCB_PrimitiveVia', 'pcb_PrimitiveVia']), d);
+    if (!via) return unavailable('selected-via-geometry-unverified');
+    return {
+      evidence: 'native_source_linked_via_contour',
+      pourPrimitiveId: d.pourPrimitiveId,
+      net: d.expectedNet,
+      layer: d.expectedLayer,
+      ...a,
+      via,
+      electricalContinuity: 'UNKNOWN',
+    };
+  } catch {
+    return unavailable('native-via-contour-read-failed');
+  }
 }

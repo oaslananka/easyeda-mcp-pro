@@ -70,7 +70,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_place_batch`                          | `full`         | `high`   | Compact placement results for up to 64 existing PCB components. Each apply executes the existing transactional component transform and checks native read-back. Stops at the first failure; previous successful placements are NOT rolled back as a group. Use smaller batches as needed.                                     |
 | `easyeda_pcb_place_component`                      | `full`         | `high`   | Direct PCB component creation is unavailable because the verified EasyEDA runtime does not complete PCB_PrimitiveComponent.create(). This tool fails closed. Place the part in the schematic, sync to PCB, confirm the native dialog, then reposition it with easyeda_pcb_modify_component.                                   |
 | `easyeda_pcb_place_component_group`                | `full`         | `high`   | Create a high-level, constraint-checked placement plan for a group of components and optionally apply it after explicit confirmation.                                                                                                                                                                                         |
-| `easyeda_pcb_pours`                                | `core`         | `low`    | Read native PCB copper Pour boundaries and associated Poured fills: IDs, net, layer and fill count. Missing, unsupported and mismatched beta API results stay distinct from verified associations. Requires exact focused project and PCB. Read-only; no rebuild, create, or edit.                                            |
+| `easyeda_pcb_pours`                                | `core`         | `low`    | Read native copper Pour boundaries and associated Poured fills: IDs, net, layer, count and bounded unique fill record IDs when available. Distinguishes missing, unsupported and mismatched beta API results from verified associations. Requires exact focused project and PCB. Read-only; no rebuild, create, or edit.      |
 | `easyeda_pcb_production_review`                    | `core`         | `medium` | Review PCB DFM/DFA/DFT findings with optional caller-declared manufacturer process limits. Missing native measurements remain UNKNOWN; no fabrication approval or ordering action.                                                                                                                                            |
 | `easyeda_pcb_rebuild_copper`                       | `full`         | `high`   | Rebuild existing copper with beta native API and Poured read-back. Requires confirmWrite; not transactional. Undefined after PCB edits? See per-pour recovery hint; save and reopen the PCB tab, verify IDs/geometry, never bypass reconciliation lock. PlaneZone unsupported.                                                |
 | `easyeda_pcb_regions`                              | `core`         | `low`    | List native PCB Region primitives separately from copper pours/zones, including layer, region rule types/name, line width, lock state, and a bounded normalized polygon representation. Read-only; no Region mutation is exposed.                                                                                             |
@@ -2364,7 +2364,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Read native PCB copper Pour boundaries and associated Poured fills: IDs, net, layer and fill count. Missing, unsupported and mismatched beta API results stay distinct from verified associations. Requires exact focused project and PCB. Read-only; no rebuild, create, or edit.
+> Read native copper Pour boundaries and associated Poured fills: IDs, net, layer, count and bounded unique fill record IDs when available. Distinguishes missing, unsupported and mismatched beta API results from verified associations. Requires exact focused project and PCB. Read-only; no rebuild, create, or edit.
 
 ### Input Parameters
 
@@ -2519,6 +2519,7 @@ Returns a JSON object matching the schema:
 | `includeNativePadContacts` | `boolean (optional)`          | Yes      | Opt in to narrowly scoped beta native pad.getConnectedPrimitives(false) read-only association evidence for declared pad pairs. Associations never certify electrical continuity.           |
 | `nativePadContactMode`     | `'centre-only' (optional)`    | No       | Opt in to native centre-only pad associations; not all contacts or physical continuity.                                                                                                    |
 | `nativePourAnnulus`        | `object (optional)`           | No       | Opt-in source-linked single filled copper contour and selected circular plated pad annulus candidates; explicit caller-sourced coordinate and drill units. No electrical continuity proof. |
+| `nativeViaPourAnnulus`     | `object (optional)`           | No       | Opt-in single exact via and individual source-linked filled contour with caller-sourced calibration/dimensions; geometric overlap candidate only, no electrical contact.                   |
 | `nativeViaAdjacency`       | `object[] (optional)`         | No       | Opt-in beta native reciprocal via/line observations for at most four exact via IDs and nets; no electrical continuity or span proof.                                                       |
 | `traceCurrent`             | `object (optional)`           | No       | Optional source-bound native net-width check against a caller-declared empirical current reference; never a thermal design pass.                                                           |
 
@@ -2547,6 +2548,7 @@ Returns a JSON object matching the schema:
   trace_current_review: object (optional);
   via_adjacency_review: object[] (optional);
   native_pour_annulus_review: object (optional);
+  native_via_pour_annulus_review: object (optional);
   engineering_sign_off: 'false';
 }
 ```
