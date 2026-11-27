@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.22.0               | 1.22.0                | 1.22.0            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.21.0               | 1.21.0                | 1.21.0            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.20.0               | 1.20.0                | 1.20.0            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.19.1               | 1.19.1                | 1.19.1            | Live validated  | 2026-11-25 | 2027-02-23 |
@@ -86,6 +87,52 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-a6f17ab-v1220-crystal-network
+
+Record ID: `easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-a6f17ab-v1220-crystal-network`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `4.1.105.0339a6cd`                                                                                      |
+| Electron                                 | `not independently recorded`                                                                            |
+| Chromium                                 | `not independently recorded` (Chromium version not independently measured in this exact-candidate run.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                      |
+| Kernel                                   | `7.0.0-43-generic`                                                                                      |
+| Architecture                             | `x86_64`                                                                                                |
+| Node.js used by validation server        | `24.22.3`                                                                                               |
+| Validation package version               | `1.22.0`                                                                                                |
+| Fix version represented by evidence      | `1.22.0`                                                                                                |
+| Compatibility-sensitive base commit      | `a6f17ab19755052a2b887ce54592675bf0bc8e6b`                                                              |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                |
+| Installed extension package metadata     | `1.22.0`                                                                                                |
+| Live-validated extension package SHA-256 | `4484b5e7b130316e134a5045ebb1ea2df6e3850b4e612b590fe19fd51adb0e29`                                      |
+| Live-validated extension package size    | `249067 bytes`                                                                                          |
+| Loader-reported version                  | `1.22.0`                                                                                                |
+| Bridge contract                          | `1.0.0`                                                                                                 |
+| Dispatcher                               | `baked`                                                                                                 |
+| Method registry hash                     | `25cb47ba3bf5ed23`                                                                                      |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                       |
+
+The installed extension package and loader both reported version `1.22.0` during this validation.
+
+### Capability evidence
+
+| Capability                                              | Level  | Status    | Result                                                                                                                                                                                                                                                                                                                                                                                                       | Evidence                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------- | ------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Exact 1.22.0 installation and Local MCP handshake       | `live` | `passed`  | Two byte-identical extension builds, official isolated Extension Manager import and cold start. Healthy Local MCP server/extension 1.22.0, 87 methods, matching registry/version and baked dispatcher.                                                                                                                                                                                                       | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.22.0-a6f17ab-crystal-network.json), [PR #1168](https://github.com/oaslananka/easyeda-mcp-pro/pull/1168)                                                                         |
+| Declared crystal signal and load-side line-chain review | `live` | `passed`  | Actual F103: oscillator-in/out and load-in/out observed 6/6/3/1 selected native-associated line segments on layer 1. Shared crystal pad and segment identities preserved. Wrong net on both output roles yielded partial evidence and warning; missing role rejected. Shuffled group, original findings and priorities, native focus/inventory and fixture bytes unchanged. All continuity statuses UNKNOWN. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.22.0-a6f17ab-crystal-network.json), [PR #1167](https://github.com/oaslananka/easyeda-mcp-pro/pull/1167), [Issue #842](https://github.com/oaslananka/easyeda-mcp-pro/issues/842) |
+| Durable native writes and autorouting                   | `live` | `blocked` | Not exercised in this read-only pass. Prior native autoroute persistence limitation remains.                                                                                                                                                                                                                                                                                                                 | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.22.0-a6f17ab-crystal-network.json), [Issue #1126](https://github.com/oaslananka/easyeda-mcp-pro/issues/1126)                                                                    |
+| Authenticated Hosted and independent-user acceptance    | `live` | `blocked` | Not exercised in this local read-only run.                                                                                                                                                                                                                                                                                                                                                                   | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.22.0-a6f17ab-crystal-network.json), [Issue #850](https://github.com/oaslananka/easyeda-mcp-pro/issues/850)                                                                      |
+
+### Known limitations
+
+- Only isolated Ubuntu x86_64 and EasyEDA Pro 4.1.105 were live-validated. Windows/macOS native acceptance and Electron/Chromium versions were not independently measured. Nonfatal GPU initialization diagnostics occurred; graphics/3D were not validated.
+- Caller-declared crystal roles and selected line-chain observations do not prove physical contact, electrical continuity, ground return, actual circuit function, load capacitance, startup, drive level, EMI, placement adequacy or engineering/manufacturing approval. Shared segments are not summed. Native reads are focus-bound and non-atomic; absent evidence is not proof of disconnection.
+- The 1.21.0 buck return contour and earlier export/via evidence remain historical exact-source observations; those scenarios were not rerun for this candidate.
+- No design mutation, save/reopen, native autorouting, authenticated Hosted/OAuth, remembered trust or independent-user acceptance was exercised.
 
 ## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-7ec0281-v1210-return-contour
 

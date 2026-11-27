@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-v1220-native-crystal-network-compatibility",
+  "recordedAtUtc": "2026-11-27T04:28:17Z",
+  "candidate": {
+    "releasePullRequest": 1168,
+    "exactCommit": "a6f17ab19755052a2b887ce54592675bf0bc8e6b",
+    "treeSha1": "f8af1ab907a5bda34c4750f1f418e3a0f621bfd2",
+    "packageVersion": "1.22.0",
+    "compatibilitySensitiveTreeSha1": {
+      "easyeda-bridge-extension/src": "43ef5005ea2e108a290192b8412ce0bdfbf24db0",
+      "src/bridge": "404ec8961d98af12aca7df838b0f9d8953b2a2f3",
+      "src/remote": "7fcd33c262536ec1cba79c49e4ad24615663633a",
+      "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+      "src/tools": "22ceee0728a630c4ad1b212a74c765538008d558",
+      "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+    },
+    "supplementaryPcbLayoutTreeSha1": "2d11dfe94e17c18e252abe7748c0b1f87dda5e6a",
+    "extensionSha256": "4484b5e7b130316e134a5045ebb1ea2df6e3850b4e612b590fe19fd51adb0e29",
+    "extensionBytes": 249067,
+    "reproducibleBuilds": 2,
+    "matchingSha256": true,
+    "matchingSizeBytes": true
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-43-generic",
+    "nodeVersion": "24.22.3"
+  },
+  "editor": {
+    "version": "4.1.105.0339a6cd",
+    "electronVersion": "not independently recorded",
+    "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+    "chromiumVersion": "not independently recorded",
+    "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+  },
+  "extension": {
+    "installedPackageVersion": "1.22.0",
+    "loaderReportedVersion": "1.22.0",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "25cb47ba3bf5ed23",
+    "activeDispatcher": "baked",
+    "dispatcherBuildId": "d460cxee5axa9d5",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "packageSha256": "4484b5e7b130316e134a5045ebb1ea2df6e3850b4e612b590fe19fd51adb0e29",
+    "packageSizeBytes": 249067
+  },
+  "runtimeIdentity": {
+    "health": "ok",
+    "serverVersion": "1.22.0",
+    "extensionVersion": "1.22.0",
+    "registryMismatch": false,
+    "versionMismatch": false,
+    "connected": true,
+    "easyedaVersion": "4.1.105",
+    "methodCount": 87,
+    "dispatcher": "d460cxee5axa9d5",
+    "source": "loader_status",
+    "devMode": false,
+    "bridgeContractVersion": "1.0.0",
+    "contractSchemaVersion": 1,
+    "methodRegistryHash": "25cb47ba3bf5ed23",
+    "registryHashProvenance": "Computed from exact built server method schema; native registry mismatch false."
+  },
+  "fixture": {
+    "project": "Isolated disposable STM32 F103 imported PCB; no personal design",
+    "schematic": "Focused PCB; no design write",
+    "disposable": true,
+    "readOnly": true
+  },
+  "liveAcceptance": {
+    "officialInstallExit": 0,
+    "coldLocalMcpExit": 0,
+    "inventory": {
+      "components": 40,
+      "tracks": 444,
+      "vias": 224
+    },
+    "sourcePcbSha256": "0892c0c6a6b428cd30f18b338b7d5b286674ebf068a0a1b4b2eacc539d146a22",
+    "fixtureSha256": "2b5ca348006aa331585bfcf5eec5d846eb264423bec6791b0d1e3455016de6ad",
+    "fixtureUnchanged": true,
+    "focusAndInventoryUnchanged": true,
+    "crystalNetworkTopology": {
+      "evidence": "all_line_chains_observed",
+      "legs": [
+        {
+          "first_pin": "5",
+          "second_pin": "1",
+          "expected_net": "/HSE_IN",
+          "native_pad_primitive_ids": ["ie215ie47", "ie83ie16"],
+          "evidence": "native_reported_centre",
+          "primitive_ids": ["ie861", "ie863", "ie862", "ie865", "ie866", "ie864"],
+          "native_layer": 1,
+          "electrical_continuity_status": "UNKNOWN",
+          "role": "oscillator-in",
+          "components": ["U1", "Y1"],
+          "constraint_source": "Pinned source PCB pin and net map; caller-declared roles",
+          "next_action": "review-observed-line-chain"
+        },
+        {
+          "first_pin": "6",
+          "second_pin": "3",
+          "expected_net": "/HSE_OUT",
+          "native_pad_primitive_ids": ["ie215ie48", "ie83ie18"],
+          "evidence": "native_reported_centre",
+          "primitive_ids": ["ie857", "ie856", "ie860", "ie855", "ie858", "ie859"],
+          "native_layer": 1,
+          "electrical_continuity_status": "UNKNOWN",
+          "role": "oscillator-out",
+          "components": ["U1", "Y1"],
+          "constraint_source": "Pinned source PCB pin and net map; caller-declared roles",
+          "next_action": "review-observed-line-chain"
+        },
+        {
+          "first_pin": "1",
+          "second_pin": "1",
+          "expected_net": "/HSE_IN",
+          "native_pad_primitive_ids": ["ie83ie16", "ie119ie15"],
+          "evidence": "native_reported_centre",
+          "primitive_ids": ["ie864", "ie866", "ie865"],
+          "native_layer": 1,
+          "electrical_continuity_status": "UNKNOWN",
+          "role": "load-in",
+          "components": ["Y1", "C11"],
+          "constraint_source": "Pinned source PCB pin and net map; caller-declared roles",
+          "next_action": "review-observed-line-chain"
+        },
+        {
+          "first_pin": "3",
+          "second_pin": "1",
+          "expected_net": "/HSE_OUT",
+          "native_pad_primitive_ids": ["ie83ie18", "ie131ie15"],
+          "evidence": "native_reported_centre",
+          "primitive_ids": ["ie859"],
+          "native_layer": 1,
+          "electrical_continuity_status": "UNKNOWN",
+          "role": "load-out",
+          "components": ["Y1", "C10"],
+          "constraint_source": "Pinned source PCB pin and net map; caller-declared roles",
+          "next_action": "review-observed-line-chain"
+        }
+      ],
+      "missing_roles": [],
+      "electrical_continuity_status": "UNKNOWN",
+      "engineering_sign_off": false,
+      "limitations": [
+        "Roles are caller-declared; crystal function, load capacitance and circuit topology are not verified.",
+        "Selected line chains can share segments. They do not establish physical pad contact, electrical continuity, ground return, oscillator startup, drive level, EMI or placement adequacy.",
+        "Unavailable line evidence is not proof of disconnection."
+      ]
+    },
+    "wrongNetControl": {
+      "evidence": "partial_line_chains_observed",
+      "legs": [
+        {
+          "first_pin": "5",
+          "second_pin": "1",
+          "expected_net": "/HSE_IN",
+          "native_pad_primitive_ids": ["ie215ie47", "ie83ie16"],
+          "evidence": "native_reported_centre",
+          "primitive_ids": ["ie861", "ie863", "ie862", "ie865", "ie866", "ie864"],
+          "native_layer": 1,
+          "electrical_continuity_status": "UNKNOWN",
+          "role": "oscillator-in",
+          "components": ["U1", "Y1"],
+          "constraint_source": "Pinned source PCB pin and net map; caller-declared roles",
+          "next_action": "review-observed-line-chain"
+        },
+        {
+          "first_pin": "6",
+          "second_pin": "3",
+          "expected_net": "WRONG_CRYSTAL_NET",
+          "evidence": "unavailable",
+          "primitive_ids": [],
+          "electrical_continuity_status": "UNKNOWN",
+          "role": "oscillator-out",
+          "components": ["U1", "Y1"],
+          "constraint_source": "Pinned source PCB pin and net map; caller-declared roles",
+          "next_action": "verify-declared-net"
+        },
+        {
+          "first_pin": "1",
+          "second_pin": "1",
+          "expected_net": "/HSE_IN",
+          "native_pad_primitive_ids": ["ie83ie16", "ie119ie15"],
+          "evidence": "native_reported_centre",
+          "primitive_ids": ["ie864", "ie866", "ie865"],
+          "native_layer": 1,
+          "electrical_continuity_status": "UNKNOWN",
+          "role": "load-in",
+          "components": ["Y1", "C11"],
+          "constraint_source": "Pinned source PCB pin and net map; caller-declared roles",
+          "next_action": "review-observed-line-chain"
+        },
+        {
+          "first_pin": "3",
+          "second_pin": "1",
+          "expected_net": "WRONG_CRYSTAL_NET",
+          "evidence": "unavailable",
+          "primitive_ids": [],
+          "electrical_continuity_status": "UNKNOWN",
+          "role": "load-out",
+          "components": ["Y1", "C10"],
+          "constraint_source": "Pinned source PCB pin and net map; caller-declared roles",
+          "next_action": "verify-declared-net"
+        }
+      ],
+      "missing_roles": ["oscillator-out", "load-out"],
+      "electrical_continuity_status": "UNKNOWN",
+      "engineering_sign_off": false,
+      "limitations": [
+        "Roles are caller-declared; crystal function, load capacitance and circuit topology are not verified.",
+        "Selected line chains can share segments. They do not establish physical pad contact, electrical continuity, ground return, oscillator startup, drive level, EMI or placement adequacy.",
+        "Unavailable line evidence is not proof of disconnection."
+      ]
+    },
+    "wrongNetOverallStatus": "WARNING",
+    "incompleteRoleRejected": true,
+    "shuffledOrderVerified": true,
+    "legacyFindingsAndPrioritiesUnchanged": true,
+    "electricalContinuityStatus": "UNKNOWN",
+    "engineeringSignOff": false,
+    "allPhaseCleanupVerified": true,
+    "resultEnvelopeSha256": {
+      "officialInstall": "16aab05c44d3866fd70697dd5d54c2d7b61eeefb90e064406fdc7d6b647972f5",
+      "nativeRun": "cde6354db204f1165a99699759843ea1fc0f0e5cf3685056d1553914087fd862",
+      "nativeSummary": "a7c5e9771407cc2a0769820f38df0abac0ea28b964ee53539f3079732faa1762"
+    }
+  },
+  "knownLimitations": [
+    "Only isolated Ubuntu x86_64 and EasyEDA Pro 4.1.105 were live-validated. Windows/macOS native acceptance and Electron/Chromium versions were not independently measured. Nonfatal GPU initialization diagnostics occurred; graphics/3D were not validated.",
+    "Caller-declared crystal roles and selected line-chain observations do not prove physical contact, electrical continuity, ground return, actual circuit function, load capacitance, startup, drive level, EMI, placement adequacy or engineering/manufacturing approval. Shared segments are not summed. Native reads are focus-bound and non-atomic; absent evidence is not proof of disconnection.",
+    "The 1.21.0 buck return contour and earlier export/via evidence remain historical exact-source observations; those scenarios were not rerun for this candidate.",
+    "No design mutation, save/reopen, native autorouting, authenticated Hosted/OAuth, remembered trust or independent-user acceptance was exercised."
+  ]
+}
