@@ -4,6 +4,122 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-44b1fc4-v1231-outline-usb",
+      "status": "live-validated",
+      "validatedAt": "2026-11-27T12:28:13Z",
+      "reviewBy": "2027-02-25",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-43-generic",
+        "nodeVersion": "24.22.3"
+      },
+      "easyedaPro": {
+        "version": "4.1.105.0339a6cd",
+        "electronVersion": "not independently recorded",
+        "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+        "chromiumVersion": "not independently recorded",
+        "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+      },
+      "server": {
+        "validationPackageVersion": "1.23.1",
+        "releaseContainingFixes": "1.23.1",
+        "commit": "44b1fc49ae4f4b13701f3cd715c1056b3bda2f23",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "fab25fc85595ca70615431a341dcaf679dfbe1e8",
+            "src/bridge": "404ec8961d98af12aca7df838b0f9d8953b2a2f3",
+            "src/remote": "7fcd33c262536ec1cba79c49e4ad24615663633a",
+            "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+            "src/tools": "afcd1f5b3c7a472bcd2abb3fc0394d19c27223d6",
+            "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.23.1",
+        "loaderReportedVersion": "1.23.1",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "25cb47ba3bf5ed23",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "d59b6x8c1dxf79e",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "ea5aa6463863f9d7b050c6b443decd942f38f0d74e15fb02be790f8da654f031",
+        "packageSizeBytes": 250578
+      },
+      "fixture": {
+        "project": "Isolated disposable STM32 F103 imported PCB; no personal design",
+        "schematic": "Focused PCB; no design write",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v1231-native-install",
+          "name": "Exact 1.23.1 installation and Local MCP handshake",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Two byte-identical builds, official Extension Manager import and cold start. Matching server/extension 1.23.1, 87 methods, baked dispatcher, no mismatch.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.1-44b1fc4-outline-usb.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1175"
+          ]
+        },
+        {
+          "id": "v1231-native-outline",
+          "name": "Rounded PCB outline and aggregate engineering review",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Actual F103 mixed line/arc outline measured 50 × 57 mm; false missing-outline FAIL removed, 1 PASS / 0 FAIL / 1 WARNING / 23 UNKNOWN, repeat identical. Wrong project 27 UNKNOWN, no measured inputs. Independent drill evidence preserved; focus, inventory and fixture unchanged.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.1-44b1fc4-outline-usb.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1174"
+          ]
+        },
+        {
+          "id": "v1231-native-usb-pair",
+          "name": "Source-declared USB pair line geometry",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Actual F103 USBC D+/D− single-layer lengths 4.493502 and 4.232548 mm; observed delta 0.260955 mm, partial sampled spacing. USB D+ ambiguous; skew withheld. Missing pair WARNING; impedance and overall SI UNKNOWN. No sign-off.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.1-44b1fc4-outline-usb.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/841#issuecomment-7218061983"
+          ]
+        },
+        {
+          "id": "v1231-native-durable-write",
+          "name": "Durable native writes and autorouting",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "Not exercised in this read-only run; prior native autoroute persistence limitation remains.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.1-44b1fc4-outline-usb.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/1126"
+          ]
+        },
+        {
+          "id": "v1231-hosted-acceptance",
+          "name": "Authenticated Hosted and independent-user acceptance",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "Not exercised in this local read-only run.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.1-44b1fc4-outline-usb.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/850"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Only isolated Ubuntu x86_64 EasyEDA Pro 4.1.105 was live-validated; native Windows/macOS, Electron/Chromium versions and graphics/3D were not independently measured. Nonfatal GPU initialization diagnostics occurred.",
+        "Outline bounding-box measurement does not establish fabrication-ready closed contours for every primitive type. Mounting-hole count and complete stackup unavailable. Native ERC/DRC and power-tree evidence remain UNKNOWN in the aggregate.",
+        "USB net pair declarations originate from the pinned source PCB pin/net map. Sampled line geometry is not full routing, physical contact, field-solver impedance or signal-integrity approval; no device-specific numeric limit was declared.",
+        "Previous ESD, crystal, buck, export and via scenarios remain historical evidence, not rerun claims. Same-project non-PCB focus was not exercised because the F103 fixture contains only a PCB. No design mutation, save/reopen, native autorouting, authenticated Hosted/OAuth, remembered trust or independent-user acceptance was exercised."
+      ]
+    },
+    {
       "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-f92e563-v1230-esd-return",
       "status": "live-validated",
       "validatedAt": "2026-11-27T06:12:08Z",

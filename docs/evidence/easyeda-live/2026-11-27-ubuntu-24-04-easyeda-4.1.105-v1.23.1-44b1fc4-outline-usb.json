@@ -1,0 +1,425 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-v1231-native-outline-usb-compatibility",
+  "recordedAtUtc": "2026-11-27T12:28:13Z",
+  "candidate": {
+    "releasePullRequest": 1175,
+    "exactCommit": "44b1fc49ae4f4b13701f3cd715c1056b3bda2f23",
+    "treeSha1": "67091b557834e099f7f7b4fb5ddb345ffb58d738",
+    "packageVersion": "1.23.1",
+    "compatibilitySensitiveTreeSha1": {
+      "easyeda-bridge-extension/src": "fab25fc85595ca70615431a341dcaf679dfbe1e8",
+      "src/bridge": "404ec8961d98af12aca7df838b0f9d8953b2a2f3",
+      "src/remote": "7fcd33c262536ec1cba79c49e4ad24615663633a",
+      "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+      "src/tools": "afcd1f5b3c7a472bcd2abb3fc0394d19c27223d6",
+      "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+    },
+    "extensionSha256": "ea5aa6463863f9d7b050c6b443decd942f38f0d74e15fb02be790f8da654f031",
+    "extensionBytes": 250578,
+    "reproducibleBuilds": 2,
+    "matchingSha256": true,
+    "matchingSizeBytes": true
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-43-generic",
+    "nodeVersion": "24.22.3"
+  },
+  "editor": {
+    "version": "4.1.105.0339a6cd",
+    "electronVersion": "not independently recorded",
+    "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+    "chromiumVersion": "not independently recorded",
+    "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+  },
+  "extension": {
+    "installedPackageVersion": "1.23.1",
+    "loaderReportedVersion": "1.23.1",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "25cb47ba3bf5ed23",
+    "activeDispatcher": "baked",
+    "dispatcherBuildId": "d59b6x8c1dxf79e",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "packageSha256": "ea5aa6463863f9d7b050c6b443decd942f38f0d74e15fb02be790f8da654f031",
+    "packageSizeBytes": 250578
+  },
+  "runtimeIdentity": {
+    "health": "ok",
+    "serverVersion": "1.23.1",
+    "extensionVersion": "1.23.1",
+    "registryMismatch": false,
+    "versionMismatch": false,
+    "connected": true,
+    "easyedaVersion": "4.1.105",
+    "methodCount": 87,
+    "dispatcher": "d59b6x8c1dxf79e",
+    "source": "loader_status",
+    "devMode": false,
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "25cb47ba3bf5ed23",
+    "registryHashProvenance": "Computed from exact built server method schema; native registry mismatch false."
+  },
+  "fixture": {
+    "project": "Isolated disposable STM32 F103 imported PCB; no personal design",
+    "schematic": "Focused PCB; no design write",
+    "disposable": true,
+    "readOnly": true
+  },
+  "liveAcceptance": {
+    "officialInstallExit": 0,
+    "coldLocalMcpExit": 0,
+    "inventory": {
+      "components": 40,
+      "tracks": 444,
+      "vias": 224
+    },
+    "fixtureSha256": "2b5ca348006aa331585bfcf5eec5d846eb264423bec6791b0d1e3455016de6ad",
+    "fixtureUnchanged": true,
+    "focusAndInventoryUnchanged": true,
+    "repeatIdentical": true,
+    "boardMeasurements": [
+      {
+        "field": "widthMm",
+        "source": "board.getDimensions",
+        "quality": "measured",
+        "unit": "mm",
+        "age": "current_request",
+        "value": 50
+      },
+      {
+        "field": "heightMm",
+        "source": "board.getDimensions",
+        "quality": "measured",
+        "unit": "mm",
+        "age": "current_request",
+        "value": 57
+      },
+      {
+        "field": "hasOutline",
+        "source": "board.getDimensions",
+        "quality": "measured",
+        "age": "current_request",
+        "value": true
+      },
+      {
+        "field": "mountingHoleCount",
+        "source": "board.getDimensions",
+        "quality": "unavailable",
+        "unit": "count",
+        "age": "unverified"
+      },
+      {
+        "field": "minDrillMm",
+        "source": "board.getDimensions",
+        "quality": "measured",
+        "unit": "mm",
+        "age": "current_request",
+        "value": 0.2997
+      },
+      {
+        "field": "layerCount",
+        "source": "board.getStackup",
+        "quality": "measured",
+        "unit": "count",
+        "age": "current_request",
+        "value": 4
+      },
+      {
+        "field": "hasLayerStack",
+        "source": "board.getStackup",
+        "quality": "measured",
+        "age": "current_request",
+        "value": false
+      },
+      {
+        "field": "hasClearanceRules",
+        "source": "board.getDesignRules",
+        "quality": "unavailable",
+        "age": "unverified"
+      }
+    ],
+    "aggregateSummary": {
+      "PASS": 1,
+      "FAIL": 0,
+      "WARNING": 1,
+      "UNKNOWN": 23,
+      "NOT_APPLICABLE": 0
+    },
+    "foreignProjectSummary": {
+      "PASS": 0,
+      "FAIL": 0,
+      "WARNING": 0,
+      "UNKNOWN": 27,
+      "NOT_APPLICABLE": 0
+    },
+    "foreignMeasuredInputCount": 0,
+    "humanReviewRequired": [
+      "Run and assess the native DRC/ERC outputs in their correct document tabs.",
+      "Confirm datasheet, stackup, assembly process and manufacturer-specific constraints.",
+      "Have a qualified engineer review electrical safety and fabrication readiness."
+    ],
+    "usbPairResults": [
+      {
+        "nets": {
+          "positive": "/USB_D+",
+          "negative": "/USB_D-"
+        },
+        "paths": {
+          "positive": {
+            "net": "/USB_D+",
+            "coverage": "AMBIGUOUS",
+            "segment_count": 10,
+            "primitive_ids": [
+              "ie884",
+              "ie885",
+              "ie886",
+              "ie887",
+              "ie888",
+              "ie889",
+              "ie890",
+              "ie891",
+              "ie892",
+              "ie893"
+            ]
+          },
+          "negative": {
+            "net": "/USB_D-",
+            "coverage": "OBSERVED_SINGLE_CHAIN",
+            "segment_count": 7,
+            "primitive_ids": ["ie877", "ie878", "ie879", "ie880", "ie881", "ie882", "ie883"],
+            "observed_length_mm": 12.287373319939329,
+            "single_layer": 1
+          }
+        },
+        "skew": {
+          "status": "UNKNOWN",
+          "note": "Missing, branched, via-connected, fragmented or incomplete native paths prevent a trustworthy skew comparison."
+        },
+        "spacing": {
+          "status": "UNKNOWN",
+          "observed_mm": 0.2450010000000002,
+          "note": "Only partial or ambiguous native parallel-path coverage was observed; unsampled route sections cannot be treated as within declared limits.",
+          "observed_max_mm": 1.6999979999999542,
+          "sample_count": 7,
+          "observed_contact_count": 0,
+          "sampled_positive_length_mm": 11.718678164218396,
+          "sampled_negative_length_mm": 11.139316164218425,
+          "sample_coverage_complete": false
+        },
+        "status": "UNKNOWN",
+        "impedance_status": "UNKNOWN",
+        "findings": [
+          {
+            "id": "pair:/USB_D+:coverage",
+            "status": "UNKNOWN",
+            "message": "Declared net observation: AMBIGUOUS; do not infer a routed end-to-end pair.",
+            "net": "/USB_D+",
+            "primitive_ids": [
+              "ie884",
+              "ie885",
+              "ie886",
+              "ie887",
+              "ie888",
+              "ie889",
+              "ie890",
+              "ie891",
+              "ie892",
+              "ie893"
+            ]
+          },
+          {
+            "id": "pair:impedance",
+            "status": "UNKNOWN",
+            "message": "No verified stackup, dielectric/copper model, field-solver output or manufacturer impedance measurement is available.",
+            "primitive_ids": []
+          },
+          {
+            "id": "pair:return-path",
+            "status": "UNKNOWN",
+            "message": "Native tracks and vias do not prove reference-plane continuity, differential coupling, or actual link signal integrity.",
+            "primitive_ids": []
+          }
+        ],
+        "limitations": [
+          "Native segment sums, parallel-gap samples and 2D projected contact checks do not establish actual end-to-end link topology or a fabricated-board short.",
+          "Reference impedance and protocol guidance never substitute a source-bound stackup model or field solver.",
+          "Only explicit device/datasheet-specific caller limits can produce a skew or spacing warning; their claimed source is reported separately and remains unverified.",
+          "Via transitions, layer discontinuities, pads, coupled impedance and plane return paths require additional native evidence.",
+          "PCB snapshot is not atomic; missing/duplicated native primitive IDs, malformed copper geometry and editor/runtime mismatch fail closed."
+        ],
+        "engineering_sign_off": false,
+        "coverage": {
+          "requested_track_count": 444,
+          "returned_track_count": 444,
+          "requested_via_count": 224,
+          "returned_via_count": 224,
+          "findings_truncated": false
+        }
+      },
+      {
+        "nets": {
+          "positive": "/USBC_D+",
+          "negative": "/USBC_D-"
+        },
+        "paths": {
+          "positive": {
+            "net": "/USBC_D+",
+            "coverage": "OBSERVED_SINGLE_CHAIN",
+            "segment_count": 3,
+            "primitive_ids": ["ie1146", "ie1147", "ie1148"],
+            "observed_length_mm": 4.493502470040842,
+            "single_layer": 1
+          },
+          "negative": {
+            "net": "/USBC_D-",
+            "coverage": "OBSERVED_SINGLE_CHAIN",
+            "segment_count": 4,
+            "primitive_ids": ["ie1142", "ie1143", "ie1144", "ie1145"],
+            "observed_length_mm": 4.2325479257457985,
+            "single_layer": 1
+          }
+        },
+        "skew": {
+          "status": "UNKNOWN",
+          "observed_mm": 0.2609545442950436,
+          "note": "Observed path-length delta is reported without a declared device-specific skew threshold."
+        },
+        "spacing": {
+          "status": "UNKNOWN",
+          "observed_mm": 0.44999999999997925,
+          "note": "Only partial or ambiguous native parallel-path coverage was observed; unsampled route sections cannot be treated as within declared limits.",
+          "observed_max_mm": 1.6999979999999542,
+          "sample_count": 2,
+          "observed_contact_count": 0,
+          "sampled_positive_length_mm": 3.15000099999998,
+          "sampled_negative_length_mm": 3.15000099999998,
+          "sample_coverage_complete": false
+        },
+        "status": "UNKNOWN",
+        "impedance_status": "UNKNOWN",
+        "findings": [
+          {
+            "id": "pair:impedance",
+            "status": "UNKNOWN",
+            "message": "No verified stackup, dielectric/copper model, field-solver output or manufacturer impedance measurement is available.",
+            "primitive_ids": []
+          },
+          {
+            "id": "pair:return-path",
+            "status": "UNKNOWN",
+            "message": "Native tracks and vias do not prove reference-plane continuity, differential coupling, or actual link signal integrity.",
+            "primitive_ids": []
+          }
+        ],
+        "limitations": [
+          "Native segment sums, parallel-gap samples and 2D projected contact checks do not establish actual end-to-end link topology or a fabricated-board short.",
+          "Reference impedance and protocol guidance never substitute a source-bound stackup model or field solver.",
+          "Only explicit device/datasheet-specific caller limits can produce a skew or spacing warning; their claimed source is reported separately and remains unverified.",
+          "Via transitions, layer discontinuities, pads, coupled impedance and plane return paths require additional native evidence.",
+          "PCB snapshot is not atomic; missing/duplicated native primitive IDs, malformed copper geometry and editor/runtime mismatch fail closed."
+        ],
+        "engineering_sign_off": false,
+        "coverage": {
+          "requested_track_count": 444,
+          "returned_track_count": 444,
+          "requested_via_count": 224,
+          "returned_via_count": 224,
+          "findings_truncated": false
+        }
+      }
+    ],
+    "missingPair": {
+      "status": "WARNING",
+      "nets": {
+        "positive": "__acceptance_missing_positive__",
+        "negative": "__acceptance_missing_negative__"
+      },
+      "protocol": "usb2",
+      "protocol_guidance": {
+        "source": "USB 2.0 Specification (USB-IF) — general signal integrity guidance",
+        "caveat": "Generic reference guidance, not a precision simulation — confirm exact values against the current spec revision and your target silicon's datasheet before finalizing layout.",
+        "differential_impedance_reference_ohms": 90
+      },
+      "constraint_source": null,
+      "impedance_status": "UNKNOWN",
+      "evidence": "native_segments_not_field_solver_or_full_route",
+      "length_units": "mm",
+      "coordinate_units": "mil",
+      "paths": {
+        "positive": {
+          "net": "__acceptance_missing_positive__",
+          "coverage": "MISSING",
+          "segment_count": 0,
+          "primitive_ids": []
+        },
+        "negative": {
+          "net": "__acceptance_missing_negative__",
+          "coverage": "MISSING",
+          "segment_count": 0,
+          "primitive_ids": []
+        }
+      },
+      "skew": {
+        "status": "UNKNOWN",
+        "note": "Missing, branched, via-connected, fragmented or incomplete native paths prevent a trustworthy skew comparison."
+      },
+      "spacing": {
+        "status": "UNKNOWN",
+        "note": "Both nets need valid observed segments before measuring spacing.",
+        "sample_count": 0
+      },
+      "findings": [
+        {
+          "id": "pair:__acceptance_missing_negative__:coverage",
+          "status": "WARNING",
+          "message": "Declared net observation: MISSING; do not infer a routed end-to-end pair.",
+          "net": "__acceptance_missing_negative__",
+          "primitive_ids": []
+        },
+        {
+          "id": "pair:__acceptance_missing_positive__:coverage",
+          "status": "WARNING",
+          "message": "Declared net observation: MISSING; do not infer a routed end-to-end pair.",
+          "net": "__acceptance_missing_positive__",
+          "primitive_ids": []
+        },
+        {
+          "id": "pair:impedance",
+          "status": "UNKNOWN",
+          "message": "No verified stackup, dielectric/copper model, field-solver output or manufacturer impedance measurement is available.",
+          "primitive_ids": []
+        },
+        {
+          "id": "pair:return-path",
+          "status": "UNKNOWN",
+          "message": "Native tracks and vias do not prove reference-plane continuity, differential coupling, or actual link signal integrity.",
+          "primitive_ids": []
+        }
+      ],
+      "limitations": [
+        "Native segment sums, parallel-gap samples and 2D projected contact checks do not establish actual end-to-end link topology or a fabricated-board short.",
+        "Reference impedance and protocol guidance never substitute a source-bound stackup model or field solver.",
+        "Only explicit device/datasheet-specific caller limits can produce a skew or spacing warning; their claimed source is reported separately and remains unverified.",
+        "Via transitions, layer discontinuities, pads, coupled impedance and plane return paths require additional native evidence.",
+        "PCB snapshot is not atomic; missing/duplicated native primitive IDs, malformed copper geometry and editor/runtime mismatch fail closed."
+      ],
+      "engineering_sign_off": false
+    },
+    "engineeringSignOff": false,
+    "allPhaseCleanupVerified": true,
+    "resultEnvelopeSha256": {
+      "officialInstall": "97081cb2c89e4961b0077098f5d00b07a7c7938b427d8a0501e5f98510ab81a2",
+      "nativeRun": "5882a8ef920f983fccd417a544985f9f3bfd3ac78a0c018720953cee7d44f8e0",
+      "nativeSummary": "e8e4c0bc06ea440c91481975bec1436633c43409c34480f11b569efd82b9b364"
+    }
+  },
+  "knownLimitations": [
+    "Only isolated Ubuntu x86_64 EasyEDA Pro 4.1.105 was live-validated; native Windows/macOS, Electron/Chromium versions and graphics/3D were not independently measured. Nonfatal GPU initialization diagnostics occurred.",
+    "Outline bounding-box measurement does not establish fabrication-ready closed contours for every primitive type. Mounting-hole count and complete stackup unavailable. Native ERC/DRC and power-tree evidence remain UNKNOWN in the aggregate.",
+    "USB net pair declarations originate from the pinned source PCB pin/net map. Sampled line geometry is not full routing, physical contact, field-solver impedance or signal-integrity approval; no device-specific numeric limit was declared.",
+    "Previous ESD, crystal, buck, export and via scenarios remain historical evidence, not rerun claims. Same-project non-PCB focus was not exercised because the F103 fixture contains only a PCB. No design mutation, save/reopen, native autorouting, authenticated Hosted/OAuth, remembered trust or independent-user acceptance was exercised."
+  ]
+}
