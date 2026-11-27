@@ -89,6 +89,27 @@ function getBridgeDiagnostics(ctx: ToolContext): BridgeDiagnosticsSnapshot {
   };
 }
 
+function healthStatus(connected: boolean, mismatches: boolean[]): 'ok' | 'degraded' {
+  return connected && !mismatches.some(Boolean) ? 'ok' : 'degraded';
+}
+
+function healthStatusError(
+  ctx: ToolContext,
+  config: EnvConfig,
+  ownerVersionMismatch: boolean,
+): string | undefined {
+  if (ctx.bridge.ownershipConflict?.message) return ctx.bridge.ownershipConflict.message;
+  if (ownerVersionMismatch) {
+    return `Another local easyeda-mcp-pro process (server ${
+      ctx.bridge.ownerServerVersion ?? 'older than this field'
+    }) owns the bridge; calls are forwarded and checked against its version. Close that process or match versions.`;
+  }
+  if (config.MCP_BRIDGE_BACKEND === 'remote_relay' && !ctx.bridge.connected) {
+    return 'No authorized EasyEDA editor is ready. Pair your extension and, for Hosted Cloud, select the focused project.';
+  }
+  return undefined;
+}
+
 function registerDiagnosticsCore(
   registry: { register: (def: ToolDefinition) => void },
   config: EnvConfig,
@@ -97,7 +118,7 @@ function registerDiagnosticsCore(
     name: 'easyeda_health_check',
     title: 'Health check',
     description:
-      'Return server health status in one call: runtime version, active profile, bridge state, EasyEDA version, keyless sourcing state, and starter catalog size. Intended as the single actionable status check after first connecting the bridge extension.',
+      'Return server health status in one call: runtime version, active profile, bridge state and whether another local server owns it, EasyEDA version, keyless sourcing state, and starter catalog size. Intended as the single actionable status check after first connecting the bridge extension.',
     profile: 'core',
     evidence: ['official-docs'],
     risk: 'low',
@@ -120,6 +141,9 @@ function registerDiagnosticsCore(
       extension_version: z.string().optional(),
       extension_version_mismatch: z.boolean(),
       registry_mismatch: z.boolean(),
+      bridge_role: z.enum(['owner', 'follower']).optional(),
+      owner_server_version: z.string().optional(),
+      owner_version_mismatch: z.boolean(),
       keyless_sourcing_enabled: z.boolean(),
       catalog_device_count: z.number().int().nonnegative(),
       blocked_by_other_instance: z.boolean().optional(),
@@ -132,12 +156,13 @@ function registerDiagnosticsCore(
       const extensionVersionMismatch = ctx.bridge.extensionVersionMismatch ?? false;
       const registryMismatch = ctx.bridge.registryMismatch ?? false;
       const ownershipConflict = ctx.bridge.ownershipConflict;
+      const ownerVersionMismatch = ctx.bridge.ownerVersionMismatch ?? false;
       return {
-        status: !ctx.bridge.connected
-          ? ('degraded' as const)
-          : extensionVersionMismatch || registryMismatch
-            ? ('degraded' as const)
-            : ('ok' as const),
+        status: healthStatus(ctx.bridge.connected, [
+          extensionVersionMismatch,
+          registryMismatch,
+          ownerVersionMismatch,
+        ]),
         version: SERVER_VERSION,
         node_version: process.version,
         profile: ctx.profile,
@@ -147,16 +172,15 @@ function registerDiagnosticsCore(
         extension_version: ctx.bridge.extensionVersion,
         extension_version_mismatch: extensionVersionMismatch,
         registry_mismatch: registryMismatch,
+        bridge_role: ctx.bridge.bridgeRole,
+        owner_server_version: ctx.bridge.ownerServerVersion,
+        owner_version_mismatch: ownerVersionMismatch,
         keyless_sourcing_enabled: ctx.config.keylessSourcingEnabled ?? true,
         catalog_device_count: STARTER_DEVICE_CATALOG.length,
         blocked_by_other_instance: ownershipConflict?.blockedByOtherInstance,
         owner_pid: ownershipConflict?.ownerPid,
         owner_port: ownershipConflict?.ownerPort,
-        status_error:
-          ownershipConflict?.message ??
-          (config.MCP_BRIDGE_BACKEND === 'remote_relay' && !ctx.bridge.connected
-            ? 'No authorized EasyEDA editor is ready. Pair your extension and, for Hosted Cloud, select the focused project.'
-            : undefined),
+        status_error: healthStatusError(ctx, config, ownerVersionMismatch),
         ups: process.uptime(),
       };
     },

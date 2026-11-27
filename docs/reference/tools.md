@@ -44,7 +44,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_get_feature_flags`                        | `core`         | `low`    | Return current feature flag values.                                                                                                                                                                                                                                                                                           |
 | `easyeda_get_server_config`                        | `core`         | `low`    | Return safe (redacted) server configuration. Secrets are never exposed.                                                                                                                                                                                                                                                       |
 | `easyeda_get_tool_profiles`                        | `core`         | `low`    | List available tool profiles and their descriptions.                                                                                                                                                                                                                                                                          |
-| `easyeda_health_check`                             | `core`         | `low`    | Return server health status in one call: runtime version, active profile, bridge state, EasyEDA version, keyless sourcing state, and starter catalog size. Intended as the single actionable status check after first connecting the bridge extension.                                                                        |
+| `easyeda_health_check`                             | `core`         | `low`    | Return server health status in one call: runtime version, active profile, bridge state and whether another local server owns it, EasyEDA version, keyless sourcing state, and starter catalog size. Intended as the single actionable status check after first connecting the bridge extension.                               |
 | `easyeda_jlcpcb_quote_workflow`                    | `pro`          | `medium` | Prepare a non-binding JLCPCB quote workflow snapshot with explicit human-review gates and audit evidence. This tool never places orders or performs paid operations.                                                                                                                                                          |
 | `easyeda_library_update_device_metadata`           | `core`         | `medium` | Preview/apply string-valued Personal Device properties with explicit thumbnail reinsertion. Requires preview fingerprint, image hash and confirmWrite. Verifies saved metadata, identical image bytes and preserved fields. Limited to EasyEDA 3.2.206; never infers engineering approval.                                    |
 | `easyeda_live_smoke_report`                        | `dev`          | `low`    | Run a read-only live smoke report against the connected EasyEDA bridge and return status, API inventory, components, wires, and schematic nets in one response.                                                                                                                                                               |
@@ -906,6 +906,7 @@ Returns a JSON object matching the schema:
 {
   success: boolean;
   status: string;
+  errorCode: string(optional);
   projectId: string(optional);
   documentId: string(optional);
   type: 'pcb' | 'schematic'(optional);
@@ -1379,7 +1380,7 @@ Returns a JSON object matching the schema:
 
 **Profile:** `core` | **Risk Level:** `low`
 
-> Return server health status in one call: runtime version, active profile, bridge state, EasyEDA version, keyless sourcing state, and starter catalog size. Intended as the single actionable status check after first connecting the bridge extension.
+> Return server health status in one call: runtime version, active profile, bridge state and whether another local server owns it, EasyEDA version, keyless sourcing state, and starter catalog size. Intended as the single actionable status check after first connecting the bridge extension.
 
 ### Input Parameters
 
@@ -1401,6 +1402,9 @@ Returns a JSON object matching the schema:
   extension_version: string(optional);
   extension_version_mismatch: boolean;
   registry_mismatch: boolean;
+  bridge_role: 'owner' | 'follower'(optional);
+  owner_server_version: string(optional);
+  owner_version_mismatch: boolean;
   keyless_sourcing_enabled: boolean;
   catalog_device_count: number;
   blocked_by_other_instance: boolean(optional);
@@ -2182,6 +2186,7 @@ Returns a JSON object matching the schema:
 {
   success: boolean;
   status: string;
+  errorCode: string(optional);
   projectId: string(optional);
   pcbId: string(optional);
   schematicId: string(optional);
@@ -2880,6 +2885,7 @@ Returns a JSON object matching the schema:
 {
   success: boolean;
   status: string;
+  errorCode: string (optional);
   projectId: string (optional);
   openTabIds: string[] (optional);
   closedTabs: string[] (optional);
@@ -2943,6 +2949,7 @@ Returns a JSON object matching the schema:
 {
   success: boolean;
   status: string;
+  errorCode: string (optional);
   projectId: string (optional);
   documents: object[] (optional);
 }
@@ -2997,6 +3004,7 @@ Returns a JSON object matching the schema:
 ```ts
 {
   status: string;
+  errorCode: string (optional);
   complete: boolean;
   projects: object[];
   activeProjectId: string | null (optional);
@@ -3026,6 +3034,7 @@ Returns a JSON object matching the schema:
 {
   success: boolean;
   status: string;
+  errorCode: string (optional);
   projectId: string (optional);
   documents: object[] (optional);
 }

@@ -18,6 +18,8 @@ export interface SharedBridgeSnapshot {
   extensionVersion?: string;
   extensionMethodListHash?: string;
   loaderVersion?: string;
+  /** Server version of the process that owns the bridge listener (absent from older owners). */
+  ownerServerVersion?: string;
 }
 
 export interface LocalBridgeRelayEndpoint {
