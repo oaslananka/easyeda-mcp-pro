@@ -4,6 +4,112 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-a6f17ab-v1220-crystal-network",
+      "status": "live-validated",
+      "validatedAt": "2026-11-27T04:28:17Z",
+      "reviewBy": "2027-02-25",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-43-generic",
+        "nodeVersion": "24.22.3"
+      },
+      "easyedaPro": {
+        "version": "4.1.105.0339a6cd",
+        "electronVersion": "not independently recorded",
+        "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+        "chromiumVersion": "not independently recorded",
+        "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+      },
+      "server": {
+        "validationPackageVersion": "1.22.0",
+        "releaseContainingFixes": "1.22.0",
+        "commit": "a6f17ab19755052a2b887ce54592675bf0bc8e6b",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "43ef5005ea2e108a290192b8412ce0bdfbf24db0",
+            "src/bridge": "404ec8961d98af12aca7df838b0f9d8953b2a2f3",
+            "src/remote": "7fcd33c262536ec1cba79c49e4ad24615663633a",
+            "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+            "src/tools": "22ceee0728a630c4ad1b212a74c765538008d558",
+            "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.22.0",
+        "loaderReportedVersion": "1.22.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "25cb47ba3bf5ed23",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "d460cxee5axa9d5",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "4484b5e7b130316e134a5045ebb1ea2df6e3850b4e612b590fe19fd51adb0e29",
+        "packageSizeBytes": 249067
+      },
+      "fixture": {
+        "project": "Isolated disposable STM32 F103 imported PCB; no personal design",
+        "schematic": "Focused PCB; no design write",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v1220-native-install",
+          "name": "Exact 1.22.0 installation and Local MCP handshake",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Two byte-identical extension builds, official isolated Extension Manager import and cold start. Healthy Local MCP server/extension 1.22.0, 87 methods, matching registry/version and baked dispatcher.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.22.0-a6f17ab-crystal-network.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1168"
+          ]
+        },
+        {
+          "id": "v1220-native-crystal-group",
+          "name": "Declared crystal signal and load-side line-chain review",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Actual F103: oscillator-in/out and load-in/out observed 6/6/3/1 selected native-associated line segments on layer 1. Shared crystal pad and segment identities preserved. Wrong net on both output roles yielded partial evidence and warning; missing role rejected. Shuffled group, original findings and priorities, native focus/inventory and fixture bytes unchanged. All continuity statuses UNKNOWN.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.22.0-a6f17ab-crystal-network.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1167",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/842"
+          ]
+        },
+        {
+          "id": "v1220-native-durable-write",
+          "name": "Durable native writes and autorouting",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "Not exercised in this read-only pass. Prior native autoroute persistence limitation remains.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.22.0-a6f17ab-crystal-network.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/1126"
+          ]
+        },
+        {
+          "id": "v1220-hosted-acceptance",
+          "name": "Authenticated Hosted and independent-user acceptance",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "Not exercised in this local read-only run.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.22.0-a6f17ab-crystal-network.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/850"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Only isolated Ubuntu x86_64 and EasyEDA Pro 4.1.105 were live-validated. Windows/macOS native acceptance and Electron/Chromium versions were not independently measured. Nonfatal GPU initialization diagnostics occurred; graphics/3D were not validated.",
+        "Caller-declared crystal roles and selected line-chain observations do not prove physical contact, electrical continuity, ground return, actual circuit function, load capacitance, startup, drive level, EMI, placement adequacy or engineering/manufacturing approval. Shared segments are not summed. Native reads are focus-bound and non-atomic; absent evidence is not proof of disconnection.",
+        "The 1.21.0 buck return contour and earlier export/via evidence remain historical exact-source observations; those scenarios were not rerun for this candidate.",
+        "No design mutation, save/reopen, native autorouting, authenticated Hosted/OAuth, remembered trust or independent-user acceptance was exercised."
+      ]
+    },
+    {
       "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-7ec0281-v1210-return-contour",
       "status": "live-validated",
       "validatedAt": "2026-11-27T02:36:51Z",
