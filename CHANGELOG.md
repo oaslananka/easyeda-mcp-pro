@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.21.0...easyeda-mcp-pro-v1.22.0) (2026-11-27)
+
+
+### Features
+
+* **pcb:** review declared crystal support network ([#1167](https://github.com/oaslananka/easyeda-mcp-pro/issues/1167)) ([f8ad19d](https://github.com/oaslananka/easyeda-mcp-pro/commit/f8ad19df4af99fe39ca7a30e35e507d531aee313)), closes [#842](https://github.com/oaslananka/easyeda-mcp-pro/issues/842)
+
 ## [1.21.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.20.0...easyeda-mcp-pro-v1.21.0) (2026-11-27)
 
 
