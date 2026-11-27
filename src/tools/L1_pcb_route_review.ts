@@ -1,4 +1,9 @@
 import {
+  crystalNetworkRoles,
+  selectCrystalNetworkLegs,
+  reviewCrystalNetworkTopology,
+} from '../pcb-layout/placement-crystal-topology.js';
+import {
   nativeViaPourAnnulusSchema,
   viaPourAnnulusResultSchema,
   optionalViaPourAnnulusReview,
@@ -154,6 +159,12 @@ const placementRelationSchema = z
     first: exactNetSchema.describe('Exact native PCB component designator, e.g. U1.'),
     second: exactNetSchema.describe('Exact second PCB component designator, e.g. C1.'),
     padPairs: z.array(nativePadPairSchema).min(1).max(2).optional(),
+    crystalNetworkLeg: z
+      .enum(crystalNetworkRoles)
+      .optional()
+      .describe(
+        'Explicit oscillator-in, oscillator-out, load-in or load-out role; one exact pad pair and source per leg.',
+      ),
     switchingLoopLeg: z
       .enum(switchingLoopRoles)
       .optional()
@@ -358,6 +369,30 @@ function validateSwitchingLoopRequest(
   }
 }
 
+function validateCrystalNetworkRequest(
+  value: {
+    placementRelations?: z.infer<typeof placementRelationSchema>[];
+    includeNativePadContacts?: boolean;
+    nativePadContactMode?: 'centre-only';
+  },
+  ctx: z.RefinementCtx,
+) {
+  const crystalRelations = value.placementRelations;
+  if (
+    crystalRelations?.some((r) => r.crystalNetworkLeg !== undefined) &&
+    (!selectCrystalNetworkLegs(crystalRelations) ||
+      (!value.includeNativePadContacts && value.nativePadContactMode === undefined) ||
+      crystalRelations.reduce((total, r) => total + (r.padPairs?.length ?? 0), 0) > 4)
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['placementRelations'],
+      message:
+        'Declare four directed crystal network roles with matching shared crystal pins/nets, distinct components, explicit sources and native contact opt-in within the four-pair budget.',
+    });
+  }
+}
+
 const inputSchema = z
   .object({
     projectId: projectIdSchema,
@@ -436,6 +471,7 @@ const inputSchema = z
       });
     }
     validateSwitchingLoopRequest(value, ctx);
+    validateCrystalNetworkRequest(value, ctx);
     const priority = value.placementPriorityContext;
     if (priority !== undefined && !value.placementRelations?.length) {
       ctx.addIssue({
@@ -599,6 +635,28 @@ const switchingLoopTopologySchema = z.object({
   limitations: z.array(z.string()),
 });
 
+const crystalNetworkTopologySchema = z.object({
+  evidence: z.enum(['all_line_chains_observed', 'partial_line_chains_observed', 'unavailable']),
+  legs: z
+    .array(
+      linePathEvidenceSchema.extend({
+        role: z.enum(crystalNetworkRoles),
+        components: z.array(z.string()).length(2),
+        constraint_source: z.string(),
+        next_action: z.enum([
+          'verify-declared-net',
+          'collect-line-path-evidence',
+          'review-observed-line-chain',
+        ]),
+      }),
+    )
+    .length(4),
+  missing_roles: z.array(z.enum(crystalNetworkRoles)).max(4),
+  electrical_continuity_status: z.literal('UNKNOWN'),
+  engineering_sign_off: z.literal(false),
+  limitations: z.array(z.string()),
+});
+
 const placementReviewSchema = z.object({
   status: z.enum(['WARNING', 'UNKNOWN']),
   method: z.literal('NATIVE_COMPONENT_ORIGIN_RELATIONSHIPS'),
@@ -708,6 +766,7 @@ const placementReviewSchema = z.object({
     .max(8),
   review_priorities: z.array(placementPrioritySchema).max(8).optional(),
   switching_loop_topology: switchingLoopTopologySchema.optional(),
+  crystal_network_topology: crystalNetworkTopologySchema.optional(),
   limitations: z.array(z.string()),
   engineering_sign_off: z.literal(false),
 });
@@ -1249,6 +1308,23 @@ function withPlacementPriorities(
   };
 }
 
+async function optionalCrystalTopology(
+  placement: ReturnType<typeof reviewPlacementRelations>,
+  relations: z.infer<typeof placementRelationSchema>[] | undefined,
+  source: { complete: boolean; focusedPcbId?: string; pads?: Map<string, unknown> },
+  readFocus: () => Promise<string | undefined>,
+) {
+  const legs = selectCrystalNetworkLegs(relations ?? []);
+  if (!legs) return undefined;
+  const usable =
+    source.complete &&
+    placement.input_evidence.collection_complete &&
+    source.pads !== undefined &&
+    source.focusedPcbId !== undefined &&
+    (await readFocus()) === source.focusedPcbId;
+  return reviewCrystalNetworkTopology(legs, placement.findings, source.pads ?? new Map(), usable);
+}
+
 async function optionalPlacementReview(
   placement: ReturnType<typeof reviewPlacementRelations> | undefined,
   relations: z.infer<typeof placementRelationSchema>[] | undefined,
@@ -1264,6 +1340,8 @@ async function optionalPlacementReview(
   if (!placement) return {};
   const prioritized = withPlacementPriorities(placement, relations, context);
   const legs = selectSwitchingLoopLegs(relations ?? []);
+  const crystal = await optionalCrystalTopology(placement, relations, source, readFocus);
+  if (crystal) return { placement_review: { ...prioritized, crystal_network_topology: crystal } };
   if (!legs) return { placement_review: prioritized };
   const usable =
     source.complete &&

@@ -65,7 +65,7 @@ export function selectSwitchingLoopLegs(
 
 /** Check shared raw pad identities before per-pair validation discards an aliased collection. */
 export function switchingPadIdentitiesConsistent(
-  legs: readonly DeclaredLeg[],
+  legs: readonly { first: string; second: string }[],
   observations: ReadonlyMap<string, unknown>,
 ): boolean {
   const components = new Set(legs.flatMap((leg) => [leg.first, leg.second]));
