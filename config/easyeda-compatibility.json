@@ -4,6 +4,133 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-04b52b2-v1240-rpc-outline",
+      "status": "live-validated",
+      "validatedAt": "2026-11-27T18:43:32Z",
+      "reviewBy": "2027-02-25",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-44-generic",
+        "nodeVersion": "24.22.3"
+      },
+      "easyedaPro": {
+        "version": "4.1.105.0339a6cd",
+        "electronVersion": "not independently recorded",
+        "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+        "chromiumVersion": "not independently recorded",
+        "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+      },
+      "server": {
+        "validationPackageVersion": "1.24.0",
+        "releaseContainingFixes": "1.24.0",
+        "commit": "04b52b2e4a3e6afc00634ab35f8ea62b1c8f1956",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "1f3ac51fa11b99c67b4995ca4fd8a34283fa0152",
+            "src/bridge": "f43cbbe82d20135c085bea6c1f748285e46dce1f",
+            "src/remote": "3ceb468cc6736b7716edc76cac275f74448458ea",
+            "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+            "src/tools": "0aa5eaaf86eac3e8956049bc293d87770126b1f6",
+            "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.24.0",
+        "loaderReportedVersion": "1.24.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "2a1dbe73076c707d",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "d2b40x588exdfcd",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "1efbbeb59d066c4e97b6d5fb6ac75429ad2c025fd9dd29baf0a632543bdfbc3e",
+        "packageSizeBytes": 253594
+      },
+      "fixture": {
+        "project": "Two isolated disposable copies of the STM32 F103 imported PCB; no personal designs",
+        "schematic": "Focused PCB; guarded outline creation in the second copy only",
+        "disposable": true,
+        "readOnly": false
+      },
+      "capabilities": [
+        {
+          "id": "v1240-native-install",
+          "name": "Exact 1.24.0 installation and Local MCP handshake",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Two byte-identical extension builds; official Extension Manager import and cold startup. Matching server and extension 1.24.0, 88 methods, baked dispatcher, no registry or version mismatch.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.24.0-04b52b2-rpc-outline.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1180"
+          ]
+        },
+        {
+          "id": "v1240-native-rpc",
+          "name": "Opt-in public message-bus RPC and refusal handling",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Real synthetic extension echo; missing confirmation and disallowed topic refused; service timeout and oversized reply remain unknown; following echo succeeds; PCB inventory unchanged. Offline default 30 s refusal reports known non-dispatch.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.24.0-04b52b2-rpc-outline.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1177"
+          ]
+        },
+        {
+          "id": "v1240-native-follower",
+          "name": "Owner and follower runtime version and RPC forwarding",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Two real MCP stdio processes; follower health reports owner 1.24.0, follower echo and owner echo after follower close succeed.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.24.0-04b52b2-rpc-outline.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1179"
+          ]
+        },
+        {
+          "id": "v1240-native-outline",
+          "name": "Guarded native rectangular outline creation",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Pro profile requires target; wrong/missing target and existing outline refused. After isolated fixture preparation, created 50 × 30 mm outline and measured it back; duplicate refused, other primitives unchanged, original and both fixture files unchanged.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.24.0-04b52b2-rpc-outline.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1178"
+          ]
+        },
+        {
+          "id": "v1240-durable-write",
+          "name": "Durable save/reopen and autorouting",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "Not exercised; prior native persistence limitation remains.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.24.0-04b52b2-rpc-outline.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/1126"
+          ]
+        },
+        {
+          "id": "v1240-hosted",
+          "name": "Authenticated Hosted and independent-user acceptance",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "Not exercised in these isolated local runs.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.24.0-04b52b2-rpc-outline.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/850"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Only isolated Ubuntu x86_64 EasyEDA Pro 4.1.105 was live-validated. Native Windows/macOS, Electron/Chromium and graphics/3D were not independently measured; nonfatal GPU initialization diagnostics occurred.",
+        "RPC acceptance uses an isolated synthetic extension with public message-bus services; no arbitrary third-party service, authenticated Hosted runtime, OAuth, remembered trust or independent-user acceptance is claimed.",
+        "Outline creation was performed only after a deliberate guarded fixture preparation in a separate disposable project copy; existing-outline refusal and read-back dimensions do not establish durable save/reopen, autorouting, fabrication or engineering sign-off.",
+        "Earlier engineering review, export and via scenarios remain historical evidence, not rerun claims."
+      ]
+    },
+    {
       "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-44b1fc4-v1231-outline-usb",
       "status": "live-validated",
       "validatedAt": "2026-11-27T12:28:13Z",
