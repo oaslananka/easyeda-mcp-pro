@@ -283,6 +283,47 @@ describe('target document guard #946', () => {
     });
   });
 
+  it('returns board dimension evidence only for the expected PCB and project', async () => {
+    const { dispatcher } = makeDispatcher('board-copy');
+    await expect(
+      dispatcher.dispatch('board.getDimensions', {
+        expectedPcbUuid: 'board-copy',
+        expectedProjectUuid: 'project-1',
+      }),
+    ).resolves.toMatchObject({
+      targetDocument: { uuid: 'board-copy', projectUuid: 'project-1', documentType: 'pcb' },
+    });
+    await expect(
+      dispatcher.dispatch('board.getDimensions', {
+        expectedPcbUuid: 'other-board',
+        expectedProjectUuid: 'project-1',
+      }),
+    ).rejects.toMatchObject({ code: 'TARGET_DOCUMENT_MISMATCH' });
+  });
+
+  it('rejects dimension evidence when focus changes during the native read', async () => {
+    const { dispatcher, getCurrentDocumentInfo, getCurrentPcbInfo } = makeDispatcher('board-copy');
+    getCurrentPcbInfo.mockImplementationOnce(async () => ({
+      uuid: 'board-copy',
+      name: 'Production PCB',
+      parentProjectUuid: 'project-1',
+    }));
+    getCurrentPcbInfo.mockImplementationOnce(async () => {
+      getCurrentDocumentInfo.mockResolvedValue({
+        uuid: 'other-pcb',
+        documentType: 3,
+        parentProjectUuid: 'project-1',
+      });
+      return { uuid: 'other-pcb', name: 'Other PCB', parentProjectUuid: 'project-1' };
+    });
+    await expect(
+      dispatcher.dispatch('board.getDimensions', {
+        expectedPcbUuid: 'board-copy',
+        expectedProjectUuid: 'project-1',
+      }),
+    ).rejects.toMatchObject({ code: 'TARGET_CONTEXT_CHANGED' });
+  });
+
   it('rechecks focus after an async project-bound native zone preview', async () => {
     const { dispatcher, getCurrentDocumentInfo, mutateTrack } = makeDispatcher('board-copy');
     const result = await dispatcher.dispatch('pcb.zonePreflight', {

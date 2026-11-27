@@ -894,7 +894,13 @@ export class ToolRegistry {
       guarded && inputSchema instanceof z.ZodObject
         ? {
             ...normalized,
-            inputSchema: inputSchema.safeExtend(DOCUMENT_TARGET_CONTROLS),
+            inputSchema: inputSchema.safeExtend({
+              expectedPcbUuid:
+                inputSchema.shape.expectedPcbUuid ?? DOCUMENT_TARGET_CONTROLS.expectedPcbUuid,
+              expectedSchematicPageUuid:
+                inputSchema.shape.expectedSchematicPageUuid ??
+                DOCUMENT_TARGET_CONTROLS.expectedSchematicPageUuid,
+            }),
             outputSchema:
               outputSchema instanceof z.ZodObject
                 ? outputSchema.safeExtend({ targetDocument: DOCUMENT_TARGET_RESULT.optional() })
