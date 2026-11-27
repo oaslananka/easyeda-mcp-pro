@@ -58,6 +58,49 @@ describe('extension RPC operations', () => {
     },
   );
 
+  it('does not traverse an oversized array or execute its getters', async () => {
+    const reply = new Array(100_000);
+    const read = vi.fn(() => 'untrusted');
+    Object.defineProperty(reply, '0', { get: read, enumerable: true });
+    const { operations } = makeOperations({ rpcCallPublic: async () => reply }, 1024);
+    await expect(operations.call({ confirmWrite: true, topic: 'mcp.ping' })).rejects.toMatchObject({
+      code: 'PAYLOAD_TOO_LARGE',
+    });
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('stops traversing as soon as the reply budget is exhausted', async () => {
+    const read = vi.fn(() => 'should not be evaluated');
+    const reply = {
+      first: 'é'.repeat(500),
+      get second() {
+        return read();
+      },
+    };
+    const { operations } = makeOperations({ rpcCallPublic: async () => reply }, 1024);
+    await expect(operations.call({ confirmWrite: true, topic: 'mcp.ping' })).rejects.toMatchObject({
+      code: 'PAYLOAD_TOO_LARGE',
+    });
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('does not invoke accessors or toJSON on service results', async () => {
+    const read = vi.fn(() => 'private');
+    const reply = {
+      ok: true,
+      get unsafe() {
+        return read();
+      },
+      toJSON: read,
+      getState_Secret: read,
+    };
+    const { operations } = makeOperations({ rpcCallPublic: async () => reply });
+    await expect(operations.call({ confirmWrite: true, topic: 'mcp.ping' })).resolves.toMatchObject(
+      { result: { ok: true } },
+    );
+    expect(read).not.toHaveBeenCalled();
+  });
+
   it('calls an opted-in public service and returns its JSON reply', async () => {
     const rpcCallPublic = vi.fn(async () => ({ violations: [{ net: 'USB_DP', gapMm: 0.4 }] }));
     const { readFirstPath, operations } = makeOperations({ rpcCallPublic });

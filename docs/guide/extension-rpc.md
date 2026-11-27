@@ -68,4 +68,4 @@ The result is `{ "topic", "ok": true, "result": <service reply> }`. When somethi
 Remote Relay treats every call as `destructive` (high-risk `external-action`), requires the `easyeda.project_admin` scope, and asks for approval on every call. See
 [Safety Model §1.5](../SAFETY_MODEL.md#_1-5-extension-rpc-easyeda-extension-call).
 
-Direct raw relay dispatch is disabled. Remote calls must use the allowlisted MCP tool and its matching, single-use invocation approval. Oversized replies are rejected without sending their contents; the service may already have acted.
+Direct raw relay dispatch is disabled. Remote calls must use the allowlisted MCP tool and its matching, single-use invocation approval. Reply data is copied within the byte budget (depth 10); methods, accessors and non-JSON values are not executed. Oversized replies are rejected without sending their contents; the service may already have acted.

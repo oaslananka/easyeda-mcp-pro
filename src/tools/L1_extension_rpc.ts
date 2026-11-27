@@ -5,7 +5,7 @@ import { type ToolRegistry } from './registry.js';
 
 /** Same namespace the extension enforces: only services registered as `mcp.<name>`. */
 const TOPIC_PATTERN = /^mcp\.[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$/;
-/** Request payloads stay small; the reply is bounded by BRIDGE_MAX_PAYLOAD_SIZE. */
+/** Request and reply data are bounded; the extension also honors the negotiated transport cap. */
 const MAX_MESSAGE_BYTES = 256 * 1024;
 /** Margin for the bridge round trip on top of the service's own timeout. */
 const BRIDGE_TIMEOUT_MARGIN_MS = 5_000;

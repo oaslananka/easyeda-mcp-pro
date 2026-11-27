@@ -1,4 +1,4 @@
-import { normalizeValue } from './api-introspection.js';
+import { normalizeExtensionRpcReply, RpcReplyBudgetError } from './extension-rpc-reply.js';
 import type { ApiRuntime, BridgeErrorFactory } from './api-runtime.js';
 
 /**
@@ -11,8 +11,6 @@ export const EXTENSION_RPC_TOPIC_PATTERN = /^mcp\.[A-Za-z0-9][A-Za-z0-9_.-]{0,11
 export const EXTENSION_RPC_DEFAULT_TIMEOUT_MS = 10_000;
 export const EXTENSION_RPC_MAX_TIMEOUT_MS = 60_000;
 const EXTENSION_RPC_MIN_TIMEOUT_MS = 100;
-/** Depth for serializing the service reply; deeper levels come back as "[MaxDepth]". */
-const EXTENSION_RPC_RESULT_DEPTH = 10;
 const MAX_MESSAGE_BYTES = 256 * 1024;
 
 export interface ExtensionRpcDependencies {
@@ -108,31 +106,25 @@ export function createExtensionRpcOperations({
         'Inspect service state before retrying; check that the extension is installed, enabled and registered.',
       );
     }
-    let result: unknown;
-    let replyBytes: number;
+    // Reserve space for the surrounding transport envelope. Copy only within
+    // the smaller negotiated budget; never materialize an oversized reply.
+    const budget = Math.min(MAX_MESSAGE_BYTES, Math.floor(getBridgeMaxPayloadSize() / 2));
     try {
-      result = normalizeValue(reply, EXTENSION_RPC_RESULT_DEPTH, new WeakSet<object>(), false);
-      replyBytes = new TextEncoder().encode(
-        JSON.stringify({ topic, timeoutMs, result }),
-      ).byteLength;
-    } catch {
+      return normalizeExtensionRpcReply(reply, topic, timeoutMs, budget);
+    } catch (error) {
+      if (error instanceof RpcReplyBudgetError) {
+        throw createBridgeError(
+          'PAYLOAD_TOO_LARGE',
+          'Extension RPC reply exceeded the safe transport budget; the outcome is unknown.',
+          'Inspect service state and request a smaller reply before retrying.',
+        );
+      }
       throw createBridgeError(
         'EXTENSION_RPC_FAILED',
         'Service reply could not be serialized; the outcome is unknown.',
         'Inspect service state before retrying.',
       );
     }
-    // Reserve space for the surrounding transport envelope; also cap RPC
-    // responses independently of larger negotiated binary/chunk budgets.
-    const budget = Math.min(MAX_MESSAGE_BYTES, Math.floor(getBridgeMaxPayloadSize() / 2));
-    if (replyBytes > budget) {
-      throw createBridgeError(
-        'PAYLOAD_TOO_LARGE',
-        'Extension RPC reply exceeded the safe transport budget; the outcome is unknown.',
-        'Inspect service state and request a smaller reply before retrying.',
-      );
-    }
-    return { topic, timeoutMs, result };
   }
 
   return { call };
