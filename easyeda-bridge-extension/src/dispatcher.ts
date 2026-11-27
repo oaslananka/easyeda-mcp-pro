@@ -10,7 +10,7 @@ import { nativeScalarString } from './utils.js';
 import { createApiRuntime, type ApiRuntime } from './api-runtime.js';
 import {
   assertExpectedDocument,
-  withGuardedZonePreflight,
+  withGuardedPcbInspection,
   withTargetDocumentEvidence,
 } from './document-target-guard.js';
 import {
@@ -1773,7 +1773,7 @@ async function dispatch(method: string, params: Record<string, unknown> = {}): P
     readFirstPath,
     newBridgeError,
   );
-  const domainResult = await withGuardedZonePreflight(
+  const domainResult = await withGuardedPcbInspection(
     method,
     params,
     targetDocument,

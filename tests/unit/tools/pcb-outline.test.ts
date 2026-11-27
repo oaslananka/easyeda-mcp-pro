@@ -35,6 +35,12 @@ describe('easyeda_pcb_set_board_outline', () => {
       if (!queue || queue.length === 0) throw new Error(`unexpected ${method}`);
       const next = queue.shift();
       if (next instanceof Error) throw next;
+      if (method === 'board.getDimensions' && next && typeof next === 'object') {
+        return {
+          targetDocument: { uuid: 'pcb1', name: 'PCB', projectUuid: 'proj1', documentType: 'pcb' },
+          ...next,
+        };
+      }
       return next;
     });
   }
@@ -46,7 +52,10 @@ describe('easyeda_pcb_set_board_outline', () => {
     expect(() => tool.inputSchema.parse({ ...input, confirmWrite: false })).toThrow();
   });
 
-  it('requires the expected PCB UUID even though the registry marks it optional', async () => {
+  it('requires the expected PCB UUID in both the registered schema and handler', async () => {
+    expect(tool.inputSchema.safeParse({ ...input, expectedPcbUuid: undefined }).success).toBe(
+      false,
+    );
     await expect(tool.handler(context, { ...input, expectedPcbUuid: undefined })).rejects.toThrow();
     expect(call).not.toHaveBeenCalled();
   });
@@ -76,6 +85,11 @@ describe('easyeda_pcb_set_board_outline', () => {
       args: ['', 11, { $polygon: ['R', 0, 0, 1968.504, 1181.102, 0, 0] }, 10, false],
     });
     expect(call).not.toHaveBeenCalledWith('pcb.deleteComponent', expect.anything());
+    expect(call).toHaveBeenCalledWith('board.getDimensions', {
+      projectId: 'proj1',
+      expectedPcbUuid: 'pcb1',
+      expectedProjectUuid: 'proj1',
+    });
   });
 
   it('refuses before reading when another PCB is focused', async () => {
@@ -103,6 +117,65 @@ describe('easyeda_pcb_set_board_outline', () => {
     const result = await tool.handler(context, input);
     expect(result).toMatchObject({ success: false, status: 'outline_exists', measuredWidthMm: 80 });
     expect(call).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([
+    { outlineGeometryAvailable: false },
+    {},
+    { hasOutline: false, widthMm: 50, heightMm: 30 },
+  ])('fails closed when outline absence is not proven (%j)', async (before) => {
+    scripted({ 'board.getDimensions': [before] });
+    expect(await tool.handler(context, input)).toMatchObject({
+      success: false,
+      status: 'outline_geometry_unknown',
+    });
+    expect(call).not.toHaveBeenCalledWith('api.call', expect.anything());
+  });
+
+  it.each([
+    undefined,
+    { uuid: 'other-pcb', name: 'PCB', projectUuid: 'proj1', documentType: 'pcb' },
+    { uuid: 'pcb1', name: 'PCB', projectUuid: 'other-project', documentType: 'pcb' },
+  ])('refuses an unbound dimensions response (%j)', async (targetDocument) => {
+    scripted({ 'board.getDimensions': [{ hasOutline: false, targetDocument }] });
+    expect(await tool.handler(context, input)).toMatchObject({
+      success: false,
+      status: 'precheck_unavailable',
+    });
+    expect(call).not.toHaveBeenCalledWith('api.call', expect.anything());
+  });
+
+  it('does not claim rollback when geometry after delete is unknown', async () => {
+    scripted({
+      'board.getDimensions': [
+        { hasOutline: false },
+        { hasOutline: true, widthMm: 80, heightMm: 60 },
+        { outlineGeometryAvailable: false },
+      ],
+      'api.call': [created('o1')],
+      'pcb.deleteComponent': [{ deleted: ['o1'] }],
+    });
+    expect(await tool.handler(context, input)).toMatchObject({
+      success: false,
+      rolledBack: false,
+      leftoverPrimitiveIds: ['o1'],
+    });
+  });
+
+  it('does not claim success or delete on unverified post-create focus', async () => {
+    scripted({
+      'board.getDimensions': [
+        { hasOutline: false },
+        { hasOutline: true, widthMm: 50, heightMm: 30, targetDocument: undefined },
+      ],
+      'api.call': [created('o1')],
+    });
+    expect(await tool.handler(context, input)).toMatchObject({
+      success: false,
+      status: 'readback_unavailable',
+      primitiveIds: ['o1'],
+    });
+    expect(call).not.toHaveBeenCalledWith('pcb.deleteComponent', expect.anything());
   });
 
   it('refuses when the extension cannot guard the project', async () => {
@@ -180,7 +253,11 @@ describe('easyeda_pcb_set_board_outline', () => {
       rolledBack: false,
       leftoverPrimitiveIds: ['o1'],
     });
-    expect(call).toHaveBeenCalledWith('pcb.deleteComponent', { primitiveIds: ['o1'] });
+    expect(call).toHaveBeenCalledWith('pcb.deleteComponent', {
+      primitiveIds: ['o1'],
+      expectedPcbUuid: 'pcb1',
+      expectedProjectUuid: 'proj1',
+    });
   });
 
   it('keeps an unverified outline and says so when read-back is unavailable', async () => {

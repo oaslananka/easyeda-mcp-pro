@@ -46,20 +46,31 @@ const outlineOutput = z.object({
 
 type OutlineOutput = z.infer<typeof outlineOutput>;
 
-interface DimensionsReadback {
-  widthMm?: number;
-  heightMm?: number;
-  hasOutline?: boolean;
-}
+const dimensionsReadbackSchema = z.object({
+  widthMm: z.number().nonnegative().optional(),
+  heightMm: z.number().nonnegative().optional(),
+  hasOutline: z.boolean().optional(),
+  outlineGeometryAvailable: z.boolean().optional(),
+  targetDocument: z.object({
+    uuid: z.string(),
+    name: z.string().trim().min(1),
+    documentType: z.literal('pcb'),
+    projectUuid: z.string(),
+  }),
+});
+type DimensionsReadback = z.infer<typeof dimensionsReadbackSchema>;
 
 function toMil(mm: number): number {
   return Math.round((mm / MM_PER_MIL) * 1000) / 1000;
 }
 
-function hasOutline(data: DimensionsReadback | null | undefined): boolean {
-  if (!data) return false;
-  if (data.hasOutline !== undefined) return data.hasOutline;
-  return (data.widthMm ?? 0) > 0 && (data.heightMm ?? 0) > 0;
+function outlinePresence(data: DimensionsReadback): 'present' | 'absent' | 'unknown' {
+  if (data.outlineGeometryAvailable === false) return 'unknown';
+  const width = data.widthMm ?? 0;
+  const height = data.heightMm ?? 0;
+  if (data.hasOutline === false) return width === 0 && height === 0 ? 'absent' : 'unknown';
+  if (data.hasOutline === true || (width > 0 && height > 0)) return 'present';
+  return 'unknown';
 }
 
 /** api.call returns the created primitive as { result: { state: { PrimitiveId } } }. */
@@ -98,14 +109,16 @@ function rectangleSource(
  * Delete what this call created, then confirm by re-reading the board: a native delete that does
  * not throw is not evidence that the outline is gone. Returns the ids that may remain.
  */
-async function rollback(ctx: ToolContext, ids: string[], projectId: string): Promise<string[]> {
+async function rollback(ctx: ToolContext, ids: string[], input: OutlineInput): Promise<string[]> {
   if (ids.length === 0) return [];
   try {
-    await ctx.bridge.call('pcb.deleteComponent', { primitiveIds: ids });
-    const after = (await ctx.bridge.call('board.getDimensions', {
-      projectId,
-    })) as DimensionsReadback | null;
-    return hasOutline(after ?? {}) ? ids : [];
+    await ctx.bridge.call('pcb.deleteComponent', {
+      primitiveIds: ids,
+      expectedPcbUuid: input.expectedPcbUuid,
+      expectedProjectUuid: input.projectId,
+    });
+    const after = await readDimensions(ctx, input);
+    return outlinePresence(after) === 'absent' ? [] : ids;
   } catch {
     return ids;
   }
@@ -113,11 +126,21 @@ async function rollback(ctx: ToolContext, ids: string[], projectId: string): Pro
 
 type OutlineBase = Pick<OutlineOutput, 'projectId' | 'pcbId'>;
 
-async function readDimensions(ctx: ToolContext, projectId: string): Promise<DimensionsReadback> {
-  const result = (await ctx.bridge.call('board.getDimensions', {
-    projectId,
-  })) as DimensionsReadback | null;
-  return result ?? {};
+async function readDimensions(ctx: ToolContext, input: OutlineInput): Promise<DimensionsReadback> {
+  const result = await ctx.bridge.call('board.getDimensions', {
+    projectId: input.projectId,
+    expectedPcbUuid: input.expectedPcbUuid,
+    expectedProjectUuid: input.projectId,
+  });
+  const parsed = dimensionsReadbackSchema.safeParse(result);
+  if (
+    !parsed.success ||
+    parsed.data.targetDocument.uuid !== input.expectedPcbUuid ||
+    parsed.data.targetDocument.projectUuid !== input.projectId
+  ) {
+    throw new Error('Board dimensions are not verified for the requested PCB and project.');
+  }
+  return parsed.data;
 }
 
 function rollbackFailure(
@@ -189,7 +212,9 @@ async function drawOutline(
 function matchesRequest(after: DimensionsReadback, input: OutlineInput): boolean {
   const tolerance = input.lineWidthMm + READBACK_TOLERANCE_MM;
   return (
-    hasOutline(after) &&
+    outlinePresence(after) === 'present' &&
+    after.widthMm !== undefined &&
+    after.heightMm !== undefined &&
     Math.abs((after.widthMm ?? 0) - input.widthMm) <= tolerance &&
     Math.abs((after.heightMm ?? 0) - input.heightMm) <= tolerance
   );
@@ -204,8 +229,9 @@ async function confirmTarget(
     // The tool sends expectedProjectUuid itself, so the registry does not check this capability.
     const status = (await ctx.bridge.call('system.getStatus', {})) as {
       documentProjectGuard?: unknown;
+      documentTargetGuard?: unknown;
     } | null;
-    if (status?.documentProjectGuard !== true) {
+    if (status?.documentProjectGuard !== true || status.documentTargetGuard !== true) {
       return {
         status: 'guard_unavailable',
         error: 'The active extension does not support focused-project guards; no write attempted.',
@@ -230,17 +256,26 @@ async function confirmTarget(
 async function setBoardOutline(ctx: ToolContext, input: OutlineInput): Promise<OutlineOutput> {
   const base: OutlineBase = { projectId: input.projectId, pcbId: input.expectedPcbUuid };
 
-  // board.getDimensions reads whatever PCB is focused; confirm it is the expected one first.
+  // Require the focus guard capability; each dimension read also verifies the same target.
   const target = await confirmTarget(ctx, input);
   if (target) return { ...base, success: false, ...target };
 
   let before: DimensionsReadback;
   try {
-    before = await readDimensions(ctx, input.projectId);
+    before = await readDimensions(ctx, input);
   } catch (error) {
     return { ...base, success: false, status: 'precheck_unavailable', error: errorText(error) };
   }
-  if (hasOutline(before)) {
+  const presence = outlinePresence(before);
+  if (presence === 'unknown') {
+    return {
+      ...base,
+      success: false,
+      status: 'outline_geometry_unknown',
+      error: 'Cannot verify outline absence; no write attempted.',
+    };
+  }
+  if (presence === 'present') {
     // Never stack a second outline on a board that already has one.
     return {
       ...base,
@@ -256,7 +291,7 @@ async function setBoardOutline(ctx: ToolContext, input: OutlineInput): Promise<O
 
   let after: DimensionsReadback;
   try {
-    after = await readDimensions(ctx, input.projectId);
+    after = await readDimensions(ctx, input);
   } catch (error) {
     // The lines exist but cannot be verified; leave them and say so.
     return {
@@ -268,9 +303,22 @@ async function setBoardOutline(ctx: ToolContext, input: OutlineInput): Promise<O
     };
   }
 
+  if (
+    outlinePresence(after) === 'unknown' ||
+    (outlinePresence(after) === 'present' &&
+      (after.widthMm === undefined || after.heightMm === undefined))
+  ) {
+    return {
+      ...base,
+      success: false,
+      status: 'readback_unavailable',
+      primitiveIds: drawn.created,
+      error: 'Outline geometry is unverified; inspect the PCB before retrying.',
+    };
+  }
   const measured = { measuredWidthMm: after.widthMm, measuredHeightMm: after.heightMm };
   if (!matchesRequest(after, input)) {
-    const leftover = await rollback(ctx, drawn.created, input.projectId);
+    const leftover = await rollback(ctx, drawn.created, input);
     return { ...rollbackFailure(base, 'readback_mismatch', leftover), ...measured };
   }
   return {
@@ -288,8 +336,8 @@ export function registerPcbOutlineTools(registry: ToolRegistry): void {
     title: 'Create a rectangular board outline with read-back',
     description:
       'Draw a rectangular board outline (one board-outline polyline) on the focused PCB when it has ' +
-      'none, then verify the measured size. Requires confirmWrite and expectedPcbUuid; deletes and ' +
-      're-reads if the size does not match.',
+      'none, then verify the measured size on the same PCB and project. Requires confirmWrite and ' +
+      'expectedPcbUuid; refuses unknown geometry and verifies rollback before claiming removal.',
     profile: 'pro',
     evidence: ['runtime-probe'],
     risk: 'high',

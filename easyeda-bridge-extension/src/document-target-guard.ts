@@ -83,7 +83,10 @@ function assertTargetSupportsMethod(
   expected: ExpectedDocument,
   createBridgeError: BridgeErrorFactory,
 ): void {
-  const accepted = method === 'api.call' || method.startsWith(`${expected.documentType}.`);
+  const accepted =
+    method === 'api.call' ||
+    method.startsWith(`${expected.documentType}.`) ||
+    (method === 'board.getDimensions' && expected.documentType === 'pcb');
   if (!accepted) {
     throw createBridgeError(
       'INVALID_PARAMS',
@@ -261,9 +264,18 @@ export function withTargetDocumentEvidence(
     : value;
 }
 
-/** Recheck the same private project+PCB key after awaiting a native read-only zone
- * preflight. This is focus continuity evidence, never a saved PCB revision. */
-export async function withGuardedZonePreflight<T>(
+const GUARDED_PCB_INSPECTIONS = new Set(['pcb.zonePreflight', 'board.getDimensions']);
+
+function matchesTargetIdentity(identity: string, target: TargetDocumentEvidence): boolean {
+  const [project, pcb] = JSON.parse(identity) as [string, string];
+  return (
+    pcb === target.uuid && (target.projectUuid === undefined || project === target.projectUuid)
+  );
+}
+
+/** Recheck the same private project+PCB key after awaiting a native PCB read-only
+ * inspection. This is focus continuity evidence, never a saved PCB revision. */
+export async function withGuardedPcbInspection<T>(
   method: string,
   params: Record<string, unknown>,
   target: TargetDocumentEvidence | undefined,
@@ -271,15 +283,15 @@ export async function withGuardedZonePreflight<T>(
   createBridgeError: BridgeErrorFactory,
   inspect: () => Promise<T>,
 ): Promise<T> {
-  if (method !== 'pcb.zonePreflight' || !target) return inspect();
+  if (!GUARDED_PCB_INSPECTIONS.has(method) || !target) return inspect();
   const failedFocus = () =>
     createBridgeError(
       'TARGET_CONTEXT_CHANGED',
-      'The focused PCB/project changed or could not be verified during zone inspection.',
+      'The focused PCB/project changed or could not be verified during inspection.',
       'Focus the intended PCB and repeat the read-only preview. No write attempted.',
     );
   const before = await documentIdentity(readFirstPath).catch(() => undefined);
-  if (!before) throw failedFocus();
+  if (!before || !matchesTargetIdentity(before, target)) throw failedFocus();
   const response = await inspect();
   const after = await documentIdentity(readFirstPath).catch(() => undefined);
   if (!after || before !== after) throw failedFocus();
