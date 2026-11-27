@@ -125,16 +125,20 @@ describe('easyeda_extension_call', () => {
     expect(bridgeCall).not.toHaveBeenCalled();
   });
 
-  it.each(['UNSUPPORTED_RUNTIME', 'INVALID_PARAMS', 'CONFIRM_WRITE_REQUIRED'])(
-    'reports verified pre-dispatch refusal %s as a known failure',
-    async (code) => {
-      bridgeCall.mockRejectedValue(Object.assign(new Error('private details'), { code }));
-      const result = await run({ topic: 'mcp.rcp.checkNet' });
-      expect(result).toMatchObject({ ok: false, outcomeUnknown: false });
-      expect(result.error).toContain('not dispatched');
-      expect(result.error).not.toContain('private details');
-    },
-  );
+  it.each([
+    'UNSUPPORTED_RUNTIME',
+    'INVALID_PARAMS',
+    'CONFIRM_WRITE_REQUIRED',
+    'REGISTRY_MISMATCH',
+    'EXTENSION_VERSION_MISMATCH',
+    'BRIDGE_NOT_CONNECTED',
+  ])('reports verified pre-dispatch refusal %s as a known failure', async (code) => {
+    bridgeCall.mockRejectedValue(Object.assign(new Error('private details'), { code }));
+    const result = await run({ topic: 'mcp.rcp.checkNet' });
+    expect(result).toMatchObject({ ok: false, outcomeUnknown: false });
+    expect(result.error).toContain('not dispatched');
+    expect(result.error).not.toContain('private details');
+  });
 
   it.each(['EXTENSION_RPC_FAILED', 'PAYLOAD_TOO_LARGE', 'TRANSPORT_FAILURE'])(
     'keeps possible post-dispatch failure %s uncertain',

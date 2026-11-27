@@ -33,19 +33,27 @@ function messageByteLength(message: unknown): number | undefined {
   }
 }
 
+// These stable codes are emitted before the service invocation, either by the
+// local bridge manager or the extension. Never classify arbitrary transport or
+// service errors as known failures.
+const RPC_PRE_DISPATCH_RECOVERY = new Map<string, string>([
+  ['UNSUPPORTED_RUNTIME', 'Use an EasyEDA runtime with public message bus support.'],
+  ['INVALID_PARAMS', 'Check the topic and message parameters.'],
+  ['CONFIRM_WRITE_REQUIRED', 'Obtain explicit approval and set confirmWrite=true.'],
+  ['REGISTRY_MISMATCH', 'Reconnect with a matching bridge method registry.'],
+  ['EXTENSION_VERSION_MISMATCH', 'Install the extension matching the server version.'],
+  ['BRIDGE_NOT_CONNECTED', 'Connect the EasyEDA bridge before retrying.'],
+]);
+
 function rpcFailure(topic: string, err: unknown) {
   const code = (err as { code?: unknown } | null)?.code;
-  // These codes are emitted by the bridge before invoking the service.
-  if (
-    code === 'UNSUPPORTED_RUNTIME' ||
-    code === 'INVALID_PARAMS' ||
-    code === 'CONFIRM_WRITE_REQUIRED'
-  ) {
+  const recovery = typeof code === 'string' ? RPC_PRE_DISPATCH_RECOVERY.get(code) : undefined;
+  if (recovery) {
     return {
       topic,
       ok: false,
       outcomeUnknown: false,
-      error: `Extension RPC was not dispatched (${code}). Check runtime support and call parameters.`,
+      error: `Extension RPC was not dispatched (${code}). ${recovery}`,
     };
   }
   const detail =
