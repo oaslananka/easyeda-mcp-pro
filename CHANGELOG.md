@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.23.0...easyeda-mcp-pro-v1.23.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **board:** measure native curved outline paths faithfully ([#1174](https://github.com/oaslananka/easyeda-mcp-pro/issues/1174)) ([345d8b3](https://github.com/oaslananka/easyeda-mcp-pro/commit/345d8b3732b2b1928f53d1f0df9b7773575b2796))
+
 ## [1.23.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.22.0...easyeda-mcp-pro-v1.23.0) (2026-11-27)
 
 
