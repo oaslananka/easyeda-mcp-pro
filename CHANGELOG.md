@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.20.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.19.1...easyeda-mcp-pro-v1.20.0) (2026-11-27)
+
+
+### Features
+
+* **export:** add design file export (IPC-2581C, IPC-D-356A, PCB info, test points, PADS, schematic SVG) ([#1145](https://github.com/oaslananka/easyeda-mcp-pro/issues/1145)) ([579ebfe](https://github.com/oaslananka/easyeda-mcp-pro/commit/579ebfeffacf9f136b5475a5778938d2a8d9f930))
+* **pcb:** correlate local Gerber and IPC export geometry ([#1149](https://github.com/oaslananka/easyeda-mcp-pro/issues/1149)) ([b98e38d](https://github.com/oaslananka/easyeda-mcp-pro/commit/b98e38de184da56469b4eedbc962d5d260655a24))
+* **pcb:** expose bounded native via adjacency evidence ([#1152](https://github.com/oaslananka/easyeda-mcp-pro/issues/1152)) ([c038362](https://github.com/oaslananka/easyeda-mcp-pro/commit/c038362ba27a0e60bdcd6b56c1a0c9d0aac69a65))
+* **pcb:** group centre-only decoupling line evidence ([#1153](https://github.com/oaslananka/easyeda-mcp-pro/issues/1153)) ([8381f16](https://github.com/oaslananka/easyeda-mcp-pro/commit/8381f16d25fbe276e9e0d4c64bf045009cc0d6e4))
+* **pcb:** observe native pad-associated route chains ([#1147](https://github.com/oaslananka/easyeda-mcp-pro/issues/1147)) ([4bfc2d6](https://github.com/oaslananka/easyeda-mcp-pro/commit/4bfc2d65375e06c8ddddab14b067672b314add29))
+* **pcb:** prioritize source-bound placement review actions ([#1151](https://github.com/oaslananka/easyeda-mcp-pro/issues/1151)) ([8975635](https://github.com/oaslananka/easyeda-mcp-pro/commit/897563558d4d60c9aea92ae0a9ca0a5bdaaefc55))
+* **pcb:** report native via type metadata on request ([#1158](https://github.com/oaslananka/easyeda-mcp-pro/issues/1158)) ([71606d5](https://github.com/oaslananka/easyeda-mcp-pro/commit/71606d54abd3b4d0fe9c2f61b9cee0c4a6cf072d))
+* **pcb:** review selected via and filled contour overlap ([#1159](https://github.com/oaslananka/easyeda-mcp-pro/issues/1159)) ([ddaef63](https://github.com/oaslananka/easyeda-mcp-pro/commit/ddaef63f3a87a30f907b5cae540d940e76a58c20)), closes [#842](https://github.com/oaslananka/easyeda-mcp-pro/issues/842)
+* **pcb:** review source-bound selected line width ([#1154](https://github.com/oaslananka/easyeda-mcp-pro/issues/1154)) ([edd2f19](https://github.com/oaslananka/easyeda-mcp-pro/commit/edd2f19f9b6b1fca3ddd6883ca12a73c1bed8388))
+* **pcb:** review source-declared sensitive line spacing ([#1157](https://github.com/oaslananka/easyeda-mcp-pro/issues/1157)) ([0acad45](https://github.com/oaslananka/easyeda-mcp-pro/commit/0acad4502d1b2b3bbf1a1f4f7b94a85efab1311b))
+* **pcb:** review source-linked filled copper pad annulus candidates ([#1155](https://github.com/oaslananka/easyeda-mcp-pro/issues/1155)) ([119463b](https://github.com/oaslananka/easyeda-mcp-pro/commit/119463be008358eaaf82217218d1899495c1872c))
+* **pcb:** summarize observed line paths in placement priorities ([#1156](https://github.com/oaslananka/easyeda-mcp-pro/issues/1156)) ([b3ba1f1](https://github.com/oaslananka/easyeda-mcp-pro/commit/b3ba1f1f82d0c6dcbaf9694a2df182f343f99969))
+
+
+### Bug Fixes
+
+* **export:** accept EasyEDA's native PADS archive in pads_layout validation ([#1148](https://github.com/oaslananka/easyeda-mcp-pro/issues/1148)) ([e77cd7e](https://github.com/oaslananka/easyeda-mcp-pro/commit/e77cd7e4bd94fa87b06fe561b5144617d0df734c))
+* **pcb:** preserve unique pins on multi-pad connectors ([#1150](https://github.com/oaslananka/easyeda-mcp-pro/issues/1150)) ([552d3e5](https://github.com/oaslananka/easyeda-mcp-pro/commit/552d3e51ecbb6baaf21120672c47deada941d975))
+
 ## [1.19.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.19.0...easyeda-mcp-pro-v1.19.1) (2026-11-25)
 
 
