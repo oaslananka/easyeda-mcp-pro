@@ -33,6 +33,35 @@ function messageByteLength(message: unknown): number | undefined {
   }
 }
 
+function rpcFailure(topic: string, err: unknown) {
+  const code = (err as { code?: unknown } | null)?.code;
+  // These codes are emitted by the bridge before invoking the service.
+  if (
+    code === 'UNSUPPORTED_RUNTIME' ||
+    code === 'INVALID_PARAMS' ||
+    code === 'CONFIRM_WRITE_REQUIRED'
+  ) {
+    return {
+      topic,
+      ok: false,
+      outcomeUnknown: false,
+      error: `Extension RPC was not dispatched (${code}). Check runtime support and call parameters.`,
+    };
+  }
+  const detail =
+    code === 'EXTENSION_RPC_NO_REPLY'
+      ? 'No service reply within the timeout'
+      : 'Extension RPC failed';
+  return {
+    topic,
+    ok: false,
+    outcomeUnknown: true,
+    error:
+      detail +
+      '; the outcome is unknown. The service may still be running; inspect before retrying.',
+  };
+}
+
 export function registerExtensionRpcTools(registry: ToolRegistry, _config: EnvConfig): void {
   registry.register({
     name: 'easyeda_extension_call',
@@ -138,19 +167,7 @@ export function registerExtensionRpcTools(registry: ToolRegistry, _config: EnvCo
         }
         return { topic, ok: true, result: response.data.result };
       } catch (err) {
-        const code = (err as { code?: unknown } | null)?.code;
-        const detail =
-          code === 'EXTENSION_RPC_NO_REPLY'
-            ? 'No service reply within the timeout'
-            : 'Extension RPC failed';
-        return {
-          topic,
-          ok: false,
-          outcomeUnknown: true,
-          error:
-            detail +
-            '; the outcome is unknown. The service may still be running; inspect before retrying.',
-        };
+        return rpcFailure(topic, err);
       }
     },
   });

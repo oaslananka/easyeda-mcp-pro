@@ -125,6 +125,28 @@ describe('easyeda_extension_call', () => {
     expect(bridgeCall).not.toHaveBeenCalled();
   });
 
+  it.each(['UNSUPPORTED_RUNTIME', 'INVALID_PARAMS', 'CONFIRM_WRITE_REQUIRED'])(
+    'reports verified pre-dispatch refusal %s as a known failure',
+    async (code) => {
+      bridgeCall.mockRejectedValue(Object.assign(new Error('private details'), { code }));
+      const result = await run({ topic: 'mcp.rcp.checkNet' });
+      expect(result).toMatchObject({ ok: false, outcomeUnknown: false });
+      expect(result.error).toContain('not dispatched');
+      expect(result.error).not.toContain('private details');
+    },
+  );
+
+  it.each(['EXTENSION_RPC_FAILED', 'PAYLOAD_TOO_LARGE', 'TRANSPORT_FAILURE'])(
+    'keeps possible post-dispatch failure %s uncertain',
+    async (code) => {
+      bridgeCall.mockRejectedValue(Object.assign(new Error('private details'), { code }));
+      expect(await run({ topic: 'mcp.rcp.checkNet' })).toMatchObject({
+        ok: false,
+        outcomeUnknown: true,
+      });
+    },
+  );
+
   it('reports bridge and service failures as ok=false', async () => {
     bridgeCall.mockRejectedValue(
       Object.assign(new Error('private /tmp/design.eprj2'), { code: 'EXTENSION_RPC_NO_REPLY' }),
