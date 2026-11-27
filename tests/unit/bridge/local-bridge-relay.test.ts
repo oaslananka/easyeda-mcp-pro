@@ -286,6 +286,10 @@ describe('local bridge follower relay', () => {
       const pending = client.call('system.getStatus', {}, {}, 5_000);
       client.disconnect();
       await expect(pending).rejects.toThrow('Local EasyEDA bridge follower disconnected.');
+      await expect(pending).rejects.not.toMatchObject({ code: 'BRIDGE_NOT_CONNECTED' });
+      await expect(client.call('extension.rpcCall', {}, {}, 50)).rejects.toMatchObject({
+        code: 'BRIDGE_NOT_CONNECTED',
+      });
     } finally {
       client.disconnect();
       server.close();
@@ -303,7 +307,12 @@ describe('local bridge follower relay', () => {
     await expect(server.start()).rejects.toThrow('already running');
 
     const client = new LocalBridgeRelayClient({ host: '127.0.0.1', port, token: 'relay-secret' });
-    await expect(client.call('system.getStatus', {}, {}, 50)).rejects.toThrow('not connected');
+    await expect(
+      client.call('extension.rpcCall', { topic: 'mcp.test' }, {}, 50),
+    ).rejects.toMatchObject({
+      code: 'BRIDGE_NOT_CONNECTED',
+      message: expect.stringContaining('not connected'),
+    });
 
     try {
       await client.connect();

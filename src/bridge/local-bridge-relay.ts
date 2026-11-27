@@ -352,7 +352,11 @@ export class LocalBridgeRelayClient extends EventEmitter {
   ): Promise<TResult> {
     const socket = this.socket;
     if (!socket || !this.attached || socket.readyState !== WebSocket.OPEN) {
-      return Promise.reject(new Error('Local EasyEDA bridge owner relay is not connected.'));
+      return Promise.reject(
+        Object.assign(new Error('Local EasyEDA bridge owner relay is not connected.'), {
+          code: 'BRIDGE_NOT_CONNECTED',
+        }),
+      );
     }
 
     const id = `relay_${process.pid}_${++this.requestCounter}`;
