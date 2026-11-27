@@ -1,0 +1,260 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-v1230-native-esd-return-compatibility",
+  "recordedAtUtc": "2026-11-27T06:12:08Z",
+  "candidate": {
+    "releasePullRequest": 1171,
+    "exactCommit": "f92e56375de2bcadafb69757e148e6994a5fe6ef",
+    "treeSha1": "b08f20205a8a9558cbeb5508a9e7c86966a87c61",
+    "packageVersion": "1.23.0",
+    "compatibilitySensitiveTreeSha1": {
+      "easyeda-bridge-extension/src": "b69d97be9f353c00ce4a774d926066fa60514236",
+      "src/bridge": "404ec8961d98af12aca7df838b0f9d8953b2a2f3",
+      "src/remote": "7fcd33c262536ec1cba79c49e4ad24615663633a",
+      "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+      "src/tools": "2935e5233d38fa15d665628649d8c85cf7db6ee6",
+      "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+    },
+    "supplementaryPcbLayoutTreeSha1": "2d11dfe94e17c18e252abe7748c0b1f87dda5e6a",
+    "extensionSha256": "596efd514f8aa4191ef4e3da507f6ec35d5499d86a49f238bbd2301cab5ac1b6",
+    "extensionBytes": 249067,
+    "reproducibleBuilds": 2,
+    "matchingSha256": true,
+    "matchingSizeBytes": true
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-43-generic",
+    "nodeVersion": "24.22.3"
+  },
+  "editor": {
+    "version": "4.1.105.0339a6cd",
+    "electronVersion": "not independently recorded",
+    "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+    "chromiumVersion": "not independently recorded",
+    "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+  },
+  "extension": {
+    "installedPackageVersion": "1.23.0",
+    "loaderReportedVersion": "1.23.0",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "25cb47ba3bf5ed23",
+    "activeDispatcher": "baked",
+    "dispatcherBuildId": "d460cxee5axa9d5",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "packageSha256": "596efd514f8aa4191ef4e3da507f6ec35d5499d86a49f238bbd2301cab5ac1b6",
+    "packageSizeBytes": 249067
+  },
+  "runtimeIdentity": {
+    "health": "ok",
+    "serverVersion": "1.23.0",
+    "extensionVersion": "1.23.0",
+    "registryMismatch": false,
+    "versionMismatch": false,
+    "connected": true,
+    "easyedaVersion": "4.1.105",
+    "methodCount": 87,
+    "dispatcher": "d460cxee5axa9d5",
+    "source": "loader_status",
+    "devMode": false,
+    "bridgeContractVersion": "1.0.0",
+    "contractSchemaVersion": 1,
+    "methodRegistryHash": "25cb47ba3bf5ed23",
+    "registryHashProvenance": "Computed from exact built server method schema; native registry mismatch false."
+  },
+  "fixture": {
+    "project": "Isolated disposable STM32 F103 imported PCB; no personal design",
+    "schematic": "Focused PCB; no design write",
+    "disposable": true,
+    "readOnly": true
+  },
+  "liveAcceptance": {
+    "officialInstallExit": 0,
+    "coldLocalMcpExit": 0,
+    "inventory": {
+      "components": 40,
+      "tracks": 444,
+      "vias": 224
+    },
+    "sourcePcbSha256": "0892c0c6a6b428cd30f18b338b7d5b286674ebf068a0a1b4b2eacc539d146a22",
+    "fixtureSha256": "2b5ca348006aa331585bfcf5eec5d846eb264423bec6791b0d1e3455016de6ad",
+    "fixtureUnchanged": true,
+    "focusAndInventoryUnchanged": true,
+    "esdReturnViaEvidence": {
+      "evidence": "both_selected_contour_candidates",
+      "expected_net": "GND",
+      "constraint_source": "Pinned source PCB pin and net map; caller-declared relation",
+      "pour_primitive_id": "ie1258",
+      "fill_id": "copper11",
+      "native_layer": 15,
+      "endpoints": [
+        {
+          "component": "U3",
+          "pin": "2",
+          "via_primitive_id": "ie634",
+          "evidence": "selected_contour_candidate",
+          "native_pad_primitive_id": "ie59ie20",
+          "line_primitive_id": "ie526",
+          "line_native_layer": 1,
+          "witness": {
+            "x_mm": 153.179999956,
+            "y_mm": -122.56999997,
+            "minimum_margin_mm": 0.09999999999999998
+          },
+          "next_action": "review-physical-return-path"
+        },
+        {
+          "component": "J1",
+          "pin": "5",
+          "via_primitive_id": "ie638",
+          "evidence": "selected_contour_candidate",
+          "native_pad_primitive_id": "ie251ie42",
+          "line_primitive_id": "ie549",
+          "line_native_layer": 1,
+          "witness": {
+            "x_mm": 154.55999999,
+            "y_mm": -123.78000009,
+            "minimum_margin_mm": 0.09999999999999998
+          },
+          "next_action": "review-physical-return-path"
+        }
+      ],
+      "electrical_continuity_status": "UNKNOWN",
+      "physical_span_status": "UNKNOWN",
+      "engineering_sign_off": false,
+      "limitations": [
+        "Caller-selected ESD return identities and sources are not independently authenticated as circuit function.",
+        "Reciprocal native line associations and individual annular witnesses on the same selected contour identity are separate focus-bound reads, not an atomic plane or proof of physical contact, flashing, return current or electrical continuity.",
+        "Unavailable evidence is not proof of disconnection. No ESD immunity or engineering approval is established."
+      ]
+    },
+    "swappedViaEvidence": {
+      "evidence": "unavailable",
+      "expected_net": "GND",
+      "constraint_source": "Pinned source PCB pin and net map; caller-declared relation",
+      "pour_primitive_id": "ie1258",
+      "fill_id": "copper11",
+      "native_layer": 15,
+      "endpoints": [
+        {
+          "component": "U3",
+          "pin": "2",
+          "via_primitive_id": "ie638",
+          "evidence": "unavailable",
+          "reason": "reciprocal-anchor-unavailable",
+          "next_action": "collect-return-evidence"
+        },
+        {
+          "component": "J1",
+          "pin": "5",
+          "via_primitive_id": "ie634",
+          "evidence": "unavailable",
+          "reason": "reciprocal-anchor-unavailable",
+          "next_action": "collect-return-evidence"
+        }
+      ],
+      "electrical_continuity_status": "UNKNOWN",
+      "physical_span_status": "UNKNOWN",
+      "engineering_sign_off": false,
+      "limitations": [
+        "Caller-selected ESD return identities and sources are not independently authenticated as circuit function.",
+        "Reciprocal native line associations and individual annular witnesses on the same selected contour identity are separate focus-bound reads, not an atomic plane or proof of physical contact, flashing, return current or electrical continuity.",
+        "Unavailable evidence is not proof of disconnection. No ESD immunity or engineering approval is established."
+      ]
+    },
+    "wrongLayerEvidence": {
+      "evidence": "unavailable",
+      "expected_net": "GND",
+      "constraint_source": "Pinned source PCB pin and net map; caller-declared relation",
+      "pour_primitive_id": "ie1258",
+      "fill_id": "copper11",
+      "native_layer": 1,
+      "endpoints": [
+        {
+          "component": "U3",
+          "pin": "2",
+          "via_primitive_id": "ie634",
+          "evidence": "unavailable",
+          "reason": "contour-candidate-unavailable",
+          "next_action": "collect-return-evidence"
+        },
+        {
+          "component": "J1",
+          "pin": "5",
+          "via_primitive_id": "ie638",
+          "evidence": "unavailable",
+          "reason": "contour-candidate-unavailable",
+          "next_action": "collect-return-evidence"
+        }
+      ],
+      "electrical_continuity_status": "UNKNOWN",
+      "physical_span_status": "UNKNOWN",
+      "engineering_sign_off": false,
+      "limitations": [
+        "Caller-selected ESD return identities and sources are not independently authenticated as circuit function.",
+        "Reciprocal native line associations and individual annular witnesses on the same selected contour identity are separate focus-bound reads, not an atomic plane or proof of physical contact, flashing, return current or electrical continuity.",
+        "Unavailable evidence is not proof of disconnection. No ESD immunity or engineering approval is established."
+      ]
+    },
+    "wrongSecondDiameterEvidence": {
+      "evidence": "partial_selected_contour_candidates",
+      "expected_net": "GND",
+      "constraint_source": "Pinned source PCB pin and net map; caller-declared relation",
+      "pour_primitive_id": "ie1258",
+      "fill_id": "copper11",
+      "native_layer": 15,
+      "endpoints": [
+        {
+          "component": "U3",
+          "pin": "2",
+          "via_primitive_id": "ie634",
+          "evidence": "selected_contour_candidate",
+          "native_pad_primitive_id": "ie59ie20",
+          "line_primitive_id": "ie526",
+          "line_native_layer": 1,
+          "witness": {
+            "x_mm": 153.179999956,
+            "y_mm": -122.56999997,
+            "minimum_margin_mm": 0.09999999999999998
+          },
+          "next_action": "review-physical-return-path"
+        },
+        {
+          "component": "J1",
+          "pin": "5",
+          "via_primitive_id": "ie638",
+          "evidence": "unavailable",
+          "reason": "contour-candidate-unavailable",
+          "next_action": "collect-return-evidence"
+        }
+      ],
+      "electrical_continuity_status": "UNKNOWN",
+      "physical_span_status": "UNKNOWN",
+      "engineering_sign_off": false,
+      "limitations": [
+        "Caller-selected ESD return identities and sources are not independently authenticated as circuit function.",
+        "Reciprocal native line associations and individual annular witnesses on the same selected contour identity are separate focus-bound reads, not an atomic plane or proof of physical contact, flashing, return current or electrical continuity.",
+        "Unavailable evidence is not proof of disconnection. No ESD immunity or engineering approval is established."
+      ]
+    },
+    "duplicateViaRejected": true,
+    "legacyFindingsPrioritiesAndStatusUnchanged": true,
+    "electricalContinuityStatus": "UNKNOWN",
+    "physicalSpanStatus": "UNKNOWN",
+    "engineeringSignOff": false,
+    "allPhaseCleanupVerified": true,
+    "resultEnvelopeSha256": {
+      "officialInstall": "051526bd4e785df7171b41ce5efb234c4968a3b43b6af5f39801d674ee09081c",
+      "nativeRun": "9477c9e996ef428472f2bae8226271f45715acdeed3fca3bd9aea714ac8812fc",
+      "nativeSummary": "7015ba1c2dd5044d2a7743c9abd91f1bff9b55d99abf34e484887b7e095000f6"
+    }
+  },
+  "knownLimitations": [
+    "Only isolated Ubuntu x86_64 and EasyEDA Pro 4.1.105 were live-validated. Windows/macOS native acceptance and Electron/Chromium versions were not independently measured. Nonfatal GPU initialization diagnostics occurred; graphics/3D were not validated.",
+    "Caller-declared ESD return identities, direct reciprocal line associations and individual annular witnesses on the same selected contour identity are separate focus-bound reads, not an atomic plane. No physical pad contact, plating, via flashing, physical span, common return current, electrical continuity, impedance, ESD immunity, or engineering/manufacturing approval is established. Unavailable evidence is not proof of disconnection.",
+    "Earlier crystal-network, buck return contour, export and via observations remain historical exact-source evidence; those scenarios were not rerun for this candidate.",
+    "No design mutation, save/reopen, native autorouting, authenticated Hosted/OAuth, remembered trust or independent-user acceptance was exercised."
+  ]
+}
