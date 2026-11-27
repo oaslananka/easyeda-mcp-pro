@@ -81,6 +81,9 @@ function createDependencies() {
         params,
       })),
     },
+    extensionRpcOperations: {
+      call: vi.fn(async (params: Record<string, unknown>) => ({ method: 'extension-rpc', params })),
+    },
     designRuleCheckOperations: {
       runDrc: vi.fn(async () => 'drc'),
       runErc: vi.fn(async () => 'erc'),
@@ -294,6 +297,7 @@ const expectedMethods = [
   'export.odb',
   'export.pdf',
   'export.pickPlace',
+  'extension.rpcCall',
   'inventory.getPrice',
   'inventory.search',
   'library.getDeviceByLcscId',
@@ -543,6 +547,10 @@ describe('createDispatcherDomainRouter', () => {
     await expect(router.tryDispatch('export.designFile', params)).resolves.toMatchObject({
       handled: true,
       value: { method: 'design-file', params },
+    });
+    await expect(router.tryDispatch('extension.rpcCall', params)).resolves.toMatchObject({
+      handled: true,
+      value: { method: 'extension-rpc', params },
     });
 
     await expect(router.tryDispatch('design.ruleCheck', params)).resolves.toEqual({

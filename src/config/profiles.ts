@@ -45,7 +45,7 @@ export const PROFILE_DEFINITIONS: Record<ToolProfile, ProfileDefinition> = {
     name: 'experimental',
     label: 'Experimental',
     description: 'MCP Apps, Tasks, AI action plans',
-    approxToolCount: '138',
+    approxToolCount: '139',
     isDefault: false,
   },
 };

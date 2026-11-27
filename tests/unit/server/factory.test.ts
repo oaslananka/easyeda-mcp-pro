@@ -240,6 +240,11 @@ describe('createServer', () => {
     expect(instance.context.config.keylessSourcingEnabled).toBe(false);
   });
 
+  it('exposes the extension RPC topic allowlist through the tool context config', async () => {
+    const instance = await createServer(config({ BRIDGE_EXTENSION_RPC_TOPICS: 'mcp.rcp.*' }));
+    expect(instance.context.config.BRIDGE_EXTENSION_RPC_TOPICS).toBe('mcp.rcp.*');
+  });
+
   it('exposes the same storage instance through the tool context', async () => {
     const instance = await createServer(config());
     expect(instance.context.storage).toBeDefined();

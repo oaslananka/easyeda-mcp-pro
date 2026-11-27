@@ -10,6 +10,7 @@ import { registerDiagnosticsApi } from './L0_diagnostics_api.js';
 import { registerDrcErcTools } from './L1_drc_erc.js';
 import { registerPcb3dPreviewTool } from './L1_pcb_3d_preview.js';
 import { registerExportTools } from './L1_export.js';
+import { registerExtensionRpcTools } from './L1_extension_rpc.js';
 import { registerPcbConstraintTools } from './L1_pcb_constraints.js';
 import { registerProjectLifecycleTools } from './L1_project_lifecycle.js';
 import { registerEngineeringReviewTools } from './L1_engineering_review.js';
@@ -45,6 +46,7 @@ export function registerBuiltinTools(registry: ToolRegistry, config: EnvConfig):
   registerPcbRouteReviewTools(registry, config);
   registerPcbWriteTools(registry, config);
   registerExportTools(registry, config);
+  registerExtensionRpcTools(registry, config);
   registerPcb3dPreviewTool(registry);
   registerVisualTools(registry, config);
   registerCatalogTools(registry, config);

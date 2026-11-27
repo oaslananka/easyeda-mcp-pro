@@ -39,6 +39,7 @@ import {
   type DesignRuleCheckOperations,
 } from './design-rule-check-operations.js';
 import { createExportOperations, type ExportOperations } from './export-operations.js';
+import { createExtensionRpcOperations } from './extension-rpc-operations.js';
 import {
   createPcbMutationOperations,
   type PcbMutationOperations,
@@ -99,6 +100,7 @@ const METHOD_LIST: readonly string[] = [
   'export.odb',
   'export.pdf',
   'export.pickPlace',
+  'extension.rpcCall',
   'inventory.getPrice',
   'inventory.search',
   'library.getDeviceByLcscId',
@@ -2261,6 +2263,10 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
   });
   domainRouter = createDispatcherDomainRouter({
     deviceMetadataOperations: createDeviceMetadataOperations({ callFirst, readFirstPath }),
+    extensionRpcOperations: createExtensionRpcOperations({
+      readFirstPath,
+      createBridgeError: newBridgeError,
+    }),
     projectOperations,
     readOnlyOperations,
     schematicTransactionOperations,

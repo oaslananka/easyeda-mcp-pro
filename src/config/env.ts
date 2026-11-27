@@ -80,6 +80,20 @@ const EnvObjectSchema = z.object({
   // Path to the dispatcher bundle to watch/push (easyeda-bridge-extension/dist/dispatcher.js).
   BRIDGE_HOT_SWAP_WATCH: z.string().default(''),
   BRIDGE_HOT_SWAP_CHUNK_BYTES: z.coerce.number().int().min(4096).max(1048576).default(65536),
+  // Opt-in allowlist for easyeda_extension_call: comma-separated public message-bus topics
+  // (exact, or a prefix ending in *), all inside the mcp. namespace. Empty disables the tool.
+  BRIDGE_EXTENSION_RPC_TOPICS: z
+    .string()
+    .default('')
+    .refine(
+      (value) =>
+        value
+          .split(',')
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+          .every((entry) => /^mcp\.[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\*?$|^mcp\.\*$/.test(entry)),
+      'BRIDGE_EXTENSION_RPC_TOPICS entries must be mcp.<name> topics or mcp.<prefix>* patterns.',
+    ),
 
   DATA_DIR: z.string().default(DEFAULT_DATA_DIR),
   SQLITE_PATH: z.string().optional(),
