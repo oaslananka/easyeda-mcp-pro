@@ -11,6 +11,7 @@ const documentEvidence = z.object({
 const listInput = z.object({});
 const listOutput = z.object({
   status: z.string(),
+  errorCode: z.string().optional(),
   complete: z.boolean(),
   projects: z.array(
     z.object({
@@ -29,6 +30,7 @@ const openInput = z.object({
 const openOutput = z.object({
   success: z.boolean(),
   status: z.string(),
+  errorCode: z.string().optional(),
   projectId: z.string().optional(),
   documents: z.array(documentEvidence).optional(),
 });
@@ -40,6 +42,7 @@ const closeInput = z.object({
 const closeOutput = z.object({
   success: z.boolean(),
   status: z.string(),
+  errorCode: z.string().optional(),
   projectId: z.string().optional(),
   openTabIds: z.array(z.string()).optional(),
   closedTabs: z.array(z.string()).optional(),
@@ -58,6 +61,7 @@ const activateInput = z.object({ projectId, documentId: z.string().trim().min(1)
 const activateOutput = z.object({
   success: z.boolean(),
   status: z.string(),
+  errorCode: z.string().optional(),
   projectId: z.string().optional(),
   documentId: z.string().optional(),
   type: z.enum(['pcb', 'schematic']).optional(),
@@ -77,6 +81,7 @@ const createInput = z.object({
 const createOutput = z.object({
   success: z.boolean(),
   status: z.string(),
+  errorCode: z.string().optional(),
   projectId: z.string().optional(),
   documents: z.array(documentEvidence).optional(),
 });
@@ -84,6 +89,7 @@ const importInput = z.object({ projectId, confirmWrite: z.literal(true) });
 const importOutput = z.object({
   success: z.boolean(),
   status: z.string(),
+  errorCode: z.string().optional(),
   projectId: z.string().optional(),
   pcbId: z.string().optional(),
   schematicId: z.string().optional(),
@@ -93,6 +99,17 @@ const importOutput = z.object({
 const IMPORT_TIMEOUT_MS = 5 * 60 * 1000;
 /** Creating and opening a project waits for EasyEDA to build the default board. */
 const CREATE_TIMEOUT_MS = 2 * 60 * 1000;
+
+/**
+ * Surface only the structured bridge error code (for example EXTENSION_VERSION_MISMATCH or
+ * METHOD_NOT_FOUND). Messages stay hidden because native errors can carry local paths.
+ */
+function bridgeErrorCode(error: unknown): { errorCode?: string } {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && /^[A-Z][A-Z0-9_]{2,63}$/.test(code)
+    ? { errorCode: code }
+    : { errorCode: 'BRIDGE_ERROR' };
+}
 
 function callWithBoundary(
   ctx: ToolContext,
@@ -108,9 +125,10 @@ function callWithBoundary(
         ? ctx.bridge.call(method, params)
         : ctx.bridge.call(method, params, { timeoutMs }),
     )
-    .catch(() => ({
+    .catch((error: unknown) => ({
       success: false,
       status: 'native_outcome_unknown',
+      ...bridgeErrorCode(error),
       projectId: params.projectId,
     }));
 }
@@ -139,8 +157,13 @@ export function registerProjectLifecycleTools(registry: Pick<ToolRegistry, 'regi
           projects: [],
           complete: false,
         });
-      } catch {
-        return { status: 'native_listing_unavailable', projects: [], complete: false };
+      } catch (error) {
+        return {
+          status: 'native_listing_unavailable',
+          projects: [],
+          complete: false,
+          ...bridgeErrorCode(error),
+        };
       }
     },
   } satisfies ToolDefinition);

@@ -170,6 +170,8 @@ export class BridgeManager extends EventEmitter {
   private _extensionVersion: string | undefined;
   private _extensionMethodListHash: string | undefined;
   private _loaderVersion: string | undefined;
+  /** Owner server version mirrored from the shared-bridge snapshot while following. */
+  private _ownerServerVersion: string | undefined;
   private listenerOwnership: BridgeListenerOwnership | undefined;
   private followerRelayServer: LocalBridgeRelayServer | null = null;
   private followerRelayClient: LocalBridgeRelayClient | null = null;
@@ -245,6 +247,32 @@ export class BridgeManager extends EventEmitter {
   /** Whether the connected extension's version differs from this server's version. */
   get extensionVersionMismatch(): boolean {
     return this._extensionVersion !== undefined && this._extensionVersion !== SERVER_VERSION;
+  }
+
+  /**
+   * Whether this process owns the bridge listener or forwards calls to another local owner;
+   * undefined while it does neither (blocked by another instance or reconnecting).
+   */
+  get bridgeRole(): 'owner' | 'follower' | undefined {
+    if (this.followerRelayClient) return 'follower';
+    return this.wss ? 'owner' : undefined;
+  }
+
+  /**
+   * Server version of the process that actually talks to the extension. While following, it
+   * comes from the owner's snapshot; owners older than this field leave it undefined.
+   */
+  get ownerServerVersion(): string | undefined {
+    if (this.followerRelayClient) return this._ownerServerVersion;
+    return this.wss ? SERVER_VERSION : undefined;
+  }
+
+  /**
+   * True while following an owner of another (or unknown) server version. The owner applies its
+   * own version checks to forwarded calls, so this process's extension comparison is not enough.
+   */
+  get ownerVersionMismatch(): boolean {
+    return this.followerRelayClient !== null && this._ownerServerVersion !== SERVER_VERSION;
   }
 
   /** Method-list hash reported by the extension's active dispatcher at handshake. */
@@ -376,6 +404,7 @@ export class BridgeManager extends EventEmitter {
       extensionVersion: this._extensionVersion,
       extensionMethodListHash: this._extensionMethodListHash,
       loaderVersion: this._loaderVersion,
+      ownerServerVersion: SERVER_VERSION,
     };
   }
 
@@ -433,6 +462,7 @@ export class BridgeManager extends EventEmitter {
     this._extensionVersion = snapshot.extensionVersion;
     this._extensionMethodListHash = snapshot.extensionMethodListHash;
     this._loaderVersion = snapshot.loaderVersion;
+    this._ownerServerVersion = snapshot.ownerServerVersion;
 
     if (prevState !== this.state) this.emit('stateChanged', this.state, prevState);
     if (this.state === 'connected' && prevState !== 'connected' && this.hello) {
@@ -454,6 +484,7 @@ export class BridgeManager extends EventEmitter {
     this._extensionVersion = undefined;
     this._extensionMethodListHash = undefined;
     this._loaderVersion = undefined;
+    this._ownerServerVersion = undefined;
     this.emit('stateChanged', 'error', prevState);
     this.emit('disconnected', error.message);
     this.scheduleReconnect();
@@ -1041,8 +1072,11 @@ export class BridgeManager extends EventEmitter {
       this.registryMismatch &&
       !isMismatchSafeBridgeMethod(method, this.config.BRIDGE_HOT_SWAP_ENABLED)
     ) {
-      throw new Error(
-        `Bridge method registry mismatch: refused "${method}" until server and active dispatcher agree.`,
+      throw Object.assign(
+        new Error(
+          `Bridge method registry mismatch: refused "${method}" until server and active dispatcher agree.`,
+        ),
+        { code: 'REGISTRY_MISMATCH' },
       );
     }
 
@@ -1050,10 +1084,13 @@ export class BridgeManager extends EventEmitter {
       this.extensionVersionMismatch &&
       !isVersionDriftSafeBridgeMethod(method, this.config.BRIDGE_HOT_SWAP_ENABLED)
     ) {
-      throw new Error(
-        'Bridge extension version mismatch: refused potentially mutating "' +
-          method +
-          '" until server and active dispatcher versions match.',
+      throw Object.assign(
+        new Error(
+          'Bridge extension version mismatch: refused potentially mutating "' +
+            method +
+            '" until server and active dispatcher versions match.',
+        ),
+        { code: 'EXTENSION_VERSION_MISMATCH' },
       );
     }
 
@@ -1072,7 +1109,9 @@ export class BridgeManager extends EventEmitter {
     const ws = this.ws;
     if (this.state !== 'connected' || !ws) {
       if (this._ownershipConflict) throw new Error(this._ownershipConflict.message);
-      throw new Error(`Bridge not connected. Cannot call method "${method}".`);
+      throw Object.assign(new Error(`Bridge not connected. Cannot call method "${method}".`), {
+        code: 'BRIDGE_NOT_CONNECTED',
+      });
     }
 
     const id = `req_${++this.requestIdCounter}`;

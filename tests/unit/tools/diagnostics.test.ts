@@ -58,6 +58,52 @@ describe('Diagnostics Tools', () => {
     expect(result?.extension_version_mismatch).toBe(false);
   });
 
+  it('easyeda_health_check is degraded while forwarding to an owner of another version', async () => {
+    const tool = registry.get('easyeda_health_check');
+    const followerContext: ToolContext = {
+      ...context,
+      bridge: {
+        ...context.bridge,
+        connected: true,
+        extensionVersionMismatch: false,
+        bridgeRole: 'follower',
+        ownerServerVersion: undefined,
+        ownerVersionMismatch: true,
+      },
+    };
+    const result = await tool?.handler(followerContext, {});
+    expect(result).toMatchObject({
+      status: 'degraded',
+      bridge_role: 'follower',
+      owner_version_mismatch: true,
+      extension_version_mismatch: false,
+    });
+    expect(result?.status_error).toContain('owns the bridge');
+    expect(tool?.outputSchema.safeParse(result).success).toBe(true);
+  });
+
+  it('easyeda_health_check stays ok while following an owner of the same version', async () => {
+    const tool = registry.get('easyeda_health_check');
+    const result = await tool?.handler(
+      {
+        ...context,
+        bridge: {
+          ...context.bridge,
+          connected: true,
+          bridgeRole: 'follower',
+          ownerServerVersion: '9.9.9',
+          ownerVersionMismatch: false,
+        },
+      },
+      {},
+    );
+    expect(result).toMatchObject({
+      status: 'ok',
+      bridge_role: 'follower',
+      owner_server_version: '9.9.9',
+    });
+  });
+
   it('easyeda_health_check returns degraded when bridge not connected', async () => {
     const tool = registry.get('easyeda_health_check');
     expect(tool).toBeDefined();
