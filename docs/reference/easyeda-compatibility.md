@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.23.1               | 1.23.1                | 1.23.1            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.23.0               | 1.23.0                | 1.23.0            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.22.0               | 1.22.0                | 1.22.0            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.21.0               | 1.21.0                | 1.21.0            | Live validated  | 2026-11-27 | 2027-02-25 |
@@ -88,6 +89,53 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-44b1fc4-v1231-outline-usb
+
+Record ID: `easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-44b1fc4-v1231-outline-usb`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `4.1.105.0339a6cd`                                                                                      |
+| Electron                                 | `not independently recorded`                                                                            |
+| Chromium                                 | `not independently recorded` (Chromium version not independently measured in this exact-candidate run.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                      |
+| Kernel                                   | `7.0.0-43-generic`                                                                                      |
+| Architecture                             | `x86_64`                                                                                                |
+| Node.js used by validation server        | `24.22.3`                                                                                               |
+| Validation package version               | `1.23.1`                                                                                                |
+| Fix version represented by evidence      | `1.23.1`                                                                                                |
+| Compatibility-sensitive base commit      | `44b1fc49ae4f4b13701f3cd715c1056b3bda2f23`                                                              |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                |
+| Installed extension package metadata     | `1.23.1`                                                                                                |
+| Live-validated extension package SHA-256 | `ea5aa6463863f9d7b050c6b443decd942f38f0d74e15fb02be790f8da654f031`                                      |
+| Live-validated extension package size    | `250578 bytes`                                                                                          |
+| Loader-reported version                  | `1.23.1`                                                                                                |
+| Bridge contract                          | `1.0.0`                                                                                                 |
+| Dispatcher                               | `baked`                                                                                                 |
+| Method registry hash                     | `25cb47ba3bf5ed23`                                                                                      |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                       |
+
+The installed extension package and loader both reported version `1.23.1` during this validation.
+
+### Capability evidence
+
+| Capability                                           | Level  | Status    | Result                                                                                                                                                                                                                                                                              | Evidence                                                                                                                                                                                                                                                              |
+| ---------------------------------------------------- | ------ | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact 1.23.1 installation and Local MCP handshake    | `live` | `passed`  | Two byte-identical builds, official Extension Manager import and cold start. Matching server/extension 1.23.1, 87 methods, baked dispatcher, no mismatch.                                                                                                                           | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.1-44b1fc4-outline-usb.json), [PR #1175](https://github.com/oaslananka/easyeda-mcp-pro/pull/1175)                          |
+| Rounded PCB outline and aggregate engineering review | `live` | `passed`  | Actual F103 mixed line/arc outline measured 50 × 57 mm; false missing-outline FAIL removed, 1 PASS / 0 FAIL / 1 WARNING / 23 UNKNOWN, repeat identical. Wrong project 27 UNKNOWN, no measured inputs. Independent drill evidence preserved; focus, inventory and fixture unchanged. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.1-44b1fc4-outline-usb.json), [PR #1174](https://github.com/oaslananka/easyeda-mcp-pro/pull/1174)                          |
+| Source-declared USB pair line geometry               | `live` | `passed`  | Actual F103 USBC D+/D− single-layer lengths 4.493502 and 4.232548 mm; observed delta 0.260955 mm, partial sampled spacing. USB D+ ambiguous; skew withheld. Missing pair WARNING; impedance and overall SI UNKNOWN. No sign-off.                                                    | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.1-44b1fc4-outline-usb.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/issues/841#issuecomment-7218061983) |
+| Durable native writes and autorouting                | `live` | `blocked` | Not exercised in this read-only run; prior native autoroute persistence limitation remains.                                                                                                                                                                                         | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.1-44b1fc4-outline-usb.json), [Issue #1126](https://github.com/oaslananka/easyeda-mcp-pro/issues/1126)                     |
+| Authenticated Hosted and independent-user acceptance | `live` | `blocked` | Not exercised in this local read-only run.                                                                                                                                                                                                                                          | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.23.1-44b1fc4-outline-usb.json), [Issue #850](https://github.com/oaslananka/easyeda-mcp-pro/issues/850)                       |
+
+### Known limitations
+
+- Only isolated Ubuntu x86_64 EasyEDA Pro 4.1.105 was live-validated; native Windows/macOS, Electron/Chromium versions and graphics/3D were not independently measured. Nonfatal GPU initialization diagnostics occurred.
+- Outline bounding-box measurement does not establish fabrication-ready closed contours for every primitive type. Mounting-hole count and complete stackup unavailable. Native ERC/DRC and power-tree evidence remain UNKNOWN in the aggregate.
+- USB net pair declarations originate from the pinned source PCB pin/net map. Sampled line geometry is not full routing, physical contact, field-solver impedance or signal-integrity approval; no device-specific numeric limit was declared.
+- Previous ESD, crystal, buck, export and via scenarios remain historical evidence, not rerun claims. Same-project non-PCB focus was not exercised because the F103 fixture contains only a PCB. No design mutation, save/reopen, native autorouting, authenticated Hosted/OAuth, remembered trust or independent-user acceptance was exercised.
 
 ## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-f92e563-v1230-esd-return
 
