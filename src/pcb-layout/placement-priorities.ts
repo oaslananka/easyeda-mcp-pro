@@ -148,7 +148,7 @@ function observedLinePath(
 }
 
 /** Summarizes already source-bound line evidence; never performs a second native read. */
-function linePathEvidence(p: NativePadPairFinding): LinePathEvidence {
+export function linePathEvidence(p: NativePadPairFinding): LinePathEvidence {
   const ids = sourcedPadIdentities(p);
   const base: LinePathEvidence = {
     first_pin: p.first_pin,

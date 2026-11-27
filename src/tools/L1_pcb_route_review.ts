@@ -14,6 +14,12 @@ import {
   pourAnnulusResultSchema,
   optionalPourAnnulusReview,
 } from './pcb-pour-annulus-review.js';
+import {
+  reviewSwitchingLoopTopology,
+  selectSwitchingLoopLegs,
+  switchingLoopRoles,
+  switchingPadIdentitiesConsistent,
+} from '../pcb-layout/placement-switching-topology.js';
 import { reviewSelectedLineWidth } from '../pcb-layout/placement-selected-line-width.js';
 import {
   reviewDecouplingTopology,
@@ -144,6 +150,12 @@ const placementRelationSchema = z
     first: exactNetSchema.describe('Exact native PCB component designator, e.g. U1.'),
     second: exactNetSchema.describe('Exact second PCB component designator, e.g. C1.'),
     padPairs: z.array(nativePadPairSchema).min(1).max(2).optional(),
+    switchingLoopLeg: z
+      .enum(switchingLoopRoles)
+      .optional()
+      .describe(
+        'Explicit directed nonsynchronous buck role: input capacitor to regulator, regulator to catch diode, or diode to input capacitor. One of each, one exact pad pair each.',
+      ),
     decouplingLegs: z
       .object({ supplyNet: exactNetSchema, returnNet: exactNetSchema })
       .optional()
@@ -258,6 +270,21 @@ const placementPriorityContextSchema = z.object({
     })
     .optional(),
 });
+const linePathEvidenceSchema = z.object({
+  first_pin: z.string(),
+  second_pin: z.string(),
+  expected_net: z.string(),
+  native_pad_primitive_ids: z.array(z.string()).length(2).optional(),
+  evidence: z.enum([
+    'observed_exact_endpoint_chain',
+    'native_reported',
+    'native_reported_centre',
+    'unavailable',
+  ]),
+  primitive_ids: z.array(z.string()).max(1200),
+  native_layer: z.number().int().optional(),
+  electrical_continuity_status: z.literal('UNKNOWN'),
+});
 const placementPrioritySchema = z.object({
   finding_id: z.string(),
   relation: placementRelationSchema.shape.kind,
@@ -285,26 +312,7 @@ const placementPrioritySchema = z.object({
     )
     .max(2)
     .optional(),
-  line_path_evidence: z
-    .array(
-      z.object({
-        first_pin: z.string(),
-        second_pin: z.string(),
-        expected_net: z.string(),
-        native_pad_primitive_ids: z.array(z.string()).length(2).optional(),
-        evidence: z.enum([
-          'observed_exact_endpoint_chain',
-          'native_reported',
-          'native_reported_centre',
-          'unavailable',
-        ]),
-        primitive_ids: z.array(z.string()).max(1200),
-        native_layer: z.number().int().optional(),
-        electrical_continuity_status: z.literal('UNKNOWN'),
-      }),
-    )
-    .max(2)
-    .optional(),
+  line_path_evidence: z.array(linePathEvidenceSchema).max(2).optional(),
   next_step: z.string(),
   electrical_loop_status: z.literal('UNKNOWN'),
 });
@@ -321,6 +329,30 @@ const decouplingTopologySchema = z.object({
   electrical_loop_status: z.literal('UNKNOWN'),
   limitations: z.array(z.string()),
 });
+
+function validateSwitchingLoopRequest(
+  value: {
+    placementRelations?: z.infer<typeof placementRelationSchema>[];
+    includeNativePadContacts?: boolean;
+    nativePadContactMode?: 'centre-only';
+  },
+  ctx: z.RefinementCtx,
+) {
+  const relations = value.placementRelations;
+  if (!relations?.some((r) => r.switchingLoopLeg !== undefined)) return;
+  if (
+    !selectSwitchingLoopLegs(relations) ||
+    (!value.includeNativePadContacts && value.nativePadContactMode === undefined) ||
+    relations.reduce((total, r) => total + (r.padPairs?.length ?? 0), 0) > 4
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['placementRelations'],
+      message:
+        'Declare one input, switch and return leg forming a directed three-component cycle, with distinct nets/pins, explicit source and native contact opt-in within the four-pair budget.',
+    });
+  }
+}
 
 const inputSchema = z
   .object({
@@ -399,6 +431,7 @@ const inputSchema = z
         message: 'Decoupling leg review requires centre-only native pad contact mode.',
       });
     }
+    validateSwitchingLoopRequest(value, ctx);
     const priority = value.placementPriorityContext;
     if (priority !== undefined && !value.placementRelations?.length) {
       ctx.addIssue({
@@ -539,6 +572,28 @@ const differentialPairResultSchema = z.object({
   engineering_sign_off: z.literal(false),
 });
 
+const switchingLoopTopologySchema = z.object({
+  evidence: z.enum(['all_line_chains_observed', 'partial_line_chains_observed', 'unavailable']),
+  legs: z
+    .array(
+      linePathEvidenceSchema.extend({
+        role: z.enum(switchingLoopRoles),
+        components: z.array(z.string()).length(2),
+        constraint_source: z.string(),
+        next_action: z.enum([
+          'verify-declared-net',
+          'collect-line-path-evidence',
+          'review-observed-line-chain',
+        ]),
+      }),
+    )
+    .length(3),
+  missing_roles: z.array(z.enum(switchingLoopRoles)).max(3),
+  electrical_loop_status: z.literal('UNKNOWN'),
+  engineering_sign_off: z.literal(false),
+  limitations: z.array(z.string()),
+});
+
 const placementReviewSchema = z.object({
   status: z.enum(['WARNING', 'UNKNOWN']),
   method: z.literal('NATIVE_COMPONENT_ORIGIN_RELATIONSHIPS'),
@@ -647,6 +702,7 @@ const placementReviewSchema = z.object({
     )
     .max(8),
   review_priorities: z.array(placementPrioritySchema).max(8).optional(),
+  switching_loop_topology: switchingLoopTopologySchema.optional(),
   limitations: z.array(z.string()),
   engineering_sign_off: z.literal(false),
 });
@@ -1105,6 +1161,7 @@ async function enrichPlacementPadEvidence(
       placement.status = 'WARNING';
     }
   }
+  return observations;
 }
 
 async function attachDecouplingTopology(
@@ -1184,6 +1241,32 @@ function withPlacementPriorities(
       provenance,
       context.powerTree?.issues ?? [],
     ),
+  };
+}
+
+async function optionalPlacementReview(
+  placement: ReturnType<typeof reviewPlacementRelations> | undefined,
+  relations: z.infer<typeof placementRelationSchema>[] | undefined,
+  context: z.infer<typeof placementPriorityContextSchema> | undefined,
+  source: { complete: boolean; focusedPcbId?: string; pads?: Map<string, unknown> },
+  readFocus: () => Promise<string | undefined>,
+) {
+  if (!placement) return {};
+  const prioritized = withPlacementPriorities(placement, relations, context);
+  const legs = selectSwitchingLoopLegs(relations ?? []);
+  if (!legs) return { placement_review: prioritized };
+  const usable =
+    source.complete &&
+    placement.input_evidence.collection_complete &&
+    source.pads !== undefined &&
+    switchingPadIdentitiesConsistent(legs, source.pads) &&
+    source.focusedPcbId !== undefined &&
+    (await readFocus()) === source.focusedPcbId;
+  return {
+    placement_review: {
+      ...prioritized,
+      switching_loop_topology: reviewSwitchingLoopTopology(legs, placement.findings, usable),
+    },
   };
 }
 
@@ -1318,8 +1401,9 @@ export function registerPcbRouteReviewTools(
               placementAvailable,
             );
 
+      let padObservations: Map<string, unknown> | undefined;
       if (placement && placementRelations) {
-        await enrichPlacementPadEvidence(
+        padObservations = await enrichPlacementPadEvidence(
           ctx,
           projectId,
           placementRelations as PlacementRelation[],
@@ -1366,6 +1450,17 @@ export function registerPcbRouteReviewTools(
         { tracks, vias, complete: geometry.input_evidence.collection_complete, focusedPcbId },
         () => readFocusedPcbId(ctx, projectId),
       );
+      const placementResult = await optionalPlacementReview(
+        placement,
+        placementRelations,
+        placementPriorityContext,
+        {
+          complete: geometry.input_evidence.collection_complete,
+          focusedPcbId,
+          pads: padObservations,
+        },
+        () => readFocusedPcbId(ctx, projectId),
+      );
       return {
         project_id: projectId,
         ...geometry,
@@ -1373,15 +1468,7 @@ export function registerPcbRouteReviewTools(
         ...viaPourAnnulus,
         ...viaAdjacency,
         ...sensitiveSpacing,
-        ...(placement === undefined
-          ? {}
-          : {
-              placement_review: withPlacementPriorities(
-                placement,
-                placementRelations,
-                placementPriorityContext,
-              ),
-            }),
+        ...placementResult,
         ...(pair === undefined ? {} : { differential_pair: pair }),
         ...(nativeCurrent === undefined ? {} : { trace_current_review: nativeCurrent }),
         overall_status: aggregateReviewStatus(

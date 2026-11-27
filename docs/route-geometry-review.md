@@ -757,6 +757,75 @@ chains are not a closed electrical loop, physical path-length measure,
 plane-continuity proof, or placement-risk pass. All electrical loop
 statuses remain UNKNOWN.
 
+### Review a declared nonsynchronous buck commutation loop
+
+To review the input, switch and return connections together, mark exactly
+three `switching-loop` placement relations with `switchingLoopLeg`.
+Use the actual schematic and native PCB pin and net identities; the
+example is illustrative, not a device-specific rule.
+
+```json
+{
+  "projectId": "your-exact-native-project-uuid",
+  "includeNativePadContacts": true,
+  "placementRelations": [
+    {
+      "kind": "switching-loop",
+      "switchingLoopLeg": "input",
+      "first": "C1",
+      "second": "U1",
+      "constraintSource": "Caller-declared schematic and footprint pin identities",
+      "padPairs": [{ "firstPin": "1", "secondPin": "1", "expectedNet": "VIN" }]
+    },
+    {
+      "kind": "switching-loop",
+      "switchingLoopLeg": "switch",
+      "first": "U1",
+      "second": "D2",
+      "constraintSource": "Caller-declared schematic and footprint pin identities",
+      "padPairs": [{ "firstPin": "2", "secondPin": "1", "expectedNet": "SW" }]
+    },
+    {
+      "kind": "switching-loop",
+      "switchingLoopLeg": "return",
+      "first": "D2",
+      "second": "C1",
+      "constraintSource": "Caller-declared schematic and footprint pin identities",
+      "padPairs": [{ "firstPin": "2", "secondPin": "2", "expectedNet": "GND" }]
+    }
+  ]
+}
+```
+
+The roles specify the input capacitor to regulator, regulator to catch
+diode, and catch diode to input capacitor connections, in that direction.
+The three components, three nets and the two pins on each component must
+be distinct; relation array order does not assign roles. This is a
+caller-declared topology for one nonsynchronous buck loop, not automatic
+circuit recognition or a rule for synchronous or other converters.
+Explicit native contact opt-in (broad or centre-only) is required, and the
+existing four-pair contact budget covers all requested relations.
+
+The optional `placement_review.switching_loop_topology` groups the
+existing selected native line-path evidence by role. It reports
+`all_line_chains_observed`, `partial_line_chains_observed`, or
+`unavailable` and identifies `missing_roles`. Each leg names the
+component/pin/net/source, selected line IDs and layer when available, and
+a next action: verify a declared net, collect missing line-path evidence,
+or review the observed chain. The group uses the same bounded native
+inventory and rechecks focused PCB identity; it adds no primitive reads.
+An incomplete route/component inventory, conflicting pad identities or
+changed focus invalidates group observations. Original findings, warnings
+and priority ordering remain unchanged.
+
+All electrical continuity and loop statuses remain UNKNOWN, even when
+all three line chains are observed. This does not prove the circuit
+function, physical contact, a closed loop, loop area, inductance, plane
+continuity, EMI performance or engineering sign-off. Missing evidence is
+not a disconnection finding. Use the actual device's layout guidance
+(e.g. [TI buck input loop layout guidance](https://www.ti.com/document-viewer/lit/html/SSZTBF4))
+rather than universal numeric thresholds.
+
 There is no edit/save/export and no general API execution capability.
 
 ### Source-matched native observation (November 2026)
