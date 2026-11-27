@@ -818,6 +818,27 @@ An incomplete route/component inventory, conflicting pad identities or
 changed focus invalidates group observations. Original findings, warnings
 and priority ordering remain unchanged.
 
+When the same request also supplies `nativePourAnnulus` for the exact
+return endpoints, the group additionally contains
+`return_pour_evidence`. Use the source-specific pour, layer, contour
+coordinate transform and drill declarations described below. Both
+declared return pads must independently match their observed component
+primitive ID, designator, pin, pad primitive ID and net. A
+`same_contour_pad_overlap_candidates` observation identifies the
+source pour, native layer, common fill ID and the two native pad IDs in
+return-leg order. Follow `review-physical-return-path`; consult the
+separate `native_pour_annulus_review` for geometric witnesses and drill
+provenance. There is no extra native primitive read. If either endpoint,
+source identity, focus or witness is unavailable, the correlation
+reports `unavailable` and a reason, without a shared fill claim.
+
+This additive correlation does not replace the independent line-chain
+observations, clear `missing_roles`, change priorities or infer current
+flow through the fill. Both individual geometric witnesses may be
+available even while the return line chain is missing. The native reads
+remain focus-bound, not atomic. Neither section proves the physical
+return path.
+
 All electrical continuity and loop statuses remain UNKNOWN, even when
 all three line chains are observed. This does not prove the circuit
 function, physical contact, a closed loop, loop area, inductance, plane

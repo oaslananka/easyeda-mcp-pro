@@ -36,7 +36,9 @@ function declaredLeg(relation: Relation, index: number): DeclaredLeg | undefined
 }
 
 /** A declared, directed nonsynchronous buck commutation loop, not inferred topology. */
-export function selectSwitchingLoopLegs(relations: readonly Relation[]): DeclaredLeg[] | undefined {
+export function selectSwitchingLoopLegs(
+  relations: readonly Relation[],
+): [DeclaredLeg, DeclaredLeg, DeclaredLeg] | undefined {
   const selected = relations.flatMap((relation, index) =>
     relation.switchingLoopLeg ? [{ relation, index }] : [],
   );
