@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.22.0...easyeda-mcp-pro-v1.23.0) (2026-11-27)
+
+
+### Features
+
+* **pcb:** correlate declared ESD return via evidence ([#1170](https://github.com/oaslananka/easyeda-mcp-pro/issues/1170)) ([69e1657](https://github.com/oaslananka/easyeda-mcp-pro/commit/69e16577965f33bb4e54d73375259cd6e0eedbd5)), closes [#842](https://github.com/oaslananka/easyeda-mcp-pro/issues/842)
+
 ## [1.22.0](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.21.0...easyeda-mcp-pro-v1.22.0) (2026-11-27)
 
 
