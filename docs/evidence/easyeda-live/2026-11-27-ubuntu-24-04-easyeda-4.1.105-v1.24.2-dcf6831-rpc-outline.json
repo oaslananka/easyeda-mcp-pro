@@ -1,0 +1,321 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-v1242-native-rpc-outline-compatibility",
+  "recordedAtUtc": "2026-11-27T23:45:28Z",
+  "candidate": {
+    "releasePullRequest": 1189,
+    "exactCommit": "dcf683171c7505368ce339e9374a5c42c9ca29ef",
+    "treeSha1": "f36f3d749c53b0062218fcec086749b8fa2a34cb",
+    "packageVersion": "1.24.2",
+    "compatibilitySensitiveTreeSha1": {
+      "easyeda-bridge-extension/src": "d33c15177633601b549662ac3cf9e7def9bd3b7b",
+      "src/bridge": "f43cbbe82d20135c085bea6c1f748285e46dce1f",
+      "src/remote": "3ceb468cc6736b7716edc76cac275f74448458ea",
+      "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+      "src/tools": "0aa5eaaf86eac3e8956049bc293d87770126b1f6",
+      "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+    },
+    "extensionSha256": "954037a04e725066301bcbc36b5843202a812e4e8d1fa9a8ee0fab09ee75461e",
+    "extensionBytes": 253594,
+    "reproducibleBuilds": 2,
+    "matchingSha256": true,
+    "matchingSizeBytes": true,
+    "dependencyLockSha256": "a5fc57f406c85d7386eb0da75fd080ec50c4a59551cc7d549a619758282246b8",
+    "transportDependencyVersions": {
+      "hono": "4.13.23",
+      "ws": "8.23.1",
+      "undici": "8.14.0"
+    }
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-44-generic",
+    "nodeVersion": "24.22.3"
+  },
+  "editor": {
+    "version": "4.1.105.0339a6cd",
+    "electronVersion": "not independently recorded",
+    "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+    "chromiumVersion": "not independently recorded",
+    "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+  },
+  "extension": {
+    "installedPackageVersion": "1.24.2",
+    "loaderReportedVersion": "1.24.2",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "2a1dbe73076c707d",
+    "activeDispatcher": "baked",
+    "dispatcherBuildId": "d2b40x588exdfcd",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "packageSha256": "954037a04e725066301bcbc36b5843202a812e4e8d1fa9a8ee0fab09ee75461e",
+    "packageSizeBytes": 253594
+  },
+  "runtimeIdentity": {
+    "health": "ok",
+    "server": "1.24.2",
+    "extension": "1.24.2",
+    "registryMismatch": false,
+    "versionMismatch": false,
+    "connected": true,
+    "bridgeVersion": "1.0.0",
+    "easyedaVersion": "4.1.105",
+    "registryHash": "2a1dbe73076c707d",
+    "methodCount": 88,
+    "build": "d2b40x588exdfcd",
+    "source": "loader_status",
+    "devMode": false
+  },
+  "fixture": {
+    "project": "Two isolated disposable copies of the STM32 F103 imported PCB; no personal designs",
+    "schematic": "Focused PCB; guarded outline creation in the second copy only",
+    "disposable": true,
+    "readOnly": false
+  },
+  "liveAcceptance": {
+    "officialInstallExit": 0,
+    "coldLocalMcpExit": 0,
+    "rpc": {
+      "commit": "dcf683171c7505368ce339e9374a5c42c9ca29ef",
+      "build": "d2b40x588exdfcd",
+      "packageSha256": "954037a04e725066301bcbc36b5843202a812e4e8d1fa9a8ee0fab09ee75461e",
+      "cases": [
+        {
+          "name": "dimensions",
+          "result": {
+            "width": 50,
+            "height": 57,
+            "hasOutline": true
+          }
+        },
+        {
+          "name": "unconfirmed",
+          "result": {
+            "rejected": true
+          }
+        },
+        {
+          "name": "notAllowlisted",
+          "result": {
+            "rejected": true
+          }
+        },
+        {
+          "name": "echo",
+          "result": {
+            "topic": "mcp.qa.echo",
+            "ok": true,
+            "result": {
+              "echo": {
+                "hello": "native",
+                "n": 42
+              }
+            }
+          }
+        },
+        {
+          "name": "timeout",
+          "result": {
+            "topic": "mcp.qa.sleep",
+            "ok": false,
+            "error": "No service reply within the timeout; the outcome is unknown. The service may still be running; inspect before retrying.",
+            "outcomeUnknown": true
+          }
+        },
+        {
+          "name": "largeReply",
+          "result": {
+            "ok": false,
+            "outcomeUnknown": true,
+            "error": "Extension RPC failed; the outcome is unknown. The service may still be running; inspect before retrying."
+          }
+        },
+        {
+          "name": "postFailureEcho",
+          "result": {
+            "topic": "mcp.qa.echo",
+            "ok": true,
+            "result": {
+              "echo": {
+                "after": true
+              }
+            }
+          }
+        },
+        {
+          "name": "followerHealth",
+          "result": {
+            "status": "ok",
+            "role": "follower",
+            "owner": "1.24.2"
+          }
+        },
+        {
+          "name": "followerEcho",
+          "result": {
+            "topic": "mcp.qa.echo",
+            "ok": true,
+            "result": {
+              "echo": {
+                "follower": true
+              }
+            }
+          }
+        },
+        {
+          "name": "ownerAfterFollower",
+          "result": {
+            "topic": "mcp.qa.echo",
+            "ok": true,
+            "result": {
+              "echo": {
+                "ownerAfterFollower": true
+              }
+            }
+          }
+        }
+      ],
+      "runtime": {
+        "health": "ok",
+        "server": "1.24.2",
+        "extension": "1.24.2",
+        "registryMismatch": false,
+        "versionMismatch": false,
+        "connected": true,
+        "bridgeVersion": "1.0.0",
+        "easyedaVersion": "4.1.105",
+        "registryHash": "2a1dbe73076c707d",
+        "methodCount": 88,
+        "build": "d2b40x588exdfcd",
+        "source": "loader_status",
+        "devMode": false
+      },
+      "inventoryCounts": [40, 444, 224, 1],
+      "inventoryUnchanged": true,
+      "status": "passed"
+    },
+    "offlineRefusal": {
+      "commit": "dcf683171c7505368ce339e9374a5c42c9ca29ef",
+      "health": "not connected",
+      "result": {
+        "topic": "mcp.qa.echo",
+        "ok": false,
+        "error": "Extension RPC was not dispatched (BRIDGE_NOT_CONNECTED). Connect the EasyEDA bridge before retrying.",
+        "outcomeUnknown": false
+      },
+      "status": "passed"
+    },
+    "outline": {
+      "commit": "dcf683171c7505368ce339e9374a5c42c9ca29ef",
+      "build": "d2b40x588exdfcd",
+      "packageSha256": "954037a04e725066301bcbc36b5843202a812e4e8d1fa9a8ee0fab09ee75461e",
+      "cases": [
+        {
+          "name": "proSchema",
+          "result": {
+            "requiredTarget": true
+          }
+        },
+        {
+          "name": "beforeDimensions",
+          "result": {
+            "width": 50,
+            "height": 57
+          }
+        },
+        {
+          "name": "wrongTarget",
+          "result": {
+            "rejected": true,
+            "status": "target_mismatch",
+            "error": false
+          }
+        },
+        {
+          "name": "missingTarget",
+          "result": {
+            "rejected": true
+          }
+        },
+        {
+          "name": "existingOutline",
+          "result": {
+            "success": false,
+            "status": "outline_exists",
+            "measuredWidthMm": 50,
+            "measuredHeightMm": 57
+          }
+        },
+        {
+          "name": "emptyOutline",
+          "result": {
+            "hasOutline": false,
+            "width": 0,
+            "height": 0
+          }
+        },
+        {
+          "name": "create",
+          "result": {
+            "success": true,
+            "status": "outline_created",
+            "measuredWidthMm": 50,
+            "measuredHeightMm": 30
+          }
+        },
+        {
+          "name": "readback",
+          "result": {
+            "width": 50,
+            "height": 30,
+            "hasOutline": true
+          }
+        },
+        {
+          "name": "repeatRefused",
+          "result": {
+            "status": "outline_exists"
+          }
+        }
+      ],
+      "runtime": {
+        "health": "ok",
+        "server": "1.24.2",
+        "extension": "1.24.2",
+        "registryMismatch": false,
+        "versionMismatch": false,
+        "connected": true,
+        "bridgeVersion": "1.0.0",
+        "easyedaVersion": "4.1.105",
+        "registryHash": "2a1dbe73076c707d",
+        "methodCount": 88,
+        "build": "d2b40x588exdfcd",
+        "source": "dispatcher_status",
+        "devMode": false
+      },
+      "inventoryCountsBefore": [40, 444, 224, 1, 0],
+      "inventoryCountsAfter": [40, 444, 224, 1, 0],
+      "otherPrimitivesUnchanged": true,
+      "status": "passed"
+    },
+    "fixtureSha256": "2b5ca348006aa331585bfcf5eec5d846eb264423bec6791b0d1e3455016de6ad",
+    "originalAndBothFixtureFilesUnchanged": true,
+    "allPhaseCleanupVerified": true,
+    "engineeringSignOff": false,
+    "resultEnvelopeSha256": {
+      "rpc": "e70ddacbb66a77ca8dece6b237ea2f2e8268310e83630aa51436c496566939fc",
+      "offlineRefusal": "1fd141e76a840e91bdd009ba44b4e19a6c27f3d94794dad02a7141f88c1695c1",
+      "outline": "266e2fecc5e2c4e5fe61ad30639a62dea58b054f85b76d0d26728d15a69ca850",
+      "officialInstallLog": "35c834bccea1c5e28ae9d103ef53bb608be92714920b967fc94ab9706820566a",
+      "rpcLog": "a7f44749af6a219abd647b687a1eb873c6ea07ebf0db7e21b2855bd98923b6c2",
+      "outlineLog": "d765e54a1f8c9544bd6fedd235c9c3217d6730d48c6d18e480c27aa199b3108e"
+    }
+  },
+  "knownLimitations": [
+    "Only isolated Ubuntu x86_64 EasyEDA Pro 4.1.105 was live-validated. Native Windows/macOS, Electron/Chromium and graphics/3D were not independently measured; nonfatal GPU initialization diagnostics occurred.",
+    "RPC acceptance uses an isolated synthetic extension with public message-bus services; no arbitrary third-party service, authenticated Hosted runtime, OAuth, remembered trust or independent-user acceptance is claimed.",
+    "Outline creation was performed only after a deliberate guarded fixture preparation in a separate disposable project copy; existing-outline refusal and read-back dimensions do not establish durable save/reopen, autorouting, fabrication or engineering sign-off.",
+    "Earlier single-text cold-reopen, engineering review, export and via scenarios remain historical evidence, not rerun claims."
+  ]
+}
