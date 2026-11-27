@@ -216,6 +216,25 @@ describe('Board Tools', () => {
     expect(result?.has_outline).toBe(true);
   });
 
+  it('reports unsupported outline geometry as unavailable while preserving drill measurements', async () => {
+    const tool = registry.get('easyeda_board_dimensions');
+    bridgeCall.mockResolvedValue({
+      outlineGeometryAvailable: false,
+      hasOutline: false,
+      widthMm: 0,
+      heightMm: 0,
+      minDrillMm: 0.254,
+    });
+    const result = await tool?.handler(context, { projectId: 'pcb-1' });
+    expect(result).toMatchObject({
+      not_available: true,
+      min_drill_mm: 0.254,
+      error: expect.stringContaining('could not be verified'),
+    });
+    expect(result?.width_mm).toBeUndefined();
+    expect(result?.height_mm).toBeUndefined();
+  });
+
   it('easyeda_board_dimensions distinguishes a missing outline from a 0x0 board', async () => {
     const tool = registry.get('easyeda_board_dimensions');
     bridgeCall.mockResolvedValue({

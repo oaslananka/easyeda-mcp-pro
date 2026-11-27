@@ -884,6 +884,165 @@ describe('board inspection operations', () => {
     expect(staticDiscretize).toHaveBeenCalledWith(source);
   });
 
+  it('reads rounded board outlines with mixed line and signed arc segments when both discretizers are unavailable', async () => {
+    const unavailable = async () => {
+      throw new Error('Not implemented');
+    };
+    const polygon = [
+      20,
+      0,
+      'ARC',
+      -90,
+      0,
+      20,
+      'L',
+      0,
+      180,
+      'ARC',
+      -90,
+      20,
+      200,
+      'L',
+      280,
+      200,
+      'ARC',
+      -90,
+      300,
+      180,
+      'L',
+      300,
+      20,
+      'ARC',
+      -90,
+      280,
+      0,
+      'L',
+      20,
+      0,
+    ];
+    const { operations } = makeOperations(
+      {
+        DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-rounded' }) },
+        PCB_MathPolygon: { discretize: unavailable },
+      },
+      {
+        pcb_PrimitivePolyline: {
+          getAll: async () => [
+            {
+              getState_Layer: () => 11,
+              getState_Polygon: () => ({ polygon, discretize: unavailable }),
+            },
+          ],
+        },
+      },
+    );
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      widthMm: 7.62,
+      heightMm: 5.08,
+      hasOutline: true,
+    });
+  });
+
+  it.each([
+    [90, 100, 100, 2.54, 2.54],
+    [-90, 100, -100, 2.54, 2.54],
+    [180, 200, 0, 5.08, 2.54],
+    [270, 100, -100, 5.08, 5.08],
+    [-270, 100, 100, 5.08, 5.08],
+  ])('includes cardinal extrema of a %s degree arc', async (sweep, x, y, width, height) => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-arc' }) } },
+      {
+        pcb_PrimitivePolyline: {
+          getAll: async () => [
+            {
+              getState_Layer: () => 11,
+              getState_Polygon: () => ({ polygon: [0, 0, 'ARC', sweep, x, y] }),
+            },
+          ],
+        },
+      },
+    );
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      widthMm: width,
+      heightMm: height,
+      hasOutline: true,
+    });
+  });
+
+  it('measures the observed rounded F103 native polygon as 50 by 57 mm', async () => {
+    const polygon = [
+      5118.1102,
+      -5157.4803,
+      'ARC',
+      -90.0001,
+      5039.3701,
+      -5078.7402,
+      'L',
+      5039.3701,
+      -2992.126,
+      'ARC',
+      -90.0001,
+      5118.1102,
+      -2913.3858,
+      'L',
+      6929.1339,
+      -2913.3858,
+      'ARC',
+      -90,
+      7007.874,
+      -2992.126,
+      'L',
+      7007.874,
+      -5078.7402,
+      'ARC',
+      -90.0001,
+      6929.1339,
+      -5157.4803,
+      'L',
+      5118.1102,
+      -5157.4803,
+    ];
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-f103' }) } },
+      {
+        pcb_PrimitivePolyline: {
+          getAll: async () => [{ getState_Layer: () => 11, getState_Polygon: () => ({ polygon }) }],
+        },
+      },
+    );
+    expect(await operations.getDimensions()).toMatchObject({
+      widthMm: 50,
+      heightMm: 57,
+      hasOutline: true,
+    });
+  });
+
+  it('does not mistake an unsupported outline for absent geometry or discard independently measured drill data', async () => {
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-unknown-outline' }) } },
+      {
+        pcb_PrimitivePolyline: {
+          getAll: async () => [
+            {
+              getState_Layer: () => 11,
+              getState_Polygon: () => ({ polygon: [0, 0, 'L', 100, 100, 'ARC', 0, 200, 200] }),
+            },
+          ],
+        },
+        pcb_PrimitivePad: { getAll: async () => [] },
+        pcb_PrimitiveVia: { getAll: async () => [{ getState_HoleDiameter: () => 10 }] },
+      },
+    );
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      widthMm: undefined,
+      heightMm: undefined,
+      hasOutline: undefined,
+      outlineGeometryAvailable: false,
+      minDrillMm: 0.254,
+    });
+  });
+
   it('fails closed for malformed raw EasyEDA line polyline sources without partial bounds', async () => {
     const malformedSources = [
       [Number.NaN, 0, 'L', 10, 10],
@@ -907,8 +1066,8 @@ describe('board inspection operations', () => {
     );
 
     await expect(operations.getDimensions()).resolves.toEqual({
-      widthMm: 0,
-      heightMm: 0,
+      widthMm: undefined,
+      heightMm: undefined,
       shape: undefined,
       mountingHoleCount: undefined,
       drilledPadCount: undefined,
@@ -921,8 +1080,9 @@ describe('board inspection operations', () => {
         'unplatedDrillPadCount',
         'minDrillMm',
       ],
-      areaMm2: 0,
-      hasOutline: false,
+      areaMm2: undefined,
+      hasOutline: undefined,
+      outlineGeometryAvailable: false,
     });
     expect(warn).toHaveBeenCalled();
   });
@@ -948,8 +1108,8 @@ describe('board inspection operations', () => {
     );
 
     await expect(operations.getDimensions()).resolves.toEqual({
-      widthMm: 0,
-      heightMm: 0,
+      widthMm: undefined,
+      heightMm: undefined,
       shape: undefined,
       mountingHoleCount: undefined,
       drilledPadCount: undefined,
@@ -962,13 +1122,14 @@ describe('board inspection operations', () => {
         'unplatedDrillPadCount',
         'minDrillMm',
       ],
-      areaMm2: 0,
-      hasOutline: false,
+      areaMm2: undefined,
+      hasOutline: undefined,
+      outlineGeometryAvailable: false,
     });
     expect(warn).toHaveBeenCalled();
   });
 
-  it('keeps valid polyline geometry when other polygon states are unavailable or malformed', async () => {
+  it('does not present partial bounds as complete when other outline polygons are unavailable', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const failure = new Error('native polygon discretization failed');
     const { operations } = makeOperations(
@@ -1004,10 +1165,11 @@ describe('board inspection operations', () => {
     );
 
     await expect(operations.getDimensions()).resolves.toMatchObject({
-      widthMm: 10,
-      heightMm: 5,
-      areaMm2: 50,
-      hasOutline: true,
+      widthMm: undefined,
+      heightMm: undefined,
+      areaMm2: undefined,
+      hasOutline: undefined,
+      outlineGeometryAvailable: false,
     });
     expect(warn).toHaveBeenCalledWith(
       '[easyeda-mcp-pro]',
@@ -1269,6 +1431,19 @@ describe('board inspection operations', () => {
     },
   );
 
+  it('distinguishes a verified empty outline inventory from unavailable geometry', async () => {
+    const empty = { getAll: async () => [] };
+    const { operations } = makeOperations(
+      { DMT_Pcb: { getCurrentPcbInfo: async () => ({ uuid: 'pcb-empty' }) } },
+      { pcb_PrimitiveLine: empty, pcb_PrimitiveArc: empty, pcb_PrimitivePolyline: empty },
+    );
+    await expect(operations.getDimensions()).resolves.toMatchObject({
+      widthMm: 0,
+      heightMm: 0,
+      hasOutline: false,
+    });
+  });
+
   it('contains absent, null, and partial primitive dimension data', async () => {
     const root: Record<string, unknown> = {};
     const { operations } = makeOperations(
@@ -1276,8 +1451,8 @@ describe('board inspection operations', () => {
       root,
     );
     const emptyDimensions = {
-      widthMm: 0,
-      heightMm: 0,
+      widthMm: undefined,
+      heightMm: undefined,
       shape: undefined,
       mountingHoleCount: undefined,
       drilledPadCount: undefined,
@@ -1290,8 +1465,9 @@ describe('board inspection operations', () => {
         'unplatedDrillPadCount',
         'minDrillMm',
       ],
-      areaMm2: 0,
-      hasOutline: false,
+      areaMm2: undefined,
+      hasOutline: undefined,
+      outlineGeometryAvailable: false,
     };
 
     await expect(operations.getDimensions()).resolves.toEqual(emptyDimensions);

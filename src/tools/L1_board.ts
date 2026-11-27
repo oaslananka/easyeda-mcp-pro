@@ -60,6 +60,7 @@ interface BoardDimensionsData {
   unknownFields?: string[];
   areaMm2?: number;
   hasOutline?: boolean;
+  outlineGeometryAvailable?: boolean;
 }
 
 interface BoardDimensionsResult {
@@ -88,23 +89,26 @@ function mapBoardDimensions(
   input: BoardDimensionsData | null,
 ): BoardDimensionsResult {
   const data = input ?? {};
-  const hasOutline = boardHasOutline(data);
+  const outlineUnverified = data.outlineGeometryAvailable === false;
+  const hasOutline = !outlineUnverified && boardHasOutline(data);
   const result: BoardDimensionsResult = {
     project_id: projectId,
-    width_mm: data.widthMm,
-    height_mm: data.heightMm,
-    shape: data.shape,
+    width_mm: outlineUnverified ? undefined : data.widthMm,
+    height_mm: outlineUnverified ? undefined : data.heightMm,
+    shape: outlineUnverified ? undefined : data.shape,
     drilled_pad_count: data.drilledPadCount,
     plated_drill_pad_count: data.platedDrillPadCount,
     unplated_drill_pad_count: data.unplatedDrillPadCount,
     min_drill_mm: data.minDrillMm,
-    area_mm2: data.areaMm2,
+    area_mm2: outlineUnverified ? undefined : data.areaMm2,
     has_outline: hasOutline,
     unknown_fields: listUnknownDimensionFields(data),
   };
   if (!hasOutline) {
     result.not_available = true;
-    result.error = 'No board outline was found in the active PCB document.';
+    result.error = outlineUnverified
+      ? 'Board outline geometry could not be verified in the active PCB document.'
+      : 'No board outline was found in the active PCB document.';
   }
   return result;
 }
