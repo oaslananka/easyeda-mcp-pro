@@ -200,7 +200,20 @@ describe('BridgeManager', () => {
   it('should throw when calling a method while disconnected', async () => {
     const config = createTestConfig();
     const manager = createTestManager(config);
-    await expect(manager.call('test.method')).rejects.toThrow('Bridge not connected');
+    await expect(manager.call('test.method')).rejects.toMatchObject({
+      code: 'BRIDGE_NOT_CONNECTED',
+      message: expect.stringContaining('Bridge not connected'),
+    });
+  });
+
+  it('reports a pre-dispatch connection wait timeout with a stable code', async () => {
+    const manager = createTestManager(createTestConfig({ BRIDGE_WAIT_FOR_EDA_MS: 20 }));
+    const listenersBefore = manager.listenerCount('connected');
+    await expect(manager.call('extension.rpcCall', { topic: 'mcp.test' })).rejects.toMatchObject({
+      code: 'BRIDGE_NOT_CONNECTED',
+      message: expect.stringContaining('Bridge not connected'),
+    });
+    expect(manager.listenerCount('connected')).toBe(listenersBefore);
   });
 
   it('should disconnect cleanly', () => {
@@ -1413,7 +1426,10 @@ describe('BridgeManager - waitForConnection', () => {
   it('rejects after the timeout when never connected', async () => {
     const config = createTestConfig();
     const manager = createTestManager(config);
-    await expect(manager.waitForConnection(20)).rejects.toThrow('Bridge not connected');
+    await expect(manager.waitForConnection(20)).rejects.toMatchObject({
+      code: 'BRIDGE_NOT_CONNECTED',
+      message: 'Bridge not connected',
+    });
   });
 
   it('resolves once a connection is established', async () => {
@@ -1678,6 +1694,10 @@ describe('BridgeManager - process ownership', () => {
         blockedByOtherInstance: true,
         ownerPid: child.pid,
         ownerPort,
+      });
+      await expect(manager.call('extension.rpcCall')).rejects.toMatchObject({
+        code: 'BRIDGE_NOT_CONNECTED',
+        message: expect.stringMatching(/another easyeda-mcp-pro process/i),
       });
       manager.disconnect('test complete');
     } finally {

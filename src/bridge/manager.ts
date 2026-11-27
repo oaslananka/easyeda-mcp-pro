@@ -220,7 +220,7 @@ export class BridgeManager extends EventEmitter {
     return new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.off('connected', onConnected);
-        reject(new Error('Bridge not connected'));
+        reject(Object.assign(new Error('Bridge not connected'), { code: 'BRIDGE_NOT_CONNECTED' }));
       }, timeoutMs);
       const onConnected = () => {
         clearTimeout(timer);
@@ -1108,10 +1108,13 @@ export class BridgeManager extends EventEmitter {
 
     const ws = this.ws;
     if (this.state !== 'connected' || !ws) {
-      if (this._ownershipConflict) throw new Error(this._ownershipConflict.message);
-      throw Object.assign(new Error(`Bridge not connected. Cannot call method "${method}".`), {
-        code: 'BRIDGE_NOT_CONNECTED',
-      });
+      throw Object.assign(
+        new Error(
+          this._ownershipConflict?.message ??
+            `Bridge not connected. Cannot call method "${method}".`,
+        ),
+        { code: 'BRIDGE_NOT_CONNECTED' },
+      );
     }
 
     const id = `req_${++this.requestIdCounter}`;
