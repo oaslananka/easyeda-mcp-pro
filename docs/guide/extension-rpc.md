@@ -58,14 +58,14 @@ The result is `{ "topic", "ok": true, "result": <service reply> }`. When somethi
 
 ## Limits and safety
 
-| Limit           | Value                                                            |
-| --------------- | ---------------------------------------------------------------- |
-| Request payload | 256 KiB of JSON                                                  |
-| Reply           | Up to 256 KiB, or half the negotiated transport limit if smaller |
-| Service timeout | 100 ms – 60 s (default 10 s)                                     |
-| Version drift   | Refused while the extension and server versions differ           |
+| Limit           | Value                                                                 |
+| --------------- | --------------------------------------------------------------------- |
+| Request payload | Up to 256 KiB, or half the configured bridge payload limit if smaller |
+| Reply           | Up to 256 KiB, or half the negotiated transport limit if smaller      |
+| Service timeout | 100 ms – 60 s (default 10 s)                                          |
+| Version drift   | Refused while the extension and server versions differ                |
 
-Remote Relay treats every call as `destructive` (high-risk `external-action`), requires the `easyeda.project_admin` scope, and asks for approval on every call. The native approval prompt identifies the exact service topic without exposing the message payload. See
+Disabled, disallowed or oversized calls are refused before soliciting remote approval. The local follower also checks the encoded request against the owner relay budget before sending; the owner checks the native request frame. Remote Relay treats every accepted call as `destructive` (high-risk `external-action`), requires the `easyeda.project_admin` scope, and asks for approval on every call. The native approval prompt identifies the exact service topic without exposing the message payload. See
 [Safety Model §1.5](../SAFETY_MODEL.md#_1-5-extension-rpc-easyeda-extension-call).
 
 Direct raw relay dispatch is disabled. Remote calls must use the allowlisted MCP tool and its matching, single-use invocation approval. Reply data is copied within the byte budget (depth 10); methods, accessors and non-JSON values are not executed. Oversized replies are rejected without sending their contents; the service may already have acted.

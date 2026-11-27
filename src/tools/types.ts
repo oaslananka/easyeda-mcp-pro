@@ -57,6 +57,9 @@ export interface ToolDefinition<
   };
   inputSchema: TInput;
   outputSchema: TOutput;
+  /** Pure local validation after schema/scope/confirmation checks, before remote approval.
+   * Return only a refusal result, or undefined to continue normal authorization and execution. */
+  preflightRefusal?: (context: ToolContext, input: z.infer<TInput>) => z.infer<TOutput> | undefined;
   handler: (context: ToolContext, input: z.infer<TInput>) => Promise<z.infer<TOutput>>;
   /**
    * Optional: extract MCP image content blocks (e.g. a PNG canvas capture)

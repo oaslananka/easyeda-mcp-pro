@@ -70,6 +70,8 @@ async function createHarness(
   modernEnabled = false,
   extensionRpc = false,
   rpcErrorCode?: string,
+  rpcTopics = 'mcp.demo.echo,mcp.demo.inspect',
+  bridgeMaxPayloadSize = 1048576,
 ): Promise<RemoteHttpHarness> {
   const port = await reservePort();
   const dataDir = await mkdtemp(join(tmpdir(), 'easyeda-remote-http-'));
@@ -77,7 +79,8 @@ async function createHarness(
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
     TOOL_PROFILE: extensionRpc ? 'experimental' : 'core',
-    BRIDGE_EXTENSION_RPC_TOPICS: extensionRpc ? 'mcp.demo.echo,mcp.demo.inspect' : '',
+    BRIDGE_EXTENSION_RPC_TOPICS: extensionRpc ? rpcTopics : '',
+    BRIDGE_MAX_PAYLOAD_SIZE: bridgeMaxPayloadSize,
     TRANSPORT: 'http',
     HTTP_HOST: '127.0.0.1',
     HTTP_PORT: port,
@@ -287,8 +290,12 @@ describe('Remote Relay MCP HTTP integration', () => {
         arguments: { ...invocation, remoteApprovalId: approvalId },
       });
     };
-    const refused = await callApproved('mcp.demo.notAllowed');
-    expect(refused.structuredContent).toMatchObject({ ok: false });
+    const refused = await client.callTool({
+      name: 'easyeda_extension_call',
+      arguments: { ...args, topic: 'mcp.demo.notAllowed' },
+    });
+    expect(refused.structuredContent).toMatchObject({ ok: false, outcomeUnknown: false });
+    expect(harness.approvalRequests).toHaveLength(0);
     expect(harness.dispatched).toHaveLength(0);
     const accepted = await callApproved('mcp.demo.echo');
     expect(accepted.structuredContent).toMatchObject({ ok: true, result: 'echo reply' });
@@ -320,6 +327,29 @@ describe('Remote Relay MCP HTTP integration', () => {
     expect(await direct.json()).toMatchObject({ code: 'APPROVAL_NOT_APPROVED' });
     expect(harness.dispatched).toHaveLength(2);
   }, 15_000);
+
+  it.each([
+    ['', 'mcp.demo.echo', null, true],
+    ['mcp.demo.echo', 'mcp.demo.echo', 'x'.repeat(200 * 1024), false],
+    ['mcp.demo.echo', 'mcp.demo.echo', '😀'.repeat(3000), false],
+  ] as const)(
+    'refuses invalid RPC before remote approval (allowlist=%s)',
+    async (topics, topic, message, disabled) => {
+      const harness = await createHarness(false, true, undefined, topics, 16 * 1024);
+      cleanup.push(harness.close);
+      const { client, transport } = harness.createClient('rpc-preflight-http');
+      await client.connect(transport);
+      const result = await client.callTool({
+        name: 'easyeda_extension_call',
+        arguments: { topic, message, confirmWrite: true, remoteSessionId: harness.remoteSessionId },
+      });
+      expect(result.structuredContent).toMatchObject({ ok: false, outcomeUnknown: false });
+      expect(result.structuredContent?.disabled === true).toBe(disabled);
+      expect(harness.approvalRequests).toHaveLength(0);
+      expect(harness.dispatched).toHaveLength(0);
+    },
+    15_000,
+  );
 
   it.each([
     ['METHOD_NOT_ALLOWED', false, 'REMOTE_TOOL_UNSUPPORTED'],

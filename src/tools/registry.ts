@@ -849,6 +849,8 @@ export async function handleRegisteredToolCall(
     if (confirmError) return confirmError;
 
     const parsed = tool.inputSchema.parse(domainInputForTool(context, input) ?? {});
+    const refusal = tool.preflightRefusal?.(context, parsed);
+    if (refusal !== undefined) return formatToolSuccess(tool, refusal);
     const result = await executeToolWithMetrics(context, tool, raw, extra, parsed);
     return formatToolSuccess(tool, result);
   } catch (err) {

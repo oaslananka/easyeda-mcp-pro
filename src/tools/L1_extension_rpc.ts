@@ -43,6 +43,7 @@ const RPC_PRE_DISPATCH_RECOVERY = new Map<string, string>([
   ['REGISTRY_MISMATCH', 'Reconnect with a matching bridge method registry.'],
   ['EXTENSION_VERSION_MISMATCH', 'Install the extension matching the server version.'],
   ['BRIDGE_NOT_CONNECTED', 'Connect the EasyEDA bridge before retrying.'],
+  ['RPC_REQUEST_TOO_LARGE', 'Reduce the request payload to fit the active bridge budget.'],
   ['METHOD_NOT_ALLOWED', 'Update the bridge extension to a version supporting extension RPC.'],
   ['METHOD_NOT_FOUND', 'Update the bridge extension to a version supporting extension RPC.'],
   ['REMOTE_TOOL_UNSUPPORTED', 'Update the paired extension to a version supporting extension RPC.'],
@@ -76,6 +77,46 @@ function rpcFailure(topic: string, err: unknown) {
       detail +
       '; the outcome is unknown. The service may still be running; inspect before retrying.',
   };
+}
+
+interface RpcInput {
+  topic: string;
+  message?: unknown;
+  timeoutMs: number;
+  confirmWrite: true;
+}
+
+function rpcPreflight(ctx: ToolContext, params: unknown) {
+  const { topic, message, confirmWrite } = params as RpcInput;
+  const refused = { topic, ok: false, outcomeUnknown: false };
+  if (confirmWrite !== true) return { ...refused, error: 'confirmWrite=true is required.' };
+  const configured = ctx.config.BRIDGE_EXTENSION_RPC_TOPICS;
+  const allowlist = parseExtensionRpcTopics(typeof configured === 'string' ? configured : '');
+  if (allowlist.length === 0) {
+    return {
+      ...refused,
+      disabled: true,
+      error:
+        'Extension RPC is disabled. Set BRIDGE_EXTENSION_RPC_TOPICS to the mcp.* topics this server may call.',
+    };
+  }
+  if (!isExtensionRpcTopicAllowed(topic, allowlist)) {
+    return { ...refused, error: `Topic ${topic} is not listed in BRIDGE_EXTENSION_RPC_TOPICS.` };
+  }
+  // Reserve space for request envelopes, including UTF-8 topic and relay metadata.
+  const configuredBudget = ctx.config.BRIDGE_MAX_PAYLOAD_SIZE;
+  const budget = Math.min(
+    MAX_MESSAGE_BYTES,
+    Math.floor((typeof configuredBudget === 'number' ? configuredBudget : 1048576) / 2),
+  );
+  const bytes = messageByteLength(message);
+  if (bytes === undefined || bytes > budget) {
+    return {
+      ...refused,
+      error: `Message must be JSON-serializable and at most ${budget === MAX_MESSAGE_BYTES ? '256 KiB' : budget + ' bytes'} within the configured bridge payload budget.`,
+    };
+  }
+  return undefined;
 }
 
 export function registerExtensionRpcTools(registry: ToolRegistry, _config: EnvConfig): void {
@@ -128,41 +169,11 @@ export function registerExtensionRpcTools(registry: ToolRegistry, _config: EnvCo
       error: z.string().optional(),
       outcomeUnknown: z.boolean().optional(),
     }),
+    preflightRefusal: rpcPreflight,
     handler: async (ctx: ToolContext, params: unknown) => {
-      const { topic, message, timeoutMs, confirmWrite } = params as {
-        topic: string;
-        message?: unknown;
-        timeoutMs: number;
-        confirmWrite: true;
-      };
-      if (confirmWrite !== true)
-        return { topic, ok: false, error: 'confirmWrite=true is required.' };
-      const configured = ctx.config.BRIDGE_EXTENSION_RPC_TOPICS;
-      const allowlist = parseExtensionRpcTopics(typeof configured === 'string' ? configured : '');
-      if (allowlist.length === 0) {
-        return {
-          topic,
-          ok: false,
-          disabled: true,
-          error:
-            'Extension RPC is disabled. Set BRIDGE_EXTENSION_RPC_TOPICS to the mcp.* topics this server may call.',
-        };
-      }
-      if (!isExtensionRpcTopicAllowed(topic, allowlist)) {
-        return {
-          topic,
-          ok: false,
-          error: `Topic ${topic} is not listed in BRIDGE_EXTENSION_RPC_TOPICS.`,
-        };
-      }
-      const bytes = messageByteLength(message);
-      if (bytes === undefined || bytes > MAX_MESSAGE_BYTES) {
-        return {
-          topic,
-          ok: false,
-          error: 'Message must be JSON-serializable and at most 256 KiB.',
-        };
-      }
+      const refusal = rpcPreflight(ctx, params);
+      if (refusal) return refusal;
+      const { topic, message, timeoutMs, confirmWrite } = params as RpcInput;
       try {
         const reply = await ctx.bridge.call(
           'extension.rpcCall',

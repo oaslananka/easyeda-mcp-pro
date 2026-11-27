@@ -1205,6 +1205,25 @@ describe('BridgeManager - reconnect', () => {
 });
 
 describe('BridgeManager - call() round trip', () => {
+  it('refuses oversized native RPC frames without disconnecting the bridge', async () => {
+    const { manager, socket } = await setupSecureConnection({ BRIDGE_MAX_PAYLOAD_SIZE: 16 * 1024 });
+    const received: string[] = [];
+    socket.on('message', (raw) => {
+      const msg = JSON.parse(raw.toString()) as { id: string; type: string; method: string };
+      if (msg.type !== 'request') return;
+      received.push(msg.method);
+      socket.send(
+        JSON.stringify({ id: msg.id, type: 'response', ok: true, result: { healthy: true } }),
+      );
+    });
+    await expect(
+      manager.call('extension.rpcCall', { message: '😀'.repeat(5000) }),
+    ).rejects.toMatchObject({ code: 'RPC_REQUEST_TOO_LARGE' });
+    await expect(manager.call('system.getStatus', {})).resolves.toEqual({ healthy: true });
+    expect(received).toEqual(['system.getStatus']);
+    expect(manager.connected).toBe(true);
+  });
+
   it('resolves call() when the client sends a matching response', async () => {
     const { manager, socket } = await setupSecureConnection();
 
