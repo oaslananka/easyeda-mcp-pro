@@ -76,6 +76,7 @@ These tools are profile-gated. Set the `TOOL_PROFILE` environment variable to en
 | `easyeda_pcb_regions`                              | `core`         | `low`    | List native PCB Region primitives separately from copper pours/zones, including layer, region rule types/name, line width, lock state, and a bounded normalized polygon representation. Read-only; no Region mutation is exposed.                                                                                             |
 | `easyeda_pcb_route_geometry_review`                | `core`         | `low`    | Read native PCB tracks/vias in 200-row pages, bounded at 1200 tracks and 600 vias, plus opt-in source-declared component-origin/pad-pair and exact native endpoint-chain observations. Incomplete/non-atomic evidence remains UNKNOWN; no DRC or fabrication approval.                                                        |
 | `easyeda_pcb_route_path_plan`                      | `full`         | `high`   | Create a high-level, constraint-checked route path plan for one net and optionally apply it after explicit confirmation.                                                                                                                                                                                                      |
+| `easyeda_pcb_set_board_outline`                    | `pro`          | `high`   | Draw a rectangular board outline (one board-outline polyline) on the focused PCB when it has none, then verify the measured size. Requires confirmWrite and expectedPcbUuid; deletes and re-reads if the size does not match.                                                                                                 |
 | `easyeda_pcb_tracks`                               | `core`         | `low`    | List native copper track segments and net/layer geometry. Requires exact active project UUID and focused PCB; mismatched or missing focus returns not_available, not a successful empty list.                                                                                                                                 |
 | `easyeda_pcb_vias`                                 | `core`         | `low`    | List native PCB vias, nets and dimensions. Requires exact active project UUID and focused PCB; mismatched or missing focus returns not_available, not a successful empty list. Units follow native PCB coordinate scale.                                                                                                      |
 | `easyeda_pcb_zone_preflight`                       | `full`         | `low`    | Verify the live EasyEDA Pro version, focused PCB, exact net membership, supported copper layer and native zone capabilities. This is a read-only diagnostic of supported rectangular or simple closed-polyline outlines, never proof of copper continuity or permission for zone writes.                                      |
@@ -2599,6 +2600,48 @@ Returns a JSON object matching the schema:
   apply_results: object[] (optional);
   issues: object[];
   summary: string;
+  error: string (optional);
+  targetDocument: object (optional);
+}
+```
+
+---
+
+## `easyeda_pcb_set_board_outline`
+
+**Profile:** `pro` | **Risk Level:** `high`
+
+> Draw a rectangular board outline (one board-outline polyline) on the focused PCB when it has none, then verify the measured size. Requires confirmWrite and expectedPcbUuid; deletes and re-reads if the size does not match.
+
+### Input Parameters
+
+| Parameter                   | Type                | Required | Description                                                                           |
+| --------------------------- | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `projectId`                 | `string`            | Yes      | EasyEDA project UUID of the focused PCB (not its display name).                       |
+| `expectedPcbUuid`           | `string (optional)` | No       | Expected focused PCB document UUID; reject a different focused PCB before a write.    |
+| `widthMm`                   | `number`            | Yes      |                                                                                       |
+| `heightMm`                  | `number`            | Yes      |                                                                                       |
+| `xMm`                       | `number`            | Yes      | X of the first corner, in mm, in EasyEDA native PCB axes.                             |
+| `yMm`                       | `number`            | Yes      | Y of the first corner, in mm, in EasyEDA native PCB axes.                             |
+| `lineWidthMm`               | `number`            | Yes      |                                                                                       |
+| `confirmWrite`              | `'true'`            | Yes      | Must be the literal boolean true (not the string "true") to allow this write.         |
+| `expectedSchematicPageUuid` | `string (optional)` | No       | Expected focused schematic page UUID; reject a different focused page before a write. |
+
+### Output Format
+
+Returns a JSON object matching the schema:
+
+```ts
+{
+  success: boolean;
+  status: string;
+  projectId: string;
+  pcbId: string;
+  primitiveIds: string[] (optional);
+  measuredWidthMm: number (optional);
+  measuredHeightMm: number (optional);
+  rolledBack: boolean (optional);
+  leftoverPrimitiveIds: string[] (optional);
   error: string (optional);
   targetDocument: object (optional);
 }
