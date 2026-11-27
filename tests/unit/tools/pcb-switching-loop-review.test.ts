@@ -75,6 +75,33 @@ const tracks = [
     width: 10,
   },
 ];
+const annulusInput = {
+  pourPrimitiveId: 'pour1',
+  expectedNet: 'GND',
+  expectedLayer: 1,
+  transform: { scale: 1, invertY: false, source: 'Independent contour calibration' },
+  pads: [
+    {
+      componentPrimitiveId: 'c',
+      designator: 'C1',
+      padNumber: '2',
+      primitiveId: 'c/2',
+      diameterMm: 1.016,
+      nativeHoleMmPerUnit: 0.254,
+      source: 'Independent drill source',
+    },
+    {
+      componentPrimitiveId: 'd',
+      designator: 'D2',
+      padNumber: '2',
+      primitiveId: 'd/2',
+      diameterMm: 1.016,
+      nativeHoleMmPerUnit: 0.254,
+      source: 'Independent drill source',
+    },
+  ],
+};
+
 function setup(
   options: {
     missingReturn?: boolean;
@@ -83,6 +110,7 @@ function setup(
     incomplete?: boolean;
     duplicatePad?: boolean;
     missingComponent?: boolean;
+    pourMode?: string;
   } = {},
 ) {
   const registry = new ToolRegistry();
@@ -100,6 +128,8 @@ function setup(
   const activeComponents = options.missingComponent ? components.slice(0, 2) : components;
   let contacts = 0;
   let afterContacts = 0;
+  let afterPour = 0;
+  let pourRead = false;
   const call = vi.fn(async (method: string, args: any) => {
     if (method === 'pcb.listTracks')
       return { total: activeTracks.length + Number(!!options.incomplete), items: activeTracks };
@@ -111,9 +141,14 @@ function setup(
         return { result: { uuid: 'pcb-project' } };
       if (args.path === 'DMT_SelectControl.getCurrentDocumentInfo') {
         if (contacts >= 6) afterContacts++;
+        if (pourRead) afterPour++;
         return {
           result: {
-            uuid: options.focusChanged && afterContacts >= 2 ? 'other-pcb' : 'pcb',
+            uuid:
+              (options.focusChanged && afterContacts >= 2) ||
+              (options.pourMode === 'final-focus' && afterPour >= 2)
+                ? 'other-pcb'
+                : 'pcb',
             parentProjectUuid: 'pcb-project',
             documentType: 3,
           },
@@ -121,6 +156,42 @@ function setup(
       }
       if (args.path === 'PCB_PrimitiveComponent.getAllPinsByPrimitiveId')
         return { result: activePads.filter((p) => p.parentComponentPrimitiveId === args.args[0]) };
+    }
+    if (method === 'pcb.listPourAnnulusGeometry') {
+      pourRead = true;
+      if (options.pourMode === 'throw') throw Error('native unavailable');
+      return {
+        evidence: 'native_source_linked_filled_region',
+        pourPrimitiveId: 'pour1',
+        net: args.expectedNet,
+        layer: options.pourMode === 'wrong-layer' ? 2 : args.expectedLayer,
+        electricalContinuity: 'UNKNOWN',
+        fill: {
+          id: 'copper0',
+          fill: true,
+          lineWidth: 0,
+          path: { complexPolygon: [[-100, -100, 'L', 200, -100, 200, 200, -100, 200, -100, -100]] },
+        },
+        pads: args.pads.map((p: any, i: number) => ({
+          ...p,
+          net: args.expectedNet,
+          layer: 12,
+          x:
+            options.pourMode === 'no-witness' || (options.pourMode === 'one-witness' && i === 1)
+              ? 500
+              : p.designator === 'C1'
+                ? 0
+                : 100,
+          y: 100,
+          pad: ['ELLIPSE', 80, 80],
+          hole: ['ROUND', 4, 4],
+          metallization: true,
+          heatWelding: null,
+          holeOffsetX: 0,
+          holeOffsetY: 0,
+          specialPad: [],
+        })),
+      };
     }
     if (method === 'pcb.listComponentPadConnections') {
       contacts++;
@@ -320,5 +391,102 @@ describe('caller-declared nonsynchronous buck loop review', () => {
     expect(tool.inputSchema.safeParse({ ...input, includeNativePadContacts: false }).success).toBe(
       false,
     );
+  });
+});
+
+describe('correlation of declared return pads to independently observed fill', () => {
+  const combined = { ...input, nativePourAnnulus: annulusInput };
+
+  it('links both exact return pads in return order with the same native fill, without changing line semantics', async () => {
+    const { run, call } = setup({ missingReturn: true });
+    const legacy = await run();
+    call.mockClear();
+    const result = await run(combined);
+    const group = result.placement_review.switching_loop_topology;
+    const { return_pour_evidence: evidence, ...oldGroup } = group;
+    expect(oldGroup).toEqual(legacy.placement_review.switching_loop_topology);
+    expect(result.placement_review.findings).toEqual(legacy.placement_review.findings);
+    expect(result.overall_status).toBe(legacy.overall_status);
+    expect(result.native_pour_annulus_review.pads.map((p: any) => p.status)).toEqual([
+      'GEOMETRIC_OVERLAP_CANDIDATE',
+      'GEOMETRIC_OVERLAP_CANDIDATE',
+    ]);
+    expect(evidence).toMatchObject({
+      evidence: 'same_contour_pad_overlap_candidates',
+      expected_net: 'GND',
+      pour_primitive_id: 'pour1',
+      fill_id: 'copper0',
+      native_layer: 1,
+      native_pad_primitive_ids: ['d/2', 'c/2'],
+      electrical_continuity_status: 'UNKNOWN',
+      engineering_sign_off: false,
+      next_action: 'review-physical-return-path',
+    });
+    expect(group.missing_roles).toEqual(['return']);
+    expect(call.mock.calls.filter(([m]) => m === 'pcb.listPourAnnulusGeometry')).toHaveLength(1);
+  });
+
+  it.each(['one-witness', 'no-witness', 'wrong-layer', 'final-focus', 'throw'])(
+    'does not correlate incomplete or stale source (%s)',
+    async (pourMode) => {
+      const { run } = setup({ missingReturn: true, pourMode });
+      const result = await run(combined);
+      const evidence = result.placement_review.switching_loop_topology.return_pour_evidence;
+      expect(evidence).toMatchObject({
+        evidence: 'unavailable',
+        electrical_continuity_status: 'UNKNOWN',
+        engineering_sign_off: false,
+      });
+      expect(evidence.fill_id).toBeUndefined();
+      expect(evidence.native_pad_primitive_ids).toBeUndefined();
+    },
+  );
+
+  it.each([
+    { ...annulusInput, pads: annulusInput.pads.slice(0, 1) },
+    {
+      ...annulusInput,
+      pads: [annulusInput.pads[0], { ...annulusInput.pads[1], componentPrimitiveId: 'other' }],
+    },
+    {
+      ...annulusInput,
+      pads: [annulusInput.pads[0], { ...annulusInput.pads[1], primitiveId: 'other' }],
+    },
+    { ...annulusInput, pads: [annulusInput.pads[0], { ...annulusInput.pads[1], padNumber: '3' }] },
+    { ...annulusInput, expectedNet: 'OTHER' },
+  ])(
+    'does not conflate independently observed unrelated endpoints (%j)',
+    async (nativePourAnnulus) => {
+      const { run } = setup({ missingReturn: true });
+      const result = await run({ ...combined, nativePourAnnulus });
+      expect(result.native_pour_annulus_review.evidence).toBe('native_source_linked_filled_region');
+      expect(result.placement_review.switching_loop_topology.return_pour_evidence).toMatchObject({
+        evidence: 'unavailable',
+        electrical_continuity_status: 'UNKNOWN',
+      });
+    },
+  );
+
+  it.each([
+    { wrongNet: true },
+    { incomplete: true },
+    { duplicatePad: true },
+    { missingComponent: true },
+  ])('never attributes a fill when return identity is unproven (%j)', async (flags) => {
+    const { run } = setup({ missingReturn: true, ...flags });
+    const result = await run(combined);
+    expect(result.placement_review.switching_loop_topology.return_pour_evidence.evidence).toBe(
+      'unavailable',
+    );
+  });
+
+  it('does not add a correlation section to either single request', async () => {
+    const { run } = setup({ missingReturn: true });
+    expect(
+      (await run()).placement_review.switching_loop_topology.return_pour_evidence,
+    ).toBeUndefined();
+    expect(
+      (await run({ projectId: input.projectId, nativePourAnnulus: annulusInput })).placement_review,
+    ).toBeUndefined();
   });
 });

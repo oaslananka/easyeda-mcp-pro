@@ -20,6 +20,10 @@ import {
   switchingLoopRoles,
   switchingPadIdentitiesConsistent,
 } from '../pcb-layout/placement-switching-topology.js';
+import {
+  correlateSwitchingReturnPour,
+  switchingReturnPourEvidenceSchema,
+} from './pcb-switching-return-correlation.js';
 import { reviewSelectedLineWidth } from '../pcb-layout/placement-selected-line-width.js';
 import {
   reviewDecouplingTopology,
@@ -589,6 +593,7 @@ const switchingLoopTopologySchema = z.object({
     )
     .length(3),
   missing_roles: z.array(z.enum(switchingLoopRoles)).max(3),
+  return_pour_evidence: switchingReturnPourEvidenceSchema.optional(),
   electrical_loop_status: z.literal('UNKNOWN'),
   engineering_sign_off: z.literal(false),
   limitations: z.array(z.string()),
@@ -1248,7 +1253,12 @@ async function optionalPlacementReview(
   placement: ReturnType<typeof reviewPlacementRelations> | undefined,
   relations: z.infer<typeof placementRelationSchema>[] | undefined,
   context: z.infer<typeof placementPriorityContextSchema> | undefined,
-  source: { complete: boolean; focusedPcbId?: string; pads?: Map<string, unknown> },
+  source: {
+    complete: boolean;
+    focusedPcbId?: string;
+    pads?: Map<string, unknown>;
+    pour?: z.infer<typeof pourAnnulusResultSchema>;
+  },
   readFocus: () => Promise<string | undefined>,
 ) {
   if (!placement) return {};
@@ -1262,10 +1272,18 @@ async function optionalPlacementReview(
     switchingPadIdentitiesConsistent(legs, source.pads) &&
     source.focusedPcbId !== undefined &&
     (await readFocus()) === source.focusedPcbId;
+  const topology = reviewSwitchingLoopTopology(legs, placement.findings, usable);
   return {
     placement_review: {
       ...prioritized,
-      switching_loop_topology: reviewSwitchingLoopTopology(legs, placement.findings, usable),
+      switching_loop_topology: {
+        ...topology,
+        ...correlateSwitchingReturnPour(
+          topology.legs[2],
+          placement.findings[legs[2].index],
+          source.pour,
+        ),
+      },
     },
   };
 }
@@ -1458,6 +1476,7 @@ export function registerPcbRouteReviewTools(
           complete: geometry.input_evidence.collection_complete,
           focusedPcbId,
           pads: padObservations,
+          pour: pourAnnulus.native_pour_annulus_review,
         },
         () => readFocusedPcbId(ctx, projectId),
       );
