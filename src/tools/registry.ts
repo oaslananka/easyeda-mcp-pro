@@ -787,15 +787,23 @@ function toolFailureResponse(tool: ToolDefinition, context: ToolContext, err: un
   }
 
   if (err instanceof RemoteRelayRouteError) {
+    // A terminal dispatch deadline must not hide the uncertainty of an already
+    // dispatched non-read operation behind a generic routing error.
+    const outcomeUnknown =
+      err.failure.code === 'REMOTE_EXTENSION_TIMEOUT' && remoteRiskForTool(tool) !== 'read';
     const response = structuredErrorResponse({
       errorCode: ErrorCodes.REMOTE_RELAY,
-      message: err.message,
+      message: outcomeUnknown
+        ? err.message +
+          ' The operation outcome is unknown; it may still be running or have completed side effects. Inspect the target state before retrying.'
+        : err.message,
       details: {
         toolName: tool.name,
         remoteCode: err.failure.code,
         status: err.failure.status,
         approvalId: err.failure.approvalId,
         approvalExpiresAt: err.failure.approvalExpiresAt,
+        ...(outcomeUnknown ? { outcomeUnknown: true } : {}),
       },
     });
     if (err.failure.code !== 'SCOPE_MISSING') return response;

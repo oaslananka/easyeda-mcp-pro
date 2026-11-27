@@ -111,6 +111,10 @@ async function createHarness(
     dispatch: async (request): Promise<ToolResponseMessage> => {
       dispatched.push(request);
       if (request.toolName === 'extension.rpcCall' && rpcErrorCode) {
+        if (rpcErrorCode === 'test-dispatch-timeout') {
+          // Exercise the real gateway deadline, not a synthetic error envelope.
+          return await new Promise<ToolResponseMessage>(() => {});
+        }
         return {
           protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
           type: 'tool_response',
@@ -368,6 +372,58 @@ describe('Remote Relay MCP HTTP integration', () => {
     },
     15_000,
   );
+
+  it('preserves uncertainty on a terminal remote RPC dispatch deadline', async () => {
+    const harness = await createHarness(false, true, 'test-dispatch-timeout');
+    cleanup.push(harness.close);
+    const { client, transport } = harness.createClient('extension-rpc-deadline-http');
+    await client.connect(transport);
+    const args = {
+      topic: 'mcp.demo.echo',
+      confirmWrite: true,
+      timeoutMs: 100,
+      remoteSessionId: harness.remoteSessionId,
+    };
+    const pending = await client.callTool({ name: 'easyeda_extension_call', arguments: args });
+    expect(pending.structuredContent).toMatchObject({
+      details: { remoteCode: 'APPROVAL_REQUIRED' },
+    });
+    expect(harness.dispatched).toHaveLength(0);
+    const approvalId = (pending.structuredContent as { details: { approvalId: string } }).details
+      .approvalId;
+    expect(
+      harness.gateway.resolveApprovalFromExtension({
+        sessionId: harness.remoteSessionId,
+        approvalId,
+        result: 'approved',
+      }),
+    ).toBe(true);
+    const response = await client.callTool({
+      name: 'easyeda_extension_call',
+      arguments: { ...args, remoteApprovalId: approvalId },
+    });
+    expect(response.isError).toBe(true);
+    expect(response.structuredContent).toMatchObject({
+      errorCode: 'ERR_REMOTE_RELAY',
+      message: expect.stringMatching(/outcome is unknown.*inspect.*before retrying/i),
+      details: { remoteCode: 'REMOTE_EXTENSION_TIMEOUT', status: 504, outcomeUnknown: true },
+    });
+    expect(response.content).toContainEqual({
+      type: 'text',
+      text: expect.stringMatching(/outcome is unknown.*inspect.*before retrying/i),
+    });
+    expect(harness.dispatched).toHaveLength(1);
+    const retry = await client.callTool({
+      name: 'easyeda_extension_call',
+      arguments: { ...args, remoteApprovalId: approvalId },
+    });
+    expect(retry.isError).toBe(true);
+    expect(retry.structuredContent).toMatchObject({
+      details: { remoteCode: 'SESSION_DISCONNECTED' },
+    });
+    expect(retry.structuredContent?.details).not.toHaveProperty('outcomeUnknown');
+    expect(harness.dispatched).toHaveLength(1);
+  }, 15_000);
 
   it.each([false, true])(
     'reports real owner bridge readiness after remote disconnect (modern=%s)',

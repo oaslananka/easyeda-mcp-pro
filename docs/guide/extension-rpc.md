@@ -54,7 +54,7 @@ The tool is in the `experimental` profile, so also set `TOOL_PROFILE=experimenta
 Each invocation needs explicit `confirmWrite: true` and a write-capable server scope. A configured allowlist does not grant per-invocation consent.
 
 The result is `{ "topic", "ok": true, "result": <service reply> }`. When something goes wrong, `ok` is
-`false` and `error` explains why. `outcomeUnknown: true` means a dispatched service may have performed a side effect or may still be running; inspect its state before retrying. A verified pre-dispatch refusal (unsupported runtime, invalid parameters, missing confirmation, bridge registry/version mismatch, a disconnected bridge, an unsupported remote dispatcher, or an invalid remote invocation grant) returns `outcomeUnknown: false`. `disabled: true` means the allowlist is empty.
+`false` and `error` explains why. `outcomeUnknown: true` means a dispatched service may have performed a side effect or may still be running; inspect its state before retrying. A verified pre-dispatch refusal (unsupported runtime, invalid parameters, missing confirmation, bridge registry/version mismatch, a disconnected bridge, an unsupported remote dispatcher, or an invalid remote invocation grant) returns `outcomeUnknown: false`. `disabled: true` means the allowlist is empty. A terminal Remote Relay dispatch deadline instead returns the structured `ERR_REMOTE_RELAY` error with `details.remoteCode: REMOTE_EXTENSION_TIMEOUT` and `details.outcomeUnknown: true`, including the same inspect-before-retry warning in its text. The relay session is quarantined; do not automatically retry.
 
 ## Limits and safety
 
