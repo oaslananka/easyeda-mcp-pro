@@ -18,6 +18,7 @@ const MAX_MESSAGE_BYTES = 256 * 1024;
 export interface ExtensionRpcDependencies {
   readFirstPath: ApiRuntime['readFirstPath'];
   createBridgeError: BridgeErrorFactory;
+  getBridgeMaxPayloadSize: () => number;
 }
 
 export interface ExtensionRpcOperations {
@@ -45,6 +46,7 @@ function boundedTimeout(value: unknown): number {
 export function createExtensionRpcOperations({
   readFirstPath,
   createBridgeError,
+  getBridgeMaxPayloadSize,
 }: ExtensionRpcDependencies): ExtensionRpcOperations {
   // Call a service another EasyEDA extension registered on the public message bus.
   // The bridge only forwards JSON data; it never evaluates code supplied by the caller.
@@ -106,11 +108,31 @@ export function createExtensionRpcOperations({
         'Inspect service state before retrying; check that the extension is installed, enabled and registered.',
       );
     }
-    return {
-      topic,
-      timeoutMs,
-      result: normalizeValue(reply, EXTENSION_RPC_RESULT_DEPTH, new WeakSet<object>(), false),
-    };
+    let result: unknown;
+    let replyBytes: number;
+    try {
+      result = normalizeValue(reply, EXTENSION_RPC_RESULT_DEPTH, new WeakSet<object>(), false);
+      replyBytes = new TextEncoder().encode(
+        JSON.stringify({ topic, timeoutMs, result }),
+      ).byteLength;
+    } catch {
+      throw createBridgeError(
+        'EXTENSION_RPC_FAILED',
+        'Service reply could not be serialized; the outcome is unknown.',
+        'Inspect service state before retrying.',
+      );
+    }
+    // Reserve space for the surrounding transport envelope; also cap RPC
+    // responses independently of larger negotiated binary/chunk budgets.
+    const budget = Math.min(MAX_MESSAGE_BYTES, Math.floor(getBridgeMaxPayloadSize() / 2));
+    if (replyBytes > budget) {
+      throw createBridgeError(
+        'PAYLOAD_TOO_LARGE',
+        'Extension RPC reply exceeded the safe transport budget; the outcome is unknown.',
+        'Inspect service state and request a smaller reply before retrying.',
+      );
+    }
+    return { topic, timeoutMs, result };
   }
 
   return { call };

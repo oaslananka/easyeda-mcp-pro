@@ -898,8 +898,8 @@ path.
   requires `destructive` approval and `easyeda.project_admin`, and every invocation requires
   `confirmWrite: true` and a local write scope. Only allow trusted services; the service must
   guard its own design target and writes. A timeout is not cancellation or proof of no side
-  effects: inspect the service state before retrying.
-- **Bounded.** Requests are limited to 256 KiB of JSON, replies to `BRIDGE_MAX_PAYLOAD_SIZE`, and the
+  effects: inspect the service state before retrying. Raw relay dispatch is disabled; only a matching single-use MCP invocation grant can dispatch the RPC.
+- **Bounded.** Requests are limited to 256 KiB of JSON, replies to 256 KiB or half the negotiated transport limit if smaller, and the
   service timeout to 60 s. Calls are refused while the extension and server versions differ.
 
 ---

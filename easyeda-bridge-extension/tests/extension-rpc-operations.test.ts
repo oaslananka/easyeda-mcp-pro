@@ -5,7 +5,7 @@ import {
   EXTENSION_RPC_MAX_TIMEOUT_MS,
 } from '../src/extension-rpc-operations.js';
 
-function makeOperations(bus: unknown) {
+function makeOperations(bus: unknown, maxPayloadSize = 1_048_576) {
   const readFirstPath = vi.fn(() => bus);
   const createBridgeError = vi.fn((code: string, message: string, _suggestion: string) =>
     Object.assign(new Error(message), { code }),
@@ -15,6 +15,7 @@ function makeOperations(bus: unknown) {
     operations: createExtensionRpcOperations({
       readFirstPath: readFirstPath as never,
       createBridgeError,
+      getBridgeMaxPayloadSize: () => maxPayloadSize,
     }),
   };
 }
@@ -41,6 +42,21 @@ describe('extension RPC operations', () => {
     ).rejects.toMatchObject({ code: 'INVALID_PARAMS' });
     expect(rpcCallPublic).not.toHaveBeenCalled();
   });
+
+  it.each([1_048_576, 1024])(
+    'rejects oversized UTF-8 replies without emitting them (%i)',
+    async (cap) => {
+      const rpcCallPublic = vi.fn(async () => ({ text: 'é'.repeat(cap) }));
+      const { operations } = makeOperations({ rpcCallPublic }, cap);
+      await expect(
+        operations.call({ confirmWrite: true, topic: 'mcp.ping' }),
+      ).rejects.toMatchObject({
+        code: 'PAYLOAD_TOO_LARGE',
+        message: expect.stringContaining('outcome is unknown'),
+      });
+      expect(rpcCallPublic).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('calls an opted-in public service and returns its JSON reply', async () => {
     const rpcCallPublic = vi.fn(async () => ({ violations: [{ net: 'USB_DP', gapMm: 0.4 }] }));

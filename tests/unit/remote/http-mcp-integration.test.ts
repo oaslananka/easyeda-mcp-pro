@@ -12,6 +12,7 @@ import {
   type ApprovalRequestMessage,
   type ToolRequestMessage,
   type ToolResponseMessage,
+  type RemoteScope,
 } from '../../../src/remote/protocol.js';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -44,9 +45,10 @@ async function waitFor(check: () => boolean, timeoutMs = 1000): Promise<void> {
 interface RemoteHttpHarness {
   identity: {
     userId: string;
-    scopes: readonly ['easyeda.read', 'easyeda.write'];
+    scopes: readonly RemoteScope[];
   };
   gateway: RemoteGateway;
+  baseUrl: string;
   remoteSessionId: string;
   dispatched: ToolRequestMessage[];
   approvalRequests: ApprovalRequestMessage[];
@@ -63,13 +65,17 @@ interface RemoteHttpHarness {
   close: () => Promise<void>;
 }
 
-async function createHarness(modernEnabled = false): Promise<RemoteHttpHarness> {
+async function createHarness(
+  modernEnabled = false,
+  extensionRpc = false,
+): Promise<RemoteHttpHarness> {
   const port = await reservePort();
   const dataDir = await mkdtemp(join(tmpdir(), 'easyeda-remote-http-'));
   const config = EnvSchema.parse({
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
-    TOOL_PROFILE: 'core',
+    TOOL_PROFILE: extensionRpc ? 'experimental' : 'core',
+    BRIDGE_EXTENSION_RPC_TOPICS: extensionRpc ? 'mcp.demo.echo' : '',
     TRANSPORT: 'http',
     HTTP_HOST: '127.0.0.1',
     HTTP_PORT: port,
@@ -86,7 +92,9 @@ async function createHarness(modernEnabled = false): Promise<RemoteHttpHarness> 
 
   const identity = {
     userId: 'http-user',
-    scopes: ['easyeda.read', 'easyeda.write'] as const,
+    scopes: extensionRpc
+      ? (['easyeda.project_admin'] as const)
+      : (['easyeda.read', 'easyeda.write'] as const),
   };
   const dispatched: ToolRequestMessage[] = [];
   const approvalRequests: ApprovalRequestMessage[] = [];
@@ -114,7 +122,9 @@ async function createHarness(modernEnabled = false): Promise<RemoteHttpHarness> 
                 },
               ],
             }
-          : { primitiveId: 'text-http-1' };
+          : request.toolName === 'extension.rpcCall'
+            ? { ...(request.input as Record<string, unknown>), result: 'echo reply' }
+            : { primitiveId: 'text-http-1' };
       return {
         protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
         type: 'tool_response',
@@ -192,6 +202,7 @@ async function createHarness(modernEnabled = false): Promise<RemoteHttpHarness> 
   return {
     identity,
     gateway,
+    baseUrl: `http://127.0.0.1:${port}`,
     remoteSessionId: remoteSession.sessionId,
     dispatched,
     approvalRequests,
@@ -214,6 +225,70 @@ describe('Remote Relay MCP HTTP integration', () => {
       if (task) await task();
     }
   });
+
+  it('routes only an approved, allowlisted extension RPC through the actual MCP handler', async () => {
+    const harness = await createHarness(false, true);
+    cleanup.push(harness.close);
+    const { client, transport } = harness.createClient('extension-rpc-http');
+    await client.connect(transport);
+    const args = {
+      topic: 'mcp.demo.echo',
+      confirmWrite: true,
+      timeoutMs: 1000,
+      remoteSessionId: harness.remoteSessionId,
+    };
+    const callApproved = async (topic: string) => {
+      const invocation = { ...args, topic };
+      const pending = await client.callTool({
+        name: 'easyeda_extension_call',
+        arguments: invocation,
+      });
+      expect(pending.structuredContent).toMatchObject({
+        details: { remoteCode: 'APPROVAL_REQUIRED' },
+      });
+      const approvalId = (pending.structuredContent as { details: { approvalId: string } }).details
+        .approvalId;
+      expect(
+        harness.gateway.resolveApprovalFromExtension({
+          sessionId: harness.remoteSessionId,
+          approvalId,
+          result: 'approved',
+        }),
+      ).toBe(true);
+      return client.callTool({
+        name: 'easyeda_extension_call',
+        arguments: { ...invocation, remoteApprovalId: approvalId },
+      });
+    };
+    const refused = await callApproved('mcp.demo.notAllowed');
+    expect(refused.structuredContent).toMatchObject({ ok: false });
+    expect(harness.dispatched).toHaveLength(0);
+    const accepted = await callApproved('mcp.demo.echo');
+    expect(accepted.structuredContent).toMatchObject({ ok: true, result: 'echo reply' });
+    expect(harness.dispatched).toHaveLength(1);
+    expect(harness.dispatched[0]).toMatchObject({
+      toolName: 'extension.rpcCall',
+      riskLevel: 'destructive',
+      requiresApproval: true,
+    });
+    const direct = await fetch(harness.baseUrl + '/remote/tool-requests', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-remote-user-id': harness.identity.userId,
+        'x-remote-scopes': 'easyeda.project_admin',
+      },
+      body: JSON.stringify({
+        sessionId: harness.remoteSessionId,
+        toolName: 'extension.rpcCall',
+        riskLevel: 'destructive',
+        input: { topic: args.topic, confirmWrite: true, timeoutMs: 1000, message: null },
+      }),
+    });
+    expect(direct.status).toBe(403);
+    expect(await direct.json()).toMatchObject({ code: 'APPROVAL_NOT_APPROVED' });
+    expect(harness.dispatched).toHaveLength(1);
+  }, 15_000);
 
   it.each([false, true])(
     'reports real owner bridge readiness after remote disconnect (modern=%s)',

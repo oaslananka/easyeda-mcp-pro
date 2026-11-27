@@ -2264,6 +2264,7 @@ export function createDispatcher(toolkit: DispatcherToolkit): Dispatcher {
   domainRouter = createDispatcherDomainRouter({
     deviceMetadataOperations: createDeviceMetadataOperations({ callFirst, readFirstPath }),
     extensionRpcOperations: createExtensionRpcOperations({
+      getBridgeMaxPayloadSize: () => toolkit.getBridgeMaxPayloadSize(),
       readFirstPath,
       createBridgeError: newBridgeError,
     }),
