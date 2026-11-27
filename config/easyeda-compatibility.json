@@ -4,6 +4,123 @@
   "reviewPolicyDays": 90,
   "records": [
     {
+      "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-7ec0281-v1210-return-contour",
+      "status": "live-validated",
+      "validatedAt": "2026-11-27T02:36:51Z",
+      "reviewBy": "2027-02-25",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-43-generic",
+        "nodeVersion": "24.22.3"
+      },
+      "easyedaPro": {
+        "version": "4.1.105.0339a6cd",
+        "electronVersion": "not independently recorded",
+        "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+        "chromiumVersion": "not independently recorded",
+        "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+      },
+      "server": {
+        "validationPackageVersion": "1.21.0",
+        "releaseContainingFixes": "1.21.0",
+        "commit": "7ec0281897b557b4f7bda396b48ba65325a1d66a",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "b90f1e72bebda78ab4fa1f6988dcbb786ff75f93",
+            "src/bridge": "404ec8961d98af12aca7df838b0f9d8953b2a2f3",
+            "src/remote": "7fcd33c262536ec1cba79c49e4ad24615663633a",
+            "src/server/transports": "ebfb2525eaa7af8f5d86445d814c47e78573868c",
+            "src/tools": "df75cc0bfad36307b6807a490d01b7d16939e42d",
+            "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.21.0",
+        "loaderReportedVersion": "1.21.0",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "25cb47ba3bf5ed23",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "d460cxee5axa9d5",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "feb932942cc2a686f41bc286b08a869d7d10c8de12cc62b0ac8ea54760b3b7dd",
+        "packageSizeBytes": 249066
+      },
+      "fixture": {
+        "project": "Isolated disposable LM2596 imported PCB; no personal design",
+        "schematic": "Focused PCB; no design write",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v1210-native-install",
+          "name": "Exact 1.21.0 installation and Local MCP handshake",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Two byte-identical extension builds, official isolated Extension Manager import and cold start. Healthy Local MCP server/extension 1.21.0, 87 methods, matching registry/version and baked dispatcher.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.21.0-7ec0281-return-contour.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1163"
+          ]
+        },
+        {
+          "id": "v1210-native-declared-loop",
+          "name": "Declared buck loop line-chain review",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Actual LM2596: input 3 and switch 5 native-associated line segments; return line chain unavailable. Original findings and priorities unchanged. All electrical continuity statuses UNKNOWN.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.21.0-7ec0281-return-contour.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1162"
+          ]
+        },
+        {
+          "id": "v1210-native-return-contour",
+          "name": "Exact return pad / same-contour correlation",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "D2.2 and C1.2 GND both match selected source pour and same copper0 fill. Wrong-layer and one-pad controls unavailable; reversed pad order equal, legacy single request unchanged, PCB focus and inventory unchanged. No physical continuity claim.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.21.0-7ec0281-return-contour.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1164",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/842"
+          ]
+        },
+        {
+          "id": "v1210-native-durable-write",
+          "name": "Durable native writes and autorouting",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "Not exercised in this read-only pass. Prior native autoroute persistence limitation remains.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.21.0-7ec0281-return-contour.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/1126"
+          ]
+        },
+        {
+          "id": "v1210-hosted-acceptance",
+          "name": "Authenticated Hosted and independent-user acceptance",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "Not exercised in this local read-only run.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-27-ubuntu-24-04-easyeda-4.1.105-v1.21.0-7ec0281-return-contour.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/850"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Only isolated Ubuntu x86_64 and EasyEDA Pro 4.1.105 were live-validated. Windows/macOS native acceptance and Electron/Chromium versions were not independently measured. Nonfatal GPU initialization diagnostics occurred; graphics/3D were not validated.",
+        "Caller-declared loop roles and same-contour geometric overlap do not prove physical contact, common return-current geometry, electrical continuity, loop area, inductance, EMI performance or engineering/manufacturing approval. The native reads are focus-bound, not atomic. Missing return line evidence remains UNKNOWN.",
+        "The 1.20.0 export and via-contour capabilities retain their earlier exact evidence; those scenarios were not rerun for this candidate. IPC-2581C remained unavailable in the previous native run.",
+        "No design mutation, save/reopen, native autorouting, authenticated Hosted/OAuth, remembered trust or independent-user acceptance was exercised."
+      ]
+    },
+    {
       "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-eea5504-v1200-native-exports-and-via-contours",
       "status": "live-validated",
       "validatedAt": "2026-11-27T00:45:50Z",
