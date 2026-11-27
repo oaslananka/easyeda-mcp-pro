@@ -305,6 +305,7 @@ export async function fetchBoardEvidenceFromBridge(
   // board.listLayers is a catalogue of visible/non-copper layers, never a copper count.
   void layersResult;
   const dimensions = resolvedObject(dimensionsResult);
+  const outlineAvailable = dimensions.outlineGeometryAvailable !== false;
   const stackup = resolvedObject(stackupResult);
   const designRules = resolvedObject(designRulesResult);
   const results = [dimensionsResult, layersResult, stackupResult, designRulesResult];
@@ -320,9 +321,12 @@ export async function fetchBoardEvidenceFromBridge(
   }));
   return {
     data: {
-      widthMm: measuredPositive(dimensions.widthMm),
-      heightMm: measuredPositive(dimensions.heightMm),
-      hasOutline: typeof dimensions.hasOutline === 'boolean' ? dimensions.hasOutline : undefined,
+      widthMm: outlineAvailable ? measuredPositive(dimensions.widthMm) : undefined,
+      heightMm: outlineAvailable ? measuredPositive(dimensions.heightMm) : undefined,
+      hasOutline:
+        outlineAvailable && typeof dimensions.hasOutline === 'boolean'
+          ? dimensions.hasOutline
+          : undefined,
       mountingHoleCount: measuredCount(dimensions.mountingHoleCount),
       minDrillMm: measuredPositive(dimensions.minDrillMm),
       hasClearanceRules:

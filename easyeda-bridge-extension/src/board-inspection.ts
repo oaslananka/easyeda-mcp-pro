@@ -7,6 +7,7 @@ import {
   readPrimitiveState,
 } from './pcb-primitive-state.js';
 import { isRecord, logRecoverableError, readPath } from './utils.js';
+import { readOutlinePathPoints } from './board-outline-path.js';
 
 export interface BoardInspectionDependencies {
   readFirstPath: ApiRuntime['readFirstPath'];
@@ -231,16 +232,9 @@ function addCircleSourceBounds(bounds: BoundingBox, source: readonly unknown[]):
 }
 
 function addLinePolylineSourceBounds(bounds: BoundingBox, source: readonly unknown[]): boolean {
-  const start = readFiniteSourceNumbers(source, 0, 2);
-  if (!start || source[2] !== 'L') return false;
-
-  const coordinates = readFiniteSourceNumbers(source, 3, source.length - 3);
-  if (!coordinates || coordinates.length < 2 || coordinates.length % 2 !== 0) return false;
-
-  updateBoundingBox(bounds, start[0], start[1]);
-  for (let index = 0; index < coordinates.length; index += 2) {
-    updateBoundingBox(bounds, coordinates[index], coordinates[index + 1]);
-  }
+  const points = readOutlinePathPoints(source);
+  if (!points) return false;
+  for (const [x, y] of points) updateBoundingBox(bounds, x, y);
   return true;
 }
 
@@ -343,23 +337,36 @@ async function addPrimitivePoints(
   );
 }
 
+type OutlineInventory = 'unavailable' | 'empty' | 'observed' | 'incomplete';
+
 async function addOutlinePrimitiveBounds(
   primitiveClass: any,
   bounds: BoundingBox,
   description: string,
   pcbMathPolygonClass: any,
-): Promise<void> {
-  if (!primitiveClass || typeof primitiveClass.getAll !== 'function') return;
+): Promise<OutlineInventory> {
+  if (!primitiveClass || typeof primitiveClass.getAll !== 'function') return 'unavailable';
   const primitives = await primitiveClass.getAll();
   if (!Array.isArray(primitives)) throw new Error(`Invalid board outline ${description} inventory`);
+  let status: OutlineInventory = 'empty';
   try {
     for (const primitive of primitives) {
       if (!(await primitiveIsOnBoardOutlineResolved(primitive))) continue;
-      await addPrimitivePoints(bounds, primitive, pcbMathPolygonClass);
+      const local = createEmptyBoundingBox();
+      await addPrimitivePoints(local, primitive, pcbMathPolygonClass);
+      if (!(local.maxX > local.minX || local.maxY > local.minY)) {
+        status = 'incomplete';
+        continue;
+      }
+      updateBoundingBox(bounds, local.minX, local.minY);
+      updateBoundingBox(bounds, local.maxX, local.maxY);
+      if (status !== 'incomplete') status = 'observed';
     }
   } catch (error) {
     logRecoverableError(`failed to read board outline ${description}`, error);
+    return 'incomplete';
   }
+  return status;
 }
 
 async function countPrimitiveCollection(
@@ -678,9 +685,11 @@ export function createBoardInspectionOperations({
     const pcbMathPolygonClass = readFirstPath<any>(['PCB_MathPolygon', 'pcb_MathPolygon']);
     const bounds = createEmptyBoundingBox();
 
-    await addOutlinePrimitiveBounds(pcbLineClass, bounds, 'lines', pcbMathPolygonClass);
-    await addOutlinePrimitiveBounds(pcbArcClass, bounds, 'arcs', pcbMathPolygonClass);
-    await addOutlinePrimitiveBounds(pcbPolylineClass, bounds, 'polylines', pcbMathPolygonClass);
+    const inventories = [
+      await addOutlinePrimitiveBounds(pcbLineClass, bounds, 'lines', pcbMathPolygonClass),
+      await addOutlinePrimitiveBounds(pcbArcClass, bounds, 'arcs', pcbMathPolygonClass),
+      await addOutlinePrimitiveBounds(pcbPolylineClass, bounds, 'polylines', pcbMathPolygonClass),
+    ];
 
     const widthMil = bounds.maxX > bounds.minX ? bounds.maxX - bounds.minX : 0;
     const heightMil = bounds.maxY > bounds.minY ? bounds.maxY - bounds.minY : 0;
@@ -688,19 +697,23 @@ export function createBoardInspectionOperations({
     const height = pcbMilToMm(heightMil);
     const drillSummary = await readDrillSummary(pcbPadClass, pcbViaClass);
     const hasOutline = width > 0 && height > 0;
+    const outlineUnverified =
+      inventories.includes('incomplete') ||
+      (!hasOutline && inventories.some((inventory) => inventory !== 'empty'));
 
     return {
-      widthMm: width,
-      heightMm: height,
-      shape: hasOutline ? 'custom' : undefined,
+      widthMm: outlineUnverified ? undefined : width,
+      heightMm: outlineUnverified ? undefined : height,
+      shape: !outlineUnverified && hasOutline ? 'custom' : undefined,
       mountingHoleCount: undefined,
       drilledPadCount: drillSummary.drilledPadCount,
       platedDrillPadCount: drillSummary.platedDrillPadCount,
       unplatedDrillPadCount: drillSummary.unplatedDrillPadCount,
       minDrillMm: drillSummary.minDrillMm,
       unknownFields: drillSummary.unknownFields,
-      areaMm2: roundMetric(width * height),
-      hasOutline,
+      areaMm2: outlineUnverified ? undefined : roundMetric(width * height),
+      hasOutline: outlineUnverified ? undefined : hasOutline,
+      ...(outlineUnverified ? { outlineGeometryAvailable: false } : {}),
     };
   }
 

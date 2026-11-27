@@ -100,6 +100,35 @@ describe('evidence-based engineering review', () => {
     ]);
   });
 
+  it('does not turn unavailable outline geometry into a blocking missing-outline finding', async () => {
+    bridgeCall.mockImplementation(async (method: string) => {
+      if (method === 'board.getDimensions')
+        return {
+          outlineGeometryAvailable: false,
+          hasOutline: false,
+          widthMm: 0,
+          heightMm: 0,
+          minDrillMm: 0.254,
+        };
+      if (method === 'board.getStackup') return { totalLayers: 4, layers: [] };
+      if (method === 'board.listLayers') return [];
+      if (method === 'board.getDesignRules') return {};
+      throw new Error('unexpected bridge method');
+    });
+    const report = await run();
+    expect(report.findings).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ rule_id: 'PCB_MISSING_OUTLINE', status: 'FAIL' }),
+      ]),
+    );
+    expect(report.input_evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'hasOutline', quality: 'unavailable' }),
+        expect.objectContaining({ field: 'minDrillMm', quality: 'measured', value: 0.254 }),
+      ]),
+    );
+  });
+
   it('treats supplier-controlled six-layer stackup as unknown, not a blocking mismatch', async () => {
     bridgeCall.mockImplementation(async (method: string) => {
       if (method === 'board.getDimensions') return { widthMm: 82, heightMm: 54, hasOutline: true };
