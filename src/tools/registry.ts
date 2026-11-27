@@ -119,7 +119,7 @@ function registeredInputSchema(tool: ToolDefinition, context: ToolContext): z.Zo
 
 type RemoteGatewayFailure = Extract<RemoteGatewayToolResult, { ok: false }>;
 
-class RemoteRelayRouteError extends Error {
+export class RemoteRelayRouteError extends Error {
   constructor(readonly failure: RemoteGatewayFailure) {
     // Some MCP clients display only text content and drop structuredContent.
     // The short-lived approval ID is still bound to the exact user, session,

@@ -68,6 +68,7 @@ interface RemoteHttpHarness {
 async function createHarness(
   modernEnabled = false,
   extensionRpc = false,
+  rpcErrorCode?: string,
 ): Promise<RemoteHttpHarness> {
   const port = await reservePort();
   const dataDir = await mkdtemp(join(tmpdir(), 'easyeda-remote-http-'));
@@ -109,6 +110,19 @@ async function createHarness(
     },
     dispatch: async (request): Promise<ToolResponseMessage> => {
       dispatched.push(request);
+      if (request.toolName === 'extension.rpcCall' && rpcErrorCode) {
+        return {
+          protocolVersion: REMOTE_RELAY_PROTOCOL_VERSION,
+          type: 'tool_response',
+          messageId: `fake-http-response-${dispatched.length}`,
+          sessionId: request.sessionId,
+          requestMessageId: request.messageId,
+          timestamp: new Date().toISOString(),
+          ok: false,
+          error: { code: rpcErrorCode, message: 'private-test-error' },
+          durationMs: 1,
+        };
+      }
       const result =
         request.toolName === 'schematic.listComponents'
           ? {
@@ -301,6 +315,59 @@ describe('Remote Relay MCP HTTP integration', () => {
     expect(await direct.json()).toMatchObject({ code: 'APPROVAL_NOT_APPROVED' });
     expect(harness.dispatched).toHaveLength(2);
   }, 15_000);
+
+  it.each([
+    ['METHOD_NOT_ALLOWED', false, 'REMOTE_TOOL_UNSUPPORTED'],
+    ['METHOD_NOT_FOUND', false, 'REMOTE_TOOL_UNSUPPORTED'],
+    ['UNSUPPORTED_RUNTIME', false, 'UNSUPPORTED_RUNTIME'],
+    ['INVALID_PARAMS', false, 'INVALID_PARAMS'],
+    ['CONFIRM_WRITE_REQUIRED', false, 'CONFIRM_WRITE_REQUIRED'],
+    ['REMOTE_EXECUTION_NOT_ENABLED', false, 'REMOTE_EXECUTION_NOT_ENABLED'],
+    ['EXTENSION_RPC_NO_REPLY', true, 'outcome is unknown'],
+    ['EXTENSION_RPC_FAILED', true, 'outcome is unknown'],
+    ['PAYLOAD_TOO_LARGE', true, 'outcome is unknown'],
+    ['EASYEDA_API_ERROR', true, 'outcome is unknown'],
+  ] as const)(
+    'reports remote RPC failure %s with the correct dispatch certainty',
+    async (code, unknown, detail) => {
+      const harness = await createHarness(false, true, code);
+      cleanup.push(harness.close);
+      const { client, transport } = harness.createClient('extension-rpc-failure-http');
+      await client.connect(transport);
+      const args = {
+        topic: 'mcp.demo.echo',
+        confirmWrite: true,
+        timeoutMs: 1000,
+        remoteSessionId: harness.remoteSessionId,
+      };
+      const pending = await client.callTool({ name: 'easyeda_extension_call', arguments: args });
+      expect(pending.structuredContent).toMatchObject({
+        details: { remoteCode: 'APPROVAL_REQUIRED' },
+      });
+      expect(harness.dispatched).toHaveLength(0);
+      const approvalId = (pending.structuredContent as { details: { approvalId: string } }).details
+        .approvalId;
+      expect(
+        harness.gateway.resolveApprovalFromExtension({
+          sessionId: harness.remoteSessionId,
+          approvalId,
+          result: 'approved',
+        }),
+      ).toBe(true);
+      const response = await client.callTool({
+        name: 'easyeda_extension_call',
+        arguments: { ...args, remoteApprovalId: approvalId },
+      });
+      expect(response.structuredContent).toMatchObject({
+        ok: false,
+        outcomeUnknown: unknown,
+        error: expect.stringContaining(detail),
+      });
+      expect(JSON.stringify(response.structuredContent)).not.toContain('private-test-error');
+      expect(harness.dispatched).toHaveLength(1);
+    },
+    15_000,
+  );
 
   it.each([false, true])(
     'reports real owner bridge readiness after remote disconnect (modern=%s)',

@@ -64,6 +64,14 @@ export type RemoteGatewayErrorCode =
   | 'REMOTE_TOOL_UNSUPPORTED'
   | 'REMOTE_EXTENSION_TIMEOUT';
 
+// Only these dispatcher refusals are proven to precede public RPC invocation.
+const ExtensionRpcRefusalCodeSchema = z.enum([
+  'UNSUPPORTED_RUNTIME',
+  'INVALID_PARAMS',
+  'CONFIRM_WRITE_REQUIRED',
+  'REMOTE_EXECUTION_NOT_ENABLED',
+]);
+
 export type RemoteGatewayFailure = {
   ok: false;
   status: number;
@@ -71,6 +79,7 @@ export type RemoteGatewayFailure = {
   message: string;
   approvalId?: string;
   approvalExpiresAt?: string;
+  extensionRpcRefusalCode?: z.infer<typeof ExtensionRpcRefusalCodeSchema>;
 };
 
 export type RemoteGatewayToolResult =
@@ -263,7 +272,10 @@ function isUnsupportedRemoteMethod(code: string | undefined): boolean {
   return code === 'METHOD_NOT_ALLOWED' || code === 'METHOD_NOT_FOUND';
 }
 
-function relayExtensionFailure(error?: { code: string; message: string }): RemoteGatewayFailure {
+function relayExtensionFailure(
+  method: string,
+  error?: { code: string; message: string },
+): RemoteGatewayFailure {
   if (error?.code === 'PROJECT_INACTIVE') {
     return gatewayError(
       409,
@@ -278,11 +290,16 @@ function relayExtensionFailure(error?: { code: string; message: string }): Remot
       `${error?.code}: ${error?.message ?? 'Remote extension does not support this method.'}`,
     );
   }
-  return gatewayError(
+  const failure = gatewayError(
     502,
     'REMOTE_EXTENSION_ERROR',
     error?.message ?? 'Remote extension returned an error.',
   );
+  if (method === EXTENSION_RPC_METHOD) {
+    const refusal = ExtensionRpcRefusalCodeSchema.safeParse(error?.code);
+    if (refusal.success) return { ...failure, extensionRpcRefusalCode: refusal.data };
+  }
+  return failure;
 }
 
 function scopeStringToList(value: unknown): string[] {
@@ -1466,7 +1483,7 @@ export class RemoteGateway {
           errorCode: response.error?.code ?? 'REMOTE_EXTENSION_ERROR',
           durationMs: Date.now() - startedAt,
         });
-        return relayExtensionFailure(response.error);
+        return relayExtensionFailure(input.toolName, response.error);
       }
       this.audit.record({
         event: 'remote.tool.completed',

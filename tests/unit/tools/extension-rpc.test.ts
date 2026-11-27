@@ -132,6 +132,8 @@ describe('easyeda_extension_call', () => {
     'REGISTRY_MISMATCH',
     'EXTENSION_VERSION_MISMATCH',
     'BRIDGE_NOT_CONNECTED',
+    'METHOD_NOT_ALLOWED',
+    'METHOD_NOT_FOUND',
   ])('reports verified pre-dispatch refusal %s as a known failure', async (code) => {
     bridgeCall.mockRejectedValue(Object.assign(new Error('private details'), { code }));
     const result = await run({ topic: 'mcp.rcp.checkNet' });

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { type EnvConfig } from '../config/env.js';
 import { type ToolContext } from './types.js';
-import { type ToolRegistry } from './registry.js';
+import { RemoteRelayRouteError, type ToolRegistry } from './registry.js';
 
 /** Same namespace the extension enforces: only services registered as `mcp.<name>`. */
 const TOPIC_PATTERN = /^mcp\.[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$/;
@@ -33,8 +33,8 @@ function messageByteLength(message: unknown): number | undefined {
   }
 }
 
-// These stable codes are emitted before the service invocation, either by the
-// local bridge manager or the extension. Never classify arbitrary transport or
+// These stable codes are emitted before the service invocation, by the
+// bridge manager, remote gateway or extension. Never classify arbitrary transport or
 // service errors as known failures.
 const RPC_PRE_DISPATCH_RECOVERY = new Map<string, string>([
   ['UNSUPPORTED_RUNTIME', 'Use an EasyEDA runtime with public message bus support.'],
@@ -43,10 +43,18 @@ const RPC_PRE_DISPATCH_RECOVERY = new Map<string, string>([
   ['REGISTRY_MISMATCH', 'Reconnect with a matching bridge method registry.'],
   ['EXTENSION_VERSION_MISMATCH', 'Install the extension matching the server version.'],
   ['BRIDGE_NOT_CONNECTED', 'Connect the EasyEDA bridge before retrying.'],
+  ['METHOD_NOT_ALLOWED', 'Update the bridge extension to a version supporting extension RPC.'],
+  ['METHOD_NOT_FOUND', 'Update the bridge extension to a version supporting extension RPC.'],
+  ['REMOTE_TOOL_UNSUPPORTED', 'Update the paired extension to a version supporting extension RPC.'],
+  ['REMOTE_EXECUTION_NOT_ENABLED', 'Use a paired extension with Remote Relay dispatch enabled.'],
+  ['APPROVAL_NOT_APPROVED', 'Request a new approval for this exact service invocation.'],
 ]);
 
 function rpcFailure(topic: string, err: unknown) {
-  const code = (err as { code?: unknown } | null)?.code;
+  const code =
+    err instanceof RemoteRelayRouteError
+      ? (err.failure.extensionRpcRefusalCode ?? err.failure.code)
+      : (err as { code?: unknown } | null)?.code;
   const recovery = typeof code === 'string' ? RPC_PRE_DISPATCH_RECOVERY.get(code) : undefined;
   if (recovery) {
     return {
