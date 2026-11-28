@@ -17,6 +17,16 @@
 > SQLite writer and do not create another Cloud instance or add paid services.
 > This is **not** a general-release or multi-user acceptance claim.
 
+## Optional trusted ingress (not enabled by default)
+
+The Oracle deployment supports a deployment-private `CLOUD_TRUSTED_PROXY_IP`
+setting after the ingress trust boundary has been accepted. Follow the
+[Oracle deployment instructions](https://github.com/oaslananka/easyeda-mcp-pro/tree/main/deploy/oracle-free#optional-trusted-ingress)
+for the immediate-peer and single verified-client-header contract. Keep it
+empty until real origin isolation, proxy header replacement, OAuth and WSS
+have been verified. This does not satisfy the independent real-user or
+historical credential-remediation gates.
+
 ## Oracle image-secret check — 2026-11-17
 
 Read-only operator inspection confirmed that the currently running Oracle

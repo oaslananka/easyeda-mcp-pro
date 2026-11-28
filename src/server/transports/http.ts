@@ -22,6 +22,7 @@ import {
 } from './oauth-resource-metadata.js';
 import { RemoteGateway } from '../../remote/gateway.js';
 import { mountHostedAuth } from '../../cloud/http-adapter.js';
+import { mountTrustedIngress } from '../../cloud/trusted-ingress.js';
 import { mountHostedPortal } from '../../cloud/portal.js';
 import type { HostedAuth } from '../../cloud/hosted-auth.js';
 import type { HostedUsageStore } from '../../cloud/usage.js';
@@ -619,6 +620,7 @@ export function createHttpTransport(
 
   const app = express();
   app.use(addSecurityHeaders);
+  mountTrustedIngress(app, options.hostedAuth);
   // Apply a standard, CodeQL-recognized limiter before *all* hosted OAuth,
   // browser-session and MCP authorization routes. Keep existing 1-minute
   // request budget and legacy X-RateLimit-* response headers.
@@ -804,7 +806,14 @@ export function createHttpTransport(
   const start = async () => {
     return new Promise<void>((resolve) => {
       server = app.listen(config.HTTP_PORT, config.HTTP_HOST, () => {
-        if (server) gateway.attachWebSocketServer(server, config, options.hostedAuth?.origin);
+        if (server) {
+          gateway.attachWebSocketServer(
+            server,
+            config,
+            options.hostedAuth?.origin,
+            options.hostedAuth?.trustedProxyIp,
+          );
+        }
         // Listener coordinates can originate in the process environment.
         logger.info('HTTP transport listening');
         resolve();

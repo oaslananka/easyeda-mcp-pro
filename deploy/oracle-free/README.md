@@ -25,6 +25,33 @@ this cap must still fail closed. This does not relax OAuth, pairing or
 per-action export approval.
 Leave the existing reverse proxy and unrelated applications untouched.
 
+## Optional trusted ingress
+
+Leave `CLOUD_TRUSTED_PROXY_IP` empty until the ingress trust boundary passes
+owner acceptance. A proxied DNS record or strict TLS by itself does not
+authenticate the originating proxy.
+
+When enabling this option, restrict the Cloud origin to its authorized ingress
+and ensure only that ingress can reach the backend (including other containers
+and local processes). Verify the immediate IPv4 peer as observed by the
+application; in Docker it may be the host gateway, not the public edge address.
+Set the option to that single exact IPv4 address, never a CIDR or wildcard.
+The ingress must replace `X-Forwarded-For` with exactly one verified client IP
+and discard caller-supplied identity headers. Do not blindly trust a Cloudflare
+header from an unauthenticated peer.
+
+The app checks the immediate peer and the single IP before HTTP authentication
+or WebSocket upgrade, uses that identity for rate limiting, and preserves
+IPv6 subnet limiting and direct loopback health probes. With the option empty,
+existing Local, self-hosted and Hosted behavior is unchanged. The option is
+not an authentication grant and does not relax OAuth or pairing.
+
+Validate the exact proxy configuration and verify separate client limits,
+spoof rejection, direct-origin denial, health, OAuth and WSS from disposable
+fixtures before an approved activation. Recheck the peer after network
+recreation. Restore the prior proxy configuration and empty the option for
+rollback; never change shared proxy rules for unrelated hosts.
+
 ## Prepare and start
 
 1. Copy the Compose manifest and non-secret .env.example into a private

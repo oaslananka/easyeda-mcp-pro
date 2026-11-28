@@ -34,3 +34,18 @@ describe('Oracle Hosted Cloud cross-client MCP deployment contract', () => {
     expect(compose).not.toMatch(/ALLOWED_ORIGINS:\s*\*/);
   });
 });
+
+describe('optional Hosted ingress', () => {
+  it('passes the exact peer setting without enabling it by default', () => {
+    const compose = readFileSync(
+      new URL('../../../deploy/oracle-free/compose.yaml', import.meta.url),
+      'utf8',
+    );
+    const example = readFileSync(
+      new URL('../../../deploy/oracle-free/.env.example', import.meta.url),
+      'utf8',
+    );
+    expect(compose).toContain("CLOUD_TRUSTED_PROXY_IP: '${CLOUD_TRUSTED_PROXY_IP:-}'");
+    expect(example).toMatch(/^CLOUD_TRUSTED_PROXY_IP=$/m);
+  });
+});

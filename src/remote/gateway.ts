@@ -3,6 +3,8 @@ import type { Server as HttpServer, IncomingMessage } from 'node:http';
 import type { Express, Request, Response } from 'express';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { z } from 'zod';
+import { ipKeyGenerator } from 'express-rate-limit';
+import { resolveTrustedIngress } from '../cloud/trusted-ingress.js';
 import { type EnvConfig } from '../config/env.js';
 import { getLogger } from '../utils/logger.js';
 import { ApprovalStore, requiresApproval, type ApprovalDecision } from './approval-policy.js';
@@ -419,6 +421,24 @@ function validUpgradeOrigin(origin: string | undefined, config: EnvConfig, path:
   } catch {
     return false;
   }
+}
+
+function resolveRelayUpgradeAdmission(
+  request: IncomingMessage,
+  path: string,
+  config?: EnvConfig,
+  canonicalHostedOrigin?: string,
+  trustedProxyIp?: string,
+): { ok: true; ip: string } | { ok: false; status: 400 | 403 } {
+  if (config && !validUpgradeHost(request.headers.host, config, canonicalHostedOrigin)) {
+    return { ok: false, status: 400 };
+  }
+  if (config && !validUpgradeOrigin(request.headers.origin, config, path)) {
+    return { ok: false, status: 403 };
+  }
+  if (!trustedProxyIp) return { ok: true, ip: request.socket.remoteAddress ?? 'unknown' };
+  const client = resolveTrustedIngress(request, trustedProxyIp);
+  return client.ok ? { ok: true, ip: ipKeyGenerator(client.ip) } : client;
 }
 
 export function allowRelayUpgradeAttempt(
@@ -1655,6 +1675,7 @@ export class RemoteGateway {
     server: HttpServer,
     config?: EnvConfig,
     canonicalHostedOrigin?: string,
+    trustedProxyIp?: string,
   ): void {
     if (this.wsAttached) return;
     this.wsAttached = true;
@@ -1671,18 +1692,21 @@ export class RemoteGateway {
       const reject = (status: number, reason: string) => {
         socket.end(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\n\r\n`);
       };
-      if (config && !validUpgradeHost(request.headers.host, config, canonicalHostedOrigin)) {
-        reject(400, 'Bad Request');
-        return;
-      }
-      if (config && !validUpgradeOrigin(request.headers.origin, config, path)) {
-        reject(403, 'Forbidden');
+      const admission = resolveRelayUpgradeAdmission(
+        request,
+        path,
+        config,
+        canonicalHostedOrigin,
+        trustedProxyIp,
+      );
+      if (!admission.ok) {
+        reject(admission.status, admission.status === 403 ? 'Forbidden' : 'Bad Request');
         return;
       }
       if (
         !allowRelayUpgradeAttempt(
           attempts,
-          request.socket.remoteAddress ?? 'unknown',
+          admission.ip,
           Date.now(),
           config?.HTTP_RATE_LIMIT_MAX ?? 100,
         ) ||

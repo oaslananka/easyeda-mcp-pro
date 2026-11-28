@@ -6,6 +6,7 @@ import type { EnvConfig } from '../config/env.js';
 import { createHostedAuth, type HostedAuth, type HostedAuthSettings } from './hosted-auth.js';
 import { HostedUsageStore } from './usage.js';
 import { HostedDeviceResumeStore } from './device-resume.js';
+import { parseTrustedProxyIp } from './trusted-ingress.js';
 
 export interface HostedCloudSettings extends Omit<HostedAuthSettings, 'database'> {
   databasePath: string;
@@ -107,6 +108,7 @@ export function parseHostedCloudSettings(
     origin,
     secret: value('CLOUD_AUTH_SECRET'),
     databasePath: join(config.DATA_DIR, 'hosted-cloud.sqlite'),
+    trustedProxyIp: parseTrustedProxyIp(env.CLOUD_TRUSTED_PROXY_IP),
     github: {
       clientId: value('CLOUD_GITHUB_CLIENT_ID'),
       clientSecret: value('CLOUD_GITHUB_CLIENT_SECRET'),

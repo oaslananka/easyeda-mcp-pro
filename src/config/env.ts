@@ -156,6 +156,7 @@ const KNOWN_NON_SCHEMA_ENV_VARS = new Set([
   // Hosted Cloud is opt-in and deployment-private (never MCP Registry defaults).
   'CLOUD_HOSTED_ENABLED',
   'CLOUD_HOSTED_ORIGIN',
+  'CLOUD_TRUSTED_PROXY_IP',
   'CLOUD_AUTH_SECRET',
   'CLOUD_GITHUB_CLIENT_ID',
   'CLOUD_GITHUB_CLIENT_SECRET',
