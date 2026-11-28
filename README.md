@@ -44,7 +44,7 @@ The assistant can read native net and component data from the focused schematic.
 
 ## Connect in three steps
 
-**Requirements:** Node.js 24.x and EasyEDA Pro. The source checkout pins Node.js 24.22.3 and pnpm 11.28.11; installing through `npx` does not require pnpm.
+**Requirements:** Node.js 24.x and EasyEDA Pro. The source checkout pins Node.js 24.22.3 and pnpm 11.29.0; installing through `npx` does not require pnpm.
 
 ```bash
 # Configure detected MCP clients.

@@ -44,10 +44,10 @@
     "config/runtime-policy.json",
     "scripts/check-runtime.mjs"
   ],
-  "packageManager": "pnpm@11.28.11",
+  "packageManager": "pnpm@11.29.0",
   "engines": {
     "node": ">=24 <25",
-    "pnpm": "11.28.11"
+    "pnpm": "11.29.0"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",

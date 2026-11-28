@@ -21,7 +21,7 @@ async function createCanonicalFixture() {
   const root = await mkdtemp(join(tmpdir(), 'runtime-pin-parity-'));
   temporaryRoots.push(root);
   const nodeVersion = '24.22.3';
-  const pnpmVersion = '11.28.11';
+  const pnpmVersion = '11.29.0';
   const nodeImage = 'node@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5';
 
   await writeJson(join(root, 'config/runtime-policy.json'), {
@@ -121,7 +121,7 @@ describe('runtime pin parity', () => {
 
     expect(result.status, result.stderr).toBe(0);
     expect(result.stdout).toContain(
-      'Runtime pin parity check passed: Node.js 24.22.3; pnpm 11.28.11.',
+      'Runtime pin parity check passed: Node.js 24.22.3; pnpm 11.29.0.',
     );
   });
 
@@ -162,12 +162,12 @@ describe('runtime pin parity', () => {
     const root = await createCanonicalFixture();
     const workflowPath = join(root, '.github/workflows/ci.yml');
     const workflow = await readFile(workflowPath, 'utf8');
-    await writeFile(workflowPath, workflow.replace("      version: '11.28.11'\n", ''), 'utf8');
+    await writeFile(workflowPath, workflow.replace("      version: '11.29.0'\n", ''), 'utf8');
 
     const result = runChecker(root);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain('every pnpm/setup step must pin version 11.28.11');
+    expect(result.stderr).toContain('every pnpm/setup step must pin version 11.29.0');
   });
 
   it('rejects Node, Docker, and documentation drift with file-specific diagnostics', async () => {

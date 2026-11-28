@@ -3,7 +3,7 @@
 FROM node@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS builder
 
 # Enable corepack for pnpm
-RUN corepack enable && corepack prepare pnpm@11.28.11 --activate
+RUN corepack enable && corepack prepare pnpm@11.29.0 --activate
 
 WORKDIR /app
 

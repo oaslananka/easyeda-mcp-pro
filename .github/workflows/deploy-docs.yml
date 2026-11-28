@@ -37,7 +37,7 @@ jobs:
         # pnpm/setup v3.2.0
         uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1
         with:
-          version: '11.28.11'
+          version: '11.29.0'
           install: false
           node-version-file: false
 
