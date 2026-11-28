@@ -1,8 +1,124 @@
 {
   "schemaVersion": 1,
-  "lastReviewed": "2026-11-27",
+  "lastReviewed": "2026-11-28",
   "reviewPolicyDays": 90,
   "records": [
+    {
+      "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-28-677814e-v1244-trusted-ingress",
+      "status": "live-validated",
+      "validatedAt": "2026-11-28T07:28:25Z",
+      "reviewBy": "2027-02-26",
+      "environment": {
+        "operatingSystem": "Ubuntu 24.04.5 LTS",
+        "architecture": "x86_64",
+        "kernel": "7.0.0-44-generic",
+        "nodeVersion": "24.22.3"
+      },
+      "easyedaPro": {
+        "version": "4.1.105.0339a6cd",
+        "electronVersion": "not independently recorded",
+        "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+        "chromiumVersion": "not independently recorded",
+        "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+      },
+      "server": {
+        "validationPackageVersion": "1.24.4",
+        "releaseContainingFixes": "1.24.4",
+        "commit": "677814e8e5ba6be5977a755f2db720ea5d553098",
+        "compatibilitySnapshot": {
+          "algorithm": "git-tree-sha1",
+          "paths": {
+            "easyeda-bridge-extension/src": "e58402f95636b936c8ee65f94d50bfcc8d4dc0ac",
+            "src/bridge": "f43cbbe82d20135c085bea6c1f748285e46dce1f",
+            "src/remote": "5ee2cbfc4226456fe47b25c5dad2b7918ba00177",
+            "src/server/transports": "2efd2b715e2764f2c0a588fe9152331f663a81e8",
+            "src/tools": "0aa5eaaf86eac3e8956049bc293d87770126b1f6",
+            "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+          }
+        }
+      },
+      "extension": {
+        "installedPackageVersion": "1.24.4",
+        "loaderReportedVersion": "1.24.4",
+        "bridgeContractVersion": "1.0.0",
+        "methodRegistryHash": "2a1dbe73076c707d",
+        "activeDispatcher": "baked",
+        "dispatcherBuildId": "d2b40x588exdfcd",
+        "hotSwapCompiled": false,
+        "hotSwapEnabled": false,
+        "packageSha256": "3443dee2a9a50408d0fd9fb98479c5b0f66afe0d8127bfd3ab6bdf86f8c929cb",
+        "packageSizeBytes": 253594
+      },
+      "fixture": {
+        "project": "Isolated disposable copy of STM32 F103 imported PCB; no personal designs",
+        "schematic": "Focused PCB; Local and isolated Hosted WSS read-only",
+        "disposable": true,
+        "readOnly": true
+      },
+      "capabilities": [
+        {
+          "id": "v1244-native-local",
+          "name": "Exact 1.24.4 native Local installation and handshake",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Official Extension Manager import and cold restart; actual packaged server and extension 1.24.4, 88 methods, baked dispatcher, no registry or version mismatch. PCB 50 × 57 mm; owner/follower health and unchanged read-only inventory.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-28-ubuntu-24-04-easyeda-4.1.105-v1.24.4-677814e-trusted-ingress.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1198#issuecomment-7235818161"
+          ]
+        },
+        {
+          "id": "v1244-native-wss",
+          "name": "Native Hosted WSS and explicit project selection",
+          "evidenceLevel": "live",
+          "status": "passed",
+          "summary": "Actual native editor established one verified TLS WebSocket through isolated trusted ingress; synthetic owner one-time pairing, matching native project/document IDs, explicit selection and read-only project.list succeeded. Test CA removed and fixture file unchanged.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-28-ubuntu-24-04-easyeda-4.1.105-v1.24.4-677814e-trusted-ingress.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1198#issuecomment-7235979830"
+          ]
+        },
+        {
+          "id": "v1244-packaged-ingress",
+          "name": "Packaged HTTP, OAuth and WebSocket admission",
+          "evidenceLevel": "fake-runtime",
+          "status": "passed",
+          "summary": "26 actual compiled-entrypoint assertions passed using synthetic credentials and loopback clients: direct peer rejection, missing/multi-hop identity rejection, independent client limits, mapped IPv4 normalization, health and unauthenticated denial.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-28-ubuntu-24-04-easyeda-4.1.105-v1.24.4-677814e-trusted-ingress.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/pull/1198#issuecomment-7235818161"
+          ]
+        },
+        {
+          "id": "v1244-production-hosted",
+          "name": "Production origin and independent real-user acceptance",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "Isolated WSS and synthetic OAuth tests do not establish production ingress isolation, genuine social-provider callbacks, independent real-user acceptance or remembered trust.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-28-ubuntu-24-04-easyeda-4.1.105-v1.24.4-677814e-trusted-ingress.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/850"
+          ]
+        },
+        {
+          "id": "v1244-native-write",
+          "name": "Durable write and save/reopen",
+          "evidenceLevel": "live",
+          "status": "blocked",
+          "summary": "Not exercised in this exact candidate; prior write and cold-reopen records remain historical.",
+          "evidence": [
+            "https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-28-ubuntu-24-04-easyeda-4.1.105-v1.24.4-677814e-trusted-ingress.json",
+            "https://github.com/oaslananka/easyeda-mcp-pro/issues/1060"
+          ]
+        }
+      ],
+      "knownLimitations": [
+        "Live acceptance is limited to Ubuntu x86_64 EasyEDA Pro 4.1.105. Electron and Chromium versions were not independently measured; a nonfatal GPU initialization diagnostic occurred.",
+        "The WSS test used a synthetic owner, local TLS ingress and a short-lived loopback-constrained CA in a copied QA profile. External provider login, real independent users, production origin isolation, remembered trust and historical credential remediation remain unaccepted.",
+        "No native design mutation, save/reopen, write approval, autorouting or engineering sign-off was exercised in this exact candidate. Older evidence remains historical.",
+        "Packaged ingress tests use the actual compiled CI server with dependencies from the matching local lockfile installation, not an independently installed or deployed production image."
+      ]
+    },
     {
       "id": "easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-dcf6831-v1242-rpc-outline",
       "status": "live-validated",

@@ -4,7 +4,7 @@
 
 This matrix records exact runtime evidence. Broad support ranges elsewhere in the repository are policy targets; only rows below are live-validation claims.
 
-- **Last reviewed:** 2026-11-27
+- **Last reviewed:** 2026-11-28
 - **Review policy:** refresh each live record within 90 days or mark it stale/blocked.
 
 ## Commit-bound release gate
@@ -32,6 +32,7 @@ A record can remain historically valid while being stale for a new release candi
 
 | EasyEDA Pro          | OS / architecture                           | MCP validation build | Fix version validated | Extension package | Evidence status | Validated  | Review by  |
 | -------------------- | ------------------------------------------- | -------------------- | --------------------- | ----------------- | --------------- | ---------- | ---------- |
+| 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.24.4               | 1.24.4                | 1.24.4            | Live validated  | 2026-11-28 | 2027-02-26 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.24.2               | 1.24.2                | 1.24.2            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.24.1               | 1.24.1                | 1.24.1            | Live validated  | 2026-11-27 | 2027-02-25 |
 | 4.1.105.0339a6cd     | Ubuntu 24.04.5 LTS / x86_64                 | 1.24.0               | 1.24.0                | 1.24.0            | Live validated  | 2026-11-27 | 2027-02-25 |
@@ -92,6 +93,53 @@ A record can remain historically valid while being stale for a new release candi
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.2           | 1.0.0-rc.2            | 0.99.2            | Live validated  | 2026-08-09 | 2026-11-07 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 1.0.0-rc.1           | 1.0.0-rc.1            | 0.99.1            | Live validated  | 2026-07-29 | 2026-10-27 |
 | 3.2.149.88089769     | Ubuntu 24.04.4 LTS / x86_64                 | 0.35.4               | 0.35.4                | 0.35.4            | Live validated  | 2026-07-25 | 2026-10-23 |
+
+## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-28-677814e-v1244-trusted-ingress
+
+Record ID: `easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-28-677814e-v1244-trusted-ingress`
+
+### Runtime identity
+
+| Field                                    | Exact value                                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| EasyEDA Pro                              | `4.1.105.0339a6cd`                                                                                      |
+| Electron                                 | `not independently recorded`                                                                            |
+| Chromium                                 | `not independently recorded` (Chromium version not independently measured in this exact-candidate run.) |
+| Operating system                         | Ubuntu 24.04.5 LTS                                                                                      |
+| Kernel                                   | `7.0.0-44-generic`                                                                                      |
+| Architecture                             | `x86_64`                                                                                                |
+| Node.js used by validation server        | `24.22.3`                                                                                               |
+| Validation package version               | `1.24.4`                                                                                                |
+| Fix version represented by evidence      | `1.24.4`                                                                                                |
+| Compatibility-sensitive base commit      | `677814e8e5ba6be5977a755f2db720ea5d553098`                                                              |
+| Recorded compatibility snapshot          | `git-tree-sha1` across 6 sensitive paths                                                                |
+| Installed extension package metadata     | `1.24.4`                                                                                                |
+| Live-validated extension package SHA-256 | `3443dee2a9a50408d0fd9fb98479c5b0f66afe0d8127bfd3ab6bdf86f8c929cb`                                      |
+| Live-validated extension package size    | `253594 bytes`                                                                                          |
+| Loader-reported version                  | `1.24.4`                                                                                                |
+| Bridge contract                          | `1.0.0`                                                                                                 |
+| Dispatcher                               | `baked`                                                                                                 |
+| Method registry hash                     | `2a1dbe73076c707d`                                                                                      |
+| Hot-swap compiled / enabled              | `false` / `false`                                                                                       |
+
+The installed extension package and loader both reported version `1.24.4` during this validation.
+
+### Capability evidence
+
+| Capability                                             | Level          | Status    | Result                                                                                                                                                                                                                                                                     | Evidence                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------ | -------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Exact 1.24.4 native Local installation and handshake   | `live`         | `passed`  | Official Extension Manager import and cold restart; actual packaged server and extension 1.24.4, 88 methods, baked dispatcher, no registry or version mismatch. PCB 50 × 57 mm; owner/follower health and unchanged read-only inventory.                                   | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-28-ubuntu-24-04-easyeda-4.1.105-v1.24.4-677814e-trusted-ingress.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1198#issuecomment-7235818161) |
+| Native Hosted WSS and explicit project selection       | `live`         | `passed`  | Actual native editor established one verified TLS WebSocket through isolated trusted ingress; synthetic owner one-time pairing, matching native project/document IDs, explicit selection and read-only project.list succeeded. Test CA removed and fixture file unchanged. | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-28-ubuntu-24-04-easyeda-4.1.105-v1.24.4-677814e-trusted-ingress.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1198#issuecomment-7235979830) |
+| Packaged HTTP, OAuth and WebSocket admission           | `fake-runtime` | `passed`  | 26 actual compiled-entrypoint assertions passed using synthetic credentials and loopback clients: direct peer rejection, missing/multi-hop identity rejection, independent client limits, mapped IPv4 normalization, health and unauthenticated denial.                    | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-28-ubuntu-24-04-easyeda-4.1.105-v1.24.4-677814e-trusted-ingress.json), [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/pull/1198#issuecomment-7235818161) |
+| Production origin and independent real-user acceptance | `live`         | `blocked` | Isolated WSS and synthetic OAuth tests do not establish production ingress isolation, genuine social-provider callbacks, independent real-user acceptance or remembered trust.                                                                                             | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-28-ubuntu-24-04-easyeda-4.1.105-v1.24.4-677814e-trusted-ingress.json), [Issue #850](https://github.com/oaslananka/easyeda-mcp-pro/issues/850)                      |
+| Durable write and save/reopen                          | `live`         | `blocked` | Not exercised in this exact candidate; prior write and cold-reopen records remain historical.                                                                                                                                                                              | [Evidence](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/docs/evidence/easyeda-live/2026-11-28-ubuntu-24-04-easyeda-4.1.105-v1.24.4-677814e-trusted-ingress.json), [Issue #1060](https://github.com/oaslananka/easyeda-mcp-pro/issues/1060)                    |
+
+### Known limitations
+
+- Live acceptance is limited to Ubuntu x86_64 EasyEDA Pro 4.1.105. Electron and Chromium versions were not independently measured; a nonfatal GPU initialization diagnostic occurred.
+- The WSS test used a synthetic owner, local TLS ingress and a short-lived loopback-constrained CA in a copied QA profile. External provider login, real independent users, production origin isolation, remembered trust and historical credential remediation remain unaccepted.
+- No native design mutation, save/reopen, write approval, autorouting or engineering sign-off was exercised in this exact candidate. Older evidence remains historical.
+- Packaged ingress tests use the actual compiled CI server with dependencies from the matching local lockfile installation, not an independently installed or deployed production image.
 
 ## 4.1.105.0339a6cd on Ubuntu 24.04.5 LTS (x86_64) — easyeda-pro-4-1-105-ubuntu-24-04-x64-2026-11-27-dcf6831-v1242-rpc-outline
 

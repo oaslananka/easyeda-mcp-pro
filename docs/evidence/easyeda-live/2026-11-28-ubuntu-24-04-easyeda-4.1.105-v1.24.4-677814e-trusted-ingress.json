@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "kind": "exact-v1244-native-trusted-ingress-compatibility",
+  "recordedAtUtc": "2026-11-28T07:28:25Z",
+  "candidate": {
+    "releasePullRequest": 1198,
+    "exactCommit": "677814e8e5ba6be5977a755f2db720ea5d553098",
+    "treeSha1": "02f1f7e63f9ebe2f8a29090a7ab5fab57297580a",
+    "packageVersion": "1.24.4",
+    "compatibilitySensitiveTreeSha1": {
+      "easyeda-bridge-extension/src": "e58402f95636b936c8ee65f94d50bfcc8d4dc0ac",
+      "src/bridge": "f43cbbe82d20135c085bea6c1f748285e46dce1f",
+      "src/remote": "5ee2cbfc4226456fe47b25c5dad2b7918ba00177",
+      "src/server/transports": "2efd2b715e2764f2c0a588fe9152331f663a81e8",
+      "src/tools": "0aa5eaaf86eac3e8956049bc293d87770126b1f6",
+      "src/transactions": "4a6246ec5d21aaa4db28d61b6723923728c2a7b5"
+    },
+    "extensionSha256": "3443dee2a9a50408d0fd9fb98479c5b0f66afe0d8127bfd3ab6bdf86f8c929cb",
+    "extensionBytes": 253594,
+    "matchingCiAndLocalBuild": true,
+    "dependencyLockSha256": "8b51276910e3b62fa01e86bf084b52ada9c9bf51634af16ec1a51400bd882cdb",
+    "ciArtifactId": 15252746567,
+    "nodeVersion": "24.22.3",
+    "pnpmVersion": "11.29.0"
+  },
+  "environment": {
+    "operatingSystem": "Ubuntu 24.04.5 LTS",
+    "architecture": "x86_64",
+    "kernel": "7.0.0-44-generic",
+    "nodeVersion": "24.22.3"
+  },
+  "editor": {
+    "version": "4.1.105.0339a6cd",
+    "electronVersion": "not independently recorded",
+    "electronVersionProvenance": "Electron version not independently measured in this exact-candidate run.",
+    "chromiumVersion": "not independently recorded",
+    "chromiumVersionProvenance": "Chromium version not independently measured in this exact-candidate run."
+  },
+  "extension": {
+    "installedPackageVersion": "1.24.4",
+    "loaderReportedVersion": "1.24.4",
+    "bridgeContractVersion": "1.0.0",
+    "methodRegistryHash": "2a1dbe73076c707d",
+    "activeDispatcher": "baked",
+    "dispatcherBuildId": "d2b40x588exdfcd",
+    "hotSwapCompiled": false,
+    "hotSwapEnabled": false,
+    "packageSha256": "3443dee2a9a50408d0fd9fb98479c5b0f66afe0d8127bfd3ab6bdf86f8c929cb",
+    "packageSizeBytes": 253594
+  },
+  "fixture": {
+    "project": "Isolated disposable copy of STM32 F103 imported PCB; no personal designs",
+    "schematic": "Focused PCB; Local and isolated Hosted WSS read-only",
+    "disposable": true,
+    "readOnly": true
+  },
+  "liveAcceptance": {
+    "officialInstallExit": 0,
+    "coldLocalMcpExit": 0,
+    "local": {
+      "commit": "677814e8e5ba6be5977a755f2db720ea5d553098",
+      "build": "d2b40x588exdfcd",
+      "packageSha256": "3443dee2a9a50408d0fd9fb98479c5b0f66afe0d8127bfd3ab6bdf86f8c929cb",
+      "cases": [
+        {
+          "name": "dimensions",
+          "result": {
+            "width": 50,
+            "height": 57,
+            "hasOutline": true
+          }
+        },
+        {
+          "name": "followerHealth",
+          "result": {
+            "status": "ok",
+            "role": "follower",
+            "owner": "1.24.4"
+          }
+        }
+      ],
+      "runtime": {
+        "health": "ok",
+        "server": "1.24.4",
+        "extension": "1.24.4",
+        "registryMismatch": false,
+        "versionMismatch": false,
+        "connected": true,
+        "bridgeVersion": "1.0.0",
+        "easyedaVersion": "4.1.105",
+        "registryHash": "2a1dbe73076c707d",
+        "methodCount": 88,
+        "build": "d2b40x588exdfcd",
+        "source": "loader_status",
+        "devMode": false
+      },
+      "inventoryCounts": [40, 444, 224, 1],
+      "inventoryUnchanged": true,
+      "status": "passed"
+    },
+    "nativeWss": {
+      "version": "1.24.4",
+      "commit": "677814e8e5ba6be5977a755f2db720ea5d553098",
+      "certificateVerification": "enabled; process-scoped test CA",
+      "status": "passed",
+      "nativePaired": true,
+      "projectSelection": true,
+      "readOnlyTool": "project.list",
+      "readSucceeded": true,
+      "upgrades": 1
+    },
+    "nativeWssExit": 0,
+    "certificateTrust": "Short-lived loopback-constrained CA added only to copied QA NSS database; verification enabled; removed after test. No system trust change.",
+    "priorBlockedTlsError": "Chromium CERT_AUTHORITY_INVALID (-202); corrected NSS trust, zero errors in successful run.",
+    "harnessCorrections": [
+      "Initialized logger in auxiliary server.",
+      "Read current-run readiness files rather than stale prior session files."
+    ],
+    "fixtureSha256BeforeAndAfter": "2b5ca348006aa331585bfcf5eec5d846eb264423bec6791b0d1e3455016de6ad",
+    "cleanupVerified": true
+  },
+  "packagedIngress": {
+    "commit": "677814e8e5ba6be5977a755f2db720ea5d553098",
+    "version": "1.24.4",
+    "checks": {
+      "directHealth": 200,
+      "directHTTP": 403,
+      "missingHTTP": 400,
+      "multiHopHTTP": 400,
+      "httpA0": 401,
+      "httpA1": 401,
+      "httpA2": 401,
+      "httpA3": 401,
+      "httpA4": 401,
+      "httpAExhausted": 429,
+      "httpB": 401,
+      "authA0": 200,
+      "authA1": 200,
+      "authA2": 200,
+      "authAExhausted": 429,
+      "authB": 200,
+      "directWS": 403,
+      "missingWS": 400,
+      "multiHopWS": 400,
+      "wsA0": 101,
+      "wsA1": 101,
+      "wsA2": 101,
+      "wsA3": 101,
+      "wsA4": 101,
+      "wsAExhausted": 429,
+      "wsB": 101
+    },
+    "status": "passed"
+  },
+  "reportSha256": {
+    "local": "4fa937282628ddec04a7f76d7222e687f74329cd4156fe4ae3db3607f056c583",
+    "packagedIngress": "83b6240c9c07dfe68eae43bea9567bfdea8c865ec58253993ad56afe27349069",
+    "nativeWss": "e0a21cc6efcc36a0b4fe621b9a93121fdc6a29889086b2fafd7ac44522ed7fc8"
+  },
+  "knownLimitations": [
+    "Live acceptance is limited to Ubuntu x86_64 EasyEDA Pro 4.1.105. Electron and Chromium versions were not independently measured; a nonfatal GPU initialization diagnostic occurred.",
+    "The WSS test used a synthetic owner, local TLS ingress and a short-lived loopback-constrained CA in a copied QA profile. External provider login, real independent users, production origin isolation, remembered trust and historical credential remediation remain unaccepted.",
+    "No native design mutation, save/reopen, write approval, autorouting or engineering sign-off was exercised in this exact candidate. Older evidence remains historical.",
+    "Packaged ingress tests use the actual compiled CI server with dependencies from the matching local lockfile installation, not an independently installed or deployed production image."
+  ],
+  "evidence": [
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/1198#issuecomment-7235818161",
+    "https://github.com/oaslananka/easyeda-mcp-pro/pull/1198#issuecomment-7235979830"
+  ]
+}
