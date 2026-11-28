@@ -18,7 +18,7 @@
     "easyeda-bridge-extension/src/schematic-snapshot-recreation.ts": [32],
     "scripts/check-complexity-ratchet.mjs": [16],
     "scripts/check-dependency-audit.mjs": [17],
-    "scripts/check-runtime-pins.mjs": [26],
+    "scripts/check-runtime-pins.mjs": [23],
     "scripts/e2e/diag.mjs": [18],
     "scripts/e2e/http.mjs": [75],
     "scripts/e2e/live.mjs": [55],

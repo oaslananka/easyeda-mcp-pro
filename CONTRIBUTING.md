@@ -20,8 +20,10 @@ node scripts/check-runtime.mjs --require-pnpm
 
 Runtime upgrades must be submitted as one focused pull request. Do not change only `packageManager`,
 a workflow, or a local version file. Start with `config/runtime-policy.json`, select one exact Node.js
-patch, one exact pnpm version, and the matching digest-pinned official Node Alpine image, then update
-every surface reported by the parity checker:
+patch, one exact pnpm version, and the matching official Node Alpine image with both its exact tag
+and digest (`node:<version>-alpine@sha256:<digest>`). This keeps builds immutable and Renovate
+tracking the intended Alpine release instead of the untagged latest image. Then update every surface
+reported by the parity checker:
 
 ```bash
 corepack prepare pnpm@<selected-version> --activate
