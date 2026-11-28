@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.4](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.24.3...easyeda-mcp-pro-v1.24.4) (2026-11-28)
+
+
+### Bug Fixes
+
+* **cloud:** isolate hosted ingress client rate limits ([#1197](https://github.com/oaslananka/easyeda-mcp-pro/issues/1197)) ([54cad61](https://github.com/oaslananka/easyeda-mcp-pro/commit/54cad61c42a22fa8cdaba45f13f05c36fa5a511b))
+
 ## [1.24.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.24.2...easyeda-mcp-pro-v1.24.3) (2026-11-28)
 
 
