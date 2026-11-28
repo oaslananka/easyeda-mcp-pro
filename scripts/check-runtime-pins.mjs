@@ -112,32 +112,32 @@ function stepBlock(lines, usesIndex) {
   return lines.slice(stepIndex, endIndex);
 }
 
-function inspectWorkflow(path, text, policy, errors) {
-  const lines = text.split('\n');
-  let literalNodePins = 0;
+function inspectWorkflowNodePins(path, text, lines, expectedNodePin, historicalVerifier, errors) {
+  let exactNodePins = 0;
   for (const line of lines) {
     const match = /^\s*node-version:\s*(.+?)\s*$/.exec(line);
     if (!match) continue;
     const value = unquote(match[1]);
-    if (value === '${{ matrix.node-version }}') continue;
-    literalNodePins += 1;
-    expectEqual(errors, `${path} node-version`, value, policy.node.pinnedVersion);
+    if (!historicalVerifier && value === '${{ matrix.node-version }}') continue;
+    exactNodePins += 1;
+    expectEqual(errors, `${path} node-version`, value, expectedNodePin);
   }
 
+  if (/actions\/setup-node@/.test(text) && exactNodePins === 0) {
+    errors.push(`${path}: setup-node must expose at least one exact pinned Node.js version.`);
+  }
+}
+
+function inspectWorkflowPnpmPins(path, lines, expectedPnpmPin, errors) {
   for (let index = 0; index < lines.length; index += 1) {
     if (!/uses:\s*pnpm\/setup@/.test(lines[index])) continue;
     const block = stepBlock(lines, index).join('\n');
     const versionMatch = /^\s*version:\s*(.+?)\s*$/m.exec(block);
     if (!versionMatch) {
-      errors.push(`${path}: every pnpm/setup step must pin version ${policy.pnpm.pinnedVersion}.`);
+      errors.push(`${path}: every pnpm/setup step must pin version ${expectedPnpmPin}.`);
       continue;
     }
-    expectEqual(
-      errors,
-      `${path} pnpm/setup version`,
-      unquote(versionMatch[1]),
-      policy.pnpm.pinnedVersion,
-    );
+    expectEqual(errors, `${path} pnpm/setup version`, unquote(versionMatch[1]), expectedPnpmPin);
     if (!/^\s*install:\s*false\s*$/m.test(block)) {
       errors.push(
         `${path}: pnpm/setup must set install: false; installs stay in explicit workflow steps.`,
@@ -149,10 +149,37 @@ function inspectWorkflow(path, text, policy, errors) {
       );
     }
   }
+}
 
-  if (/actions\/setup-node@/.test(text) && literalNodePins === 0) {
-    errors.push(`${path}: setup-node must expose at least one literal pinned Node.js version.`);
+function inspectWorkflow(path, text, policy, errors) {
+  const lines = text.split('\n');
+  const historicalVerifier = path === '.github/workflows/verify-published-release.yml';
+  const releaseNodePin = '${{ steps.release_runtime.outputs.node_version }}';
+  const releasePnpmPin = '${{ steps.release_runtime.outputs.pnpm_version }}';
+  if (historicalVerifier) {
+    for (const required of [
+      'cp scripts/resolve-release-runtime.mjs "$RELEASE_VERIFIER_ROOT/scripts/"',
+      'id: release_runtime',
+      'test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT_SHA"',
+      'node "$RELEASE_VERIFIER_ROOT/scripts/resolve-release-runtime.mjs" "$GITHUB_WORKSPACE"',
+    ]) {
+      expectContains(errors, path, text, required);
+    }
   }
+  inspectWorkflowNodePins(
+    path,
+    text,
+    lines,
+    historicalVerifier ? releaseNodePin : policy.node.pinnedVersion,
+    historicalVerifier,
+    errors,
+  );
+  inspectWorkflowPnpmPins(
+    path,
+    lines,
+    historicalVerifier ? releasePnpmPin : policy.pnpm.pinnedVersion,
+    errors,
+  );
 }
 
 function validatePolicy(policy, errors) {
