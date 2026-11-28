@@ -43,6 +43,7 @@ jobs:
             "$RELEASE_VERIFIER_ROOT/config" \
             "$RELEASE_VERIFIER_ROOT/scripts" \
             "$RELEASE_VERIFIER_ROOT/src/release"
+          cp scripts/resolve-release-runtime.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp scripts/verify-published-release.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp scripts/check-release-extension-identity.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
           cp scripts/release-readiness.mjs "$RELEASE_VERIFIER_ROOT/scripts/"
@@ -68,17 +69,24 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Resolve immutable release runtime
+        id: release_runtime
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT_SHA"
+          node "$RELEASE_VERIFIER_ROOT/scripts/resolve-release-runtime.mjs" "$GITHUB_WORKSPACE"
+
       - name: Setup pnpm
         uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
         with:
-          version: '11.29.0'
+          version: ${{ steps.release_runtime.outputs.pnpm_version }}
           install: false
           node-version-file: false
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24.22.3'
+          node-version: ${{ steps.release_runtime.outputs.node_version }}
           package-manager-cache: false
 
       - name: Rebuild deterministic release package locally

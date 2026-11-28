@@ -225,6 +225,17 @@ describe('release channel policy', () => {
     expect(verifier).toContain('verify-published-release.mjs');
     expect(verifier).toContain('check-release-extension-identity.mjs');
     expect(verifier).toMatch(/pnpm\/setup@[0-9a-f]{40}/);
+    expect(verifier).toContain('cp scripts/resolve-release-runtime.mjs');
+    expect(verifier).toContain('test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT_SHA"');
+    expect(verifier).toContain('id: release_runtime');
+    expect(verifier).toContain('version: ${{ steps.release_runtime.outputs.pnpm_version }}');
+    expect(verifier).toContain('node-version: ${{ steps.release_runtime.outputs.node_version }}');
+    expect(verifier.indexOf('Checkout immutable release source')).toBeLessThan(
+      verifier.indexOf('Resolve immutable release runtime'),
+    );
+    expect(verifier.indexOf('Resolve immutable release runtime')).toBeLessThan(
+      verifier.indexOf('name: Setup pnpm'),
+    );
     expect(verifier).toContain('pnpm install --frozen-lockfile --ignore-scripts');
     expect(verifier).toContain('pnpm package:prepare');
     expect(verifier).toContain('pnpm verify:extension');
