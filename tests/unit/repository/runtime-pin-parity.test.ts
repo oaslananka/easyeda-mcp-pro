@@ -22,7 +22,8 @@ async function createCanonicalFixture() {
   temporaryRoots.push(root);
   const nodeVersion = '24.22.3';
   const pnpmVersion = '11.29.0';
-  const nodeImage = 'node@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5';
+  const nodeImage =
+    'node:24.22.3-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5';
 
   await writeJson(join(root, 'config/runtime-policy.json'), {
     schemaVersion: 2,
@@ -168,6 +169,49 @@ describe('runtime pin parity', () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('every pnpm/setup step must pin version 11.29.0');
+  });
+
+  it.each([
+    ['tagless digest', 'node@sha256:'],
+    ['latest tag', 'node:latest@sha256:'],
+    ['wrong patch', 'node:24.18.1-alpine@sha256:'],
+    ['non-Alpine tag', 'node:24.22.3@sha256:'],
+  ])('rejects a %s even when Dockerfile and policy agree', async (_label, replacement) => {
+    const root = await createCanonicalFixture();
+    const policyPath = join(root, 'config/runtime-policy.json');
+    const dockerPath = join(root, 'Dockerfile');
+    for (const path of [policyPath, dockerPath]) {
+      const text = await readFile(path, 'utf8');
+      await writeFile(path, text.replaceAll('node:24.22.3-alpine@sha256:', replacement), 'utf8');
+    }
+    const result = runChecker(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('docker.nodeAlpineImage');
+  });
+
+  it('rejects a tag without an immutable digest', async () => {
+    const root = await createCanonicalFixture();
+    const policyPath = join(root, 'config/runtime-policy.json');
+    const policy = JSON.parse(await readFile(policyPath, 'utf8'));
+    policy.docker.nodeAlpineImage = 'node:24.22.3-alpine';
+    await writeJson(policyPath, policy);
+    const result = runChecker(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('docker.nodeAlpineImage');
+  });
+
+  it('rejects a runner digest different from the builder and policy', async () => {
+    const root = await createCanonicalFixture();
+    const dockerPath = join(root, 'Dockerfile');
+    const text = await readFile(dockerPath, 'utf8');
+    await writeFile(
+      dockerPath,
+      text.replace(/sha256:[0-9a-f]{64} AS runner/, 'sha256:' + 'a'.repeat(64) + ' AS runner'),
+      'utf8',
+    );
+    const result = runChecker(root);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Dockerfile Node image digest');
   });
 
   it('rejects Node, Docker, and documentation drift with file-specific diagnostics', async () => {

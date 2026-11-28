@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const defaultRepoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
-const NODE_IMAGE_RE = /^node@sha256:[0-9a-f]{64}$/;
+const NODE_IMAGE_RE = /^node:\d+\.\d+\.\d+-alpine@sha256:[0-9a-f]{64}$/;
 const DOCUMENTATION_FILES = [
   'README.md',
   'CONTRIBUTING.md',
@@ -182,6 +182,16 @@ function inspectWorkflow(path, text, policy, errors) {
   );
 }
 
+function isPinnedNodeAlpineImage(policy) {
+  const image = policy?.docker?.nodeAlpineImage;
+  const version = policy?.node?.pinnedVersion;
+  return (
+    typeof image === 'string' &&
+    NODE_IMAGE_RE.test(image) &&
+    image.startsWith(`node:${version}-alpine@sha256:`)
+  );
+}
+
 function validatePolicy(policy, errors) {
   if (policy?.schemaVersion !== 2) {
     errors.push('config/runtime-policy.json schemaVersion: expected 2.');
@@ -195,9 +205,9 @@ function validatePolicy(policy, errors) {
   if (!SEMVER_RE.test(policy?.pnpm?.pinnedVersion ?? '')) {
     errors.push('config/runtime-policy.json pnpm.pinnedVersion must be an exact semver version.');
   }
-  if (!NODE_IMAGE_RE.test(policy?.docker?.nodeAlpineImage ?? '')) {
+  if (!isPinnedNodeAlpineImage(policy)) {
     errors.push(
-      'config/runtime-policy.json docker.nodeAlpineImage must be a digest-pinned official Node image.',
+      'config/runtime-policy.json docker.nodeAlpineImage must be an official Node Alpine image with the exact pinned Node tag and SHA-256 digest.',
     );
   }
   const nodeMajor = Number(String(policy?.node?.pinnedVersion ?? '').split('.')[0]);
