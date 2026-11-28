@@ -16,7 +16,7 @@ overrides:
   nanoid: 3.3.20
   brace-expansion: 5.1.0
   qs: 6.17.1
-  ip-address: 10.7.6
+  ip-address: 10.7.7
   proxy-addr: 2.0.8
   source-map-js: 1.2.4
   vue: 3.5.46
@@ -1059,9 +1059,6 @@ packages:
   '@vue/server-renderer@3.5.46':
     resolution: {integrity: sha512-4mc0YWREc6OZ5pDCigvKPDzIUV+aciiH92yvyTS6xaHHxW/80rMceQQn11pYe7OEEBt2YQgYWR9zF8QF30GJUQ==}
 
-  '@vue/shared@3.5.45':
-    resolution: {integrity: sha512-ue9fgHmVNPlP7iW3+cxoBX/Cnlw53dHlVSw0JKGY6z1lObg8pHoj928M2nzG4/yVsMZ3NaRZ2s2z61uC16NDwQ==}
-
   '@vue/shared@3.5.46':
     resolution: {integrity: sha512-P1WePbdzHrcIciWtmY2Im9EFhdakd3rZxYqvalOa3SfoxtF35Q8Uhmj1tKn6bWP4utcOpN8ao6BoJUItq0Uf+g==}
 
@@ -1727,8 +1724,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  ip-address@10.7.6:
-    resolution: {integrity: sha512-00LYkM6byILa9eQIx6qoaXCM40xTLd56AZ4vyaPW3YTyb49VZYPo5xsiAq4tuQ54GH4R7gVdYScJ1B7B77PuTg==}
+  ip-address@10.7.7:
+    resolution: {integrity: sha512-He15rAs4jip5AEAz7XM9L+S6Y8LBMIDj6YewbYuJfmDnOCKWb+3TLOGnHFBTAIW7wpm5ohtZ+Xyo5PEaG+O2vQ==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -3316,8 +3313,6 @@ snapshots:
       '@vue/runtime-dom': 3.5.46
       '@vue/shared': 3.5.46
 
-  '@vue/shared@3.5.45': {}
-
   '@vue/shared@3.5.46': {}
 
   '@vueuse/core@12.8.2(typescript@6.0.3)':
@@ -3790,7 +3785,7 @@ snapshots:
     dependencies:
       debug: 4.4.3(supports-color@7.2.0)
       express: 5.3.0(supports-color@7.2.0)
-      ip-address: 10.7.6
+      ip-address: 10.7.7
     transitivePeerDependencies:
       - supports-color
 
@@ -4001,7 +3996,7 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  ip-address@10.7.6: {}
+  ip-address@10.7.7: {}
 
   ipaddr.js@1.9.1: {}
 
@@ -4644,7 +4639,7 @@ snapshots:
       '@types/markdown-it': 14.2.0
       '@vitejs/plugin-vue': 6.0.11(vite@7.3.8(@types/node@24.19.4)(tsx@4.23.15))(vue@3.5.46(typescript@6.0.3))
       '@vue/devtools-api': 7.7.10
-      '@vue/shared': 3.5.45
+      '@vue/shared': 3.5.46
       '@vueuse/core': 12.8.2(typescript@6.0.3)
       '@vueuse/integrations': 12.8.2(axios@1.20.0(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0))(focus-trap@7.8.0)(typescript@6.0.3)
       focus-trap: 7.8.0
