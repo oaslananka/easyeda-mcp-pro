@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.3](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.24.2...easyeda-mcp-pro-v1.24.3) (2026-11-28)
+
+
+### Bug Fixes
+
+* **ci:** track the pinned Node Alpine image in Renovate ([#1195](https://github.com/oaslananka/easyeda-mcp-pro/issues/1195)) ([6f4b5cb](https://github.com/oaslananka/easyeda-mcp-pro/commit/6f4b5cb9db99693e7b2bebc3834f99c71ce0489d))
+
 ## [1.24.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.24.1...easyeda-mcp-pro-v1.24.2) (2026-11-27)
 
 
