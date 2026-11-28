@@ -157,8 +157,12 @@ docker compose down -v or delete this volume.**
   guarantee. Measure CPU/RAM, WebSocket longevity and restart recovery.
 
 Since 2026-11-16 the owner-restricted Cloud pilot has been served from this
-Oracle VM via the existing Cloudflare hostname. Its previous VPS instance
-is stopped with the original data volume and image retained for rollback.
+Oracle VM via the existing Cloudflare hostname. The former VPS/Coolify
+deployment and its dedicated data/image resources were decommissioned
+([PR #1057](https://github.com/oaslananka/easyeda-mcp-pro/pull/1057)).
+Do not rely on that retired deployment for recovery. Use the Oracle
+single-VM rollback procedure above, with a previously verified immutable
+image and the preserved Oracle volume.
 A live 33-component PCB read and owner revocation from the browser editor
 were verified on 2026-11-16. Native desktop notice/no-retry, independent-user
 isolation, and authorized WRITE/export persistence remain public-release gates.
