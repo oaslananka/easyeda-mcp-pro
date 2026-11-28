@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.2](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.24.1...easyeda-mcp-pro-v1.24.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* **deps:** update HTTP transport and brace expansion ([#1188](https://github.com/oaslananka/easyeda-mcp-pro/issues/1188)) ([2a08ee1](https://github.com/oaslananka/easyeda-mcp-pro/commit/2a08ee168bd0f15c8300339cd886a99ce5055919))
+
 ## [1.24.1](https://github.com/oaslananka/easyeda-mcp-pro/compare/easyeda-mcp-pro-v1.24.0...easyeda-mcp-pro-v1.24.1) (2026-11-27)
 
 
