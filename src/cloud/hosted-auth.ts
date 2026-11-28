@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { parseTrustedProxyIp } from './trusted-ingress.js';
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { jwt } from 'better-auth/plugins';
 import { mcp } from '@better-auth/mcp';
@@ -13,6 +14,7 @@ export interface HostedAuthSettings {
   origin: string;
   secret: string;
   database: DatabaseSync;
+  trustedProxyIp?: string;
   github: ProviderCredentials;
   google: ProviderCredentials;
 }
@@ -123,6 +125,7 @@ function hasActiveClientGrant(database: DatabaseSync, request: HostedAccessGrant
 
 export interface HostedAuth {
   readonly origin: string;
+  readonly trustedProxyIp?: string;
   readonly options: BetterAuthOptions;
   /** Install the grant-revocation ledger AFTER Better Auth schema migrations. */
   installGrantProtection(): void;
@@ -145,6 +148,7 @@ export function createHostedAuth(
   settings: HostedAuthSettings,
 ): HostedAuth & { ready(): Promise<void> } {
   validateHostedAuthSettings(settings);
+  const trustedProxyIp = parseTrustedProxyIp(settings.trustedProxyIp);
   const provider = betterAuth({
     baseURL: settings.origin,
     secret: settings.secret,
@@ -176,6 +180,7 @@ export function createHostedAuth(
   });
   return {
     origin: settings.origin,
+    trustedProxyIp,
     options: provider.options,
     // The OAuth plugin performs asynchronous initialization (including any
     // resource seeding). Await it after schema migrations so shutdown cannot

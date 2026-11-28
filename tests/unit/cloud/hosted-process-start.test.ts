@@ -42,15 +42,16 @@ async function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
 }
 
 describe('Hosted Cloud executable startup (no external social providers)', () => {
-  it(
-    'starts the real entrypoint with opt-in OAuth, publishes discovery and creates provider tables',
-    async () => {
+  it.each([false, true])(
+    'starts the real entrypoint with opt-in OAuth (trusted ingress: %s)',
+    async (trustedIngress) => {
       const dataDir = await mkdtemp(join(tmpdir(), 'easyeda-hosted-849-'));
       const port = await availablePort();
       const origin = `http://127.0.0.1:${port}`;
       const env: NodeJS.ProcessEnv = {
         ...process.env,
-        NODE_ENV: 'test',
+        NODE_ENV: trustedIngress ? 'production' : 'test',
+        CLOUD_TRUSTED_PROXY_IP: trustedIngress ? '127.0.0.1' : '',
         TRANSPORT: 'http',
         HTTP_HOST: '127.0.0.1',
         HTTP_PORT: String(port),
@@ -79,6 +80,13 @@ describe('Hosted Cloud executable startup (no external social providers)', () =>
         stderr = (stderr + chunk.toString()).slice(-1500);
       });
 
+      const request = (url: string, options: RequestInit = {}) => {
+        const headers = new Headers(options.headers);
+        if (trustedIngress && !headers.has('x-forwarded-for')) {
+          headers.set('x-forwarded-for', '192.0.2.10');
+        }
+        return fetch(url, { ...options, headers });
+      };
       try {
         let response: Response | undefined;
         // Windows CI cold starts can exceed 7 seconds under parallel test load.
@@ -87,7 +95,7 @@ describe('Hosted Cloud executable startup (no external social providers)', () =>
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           if (child.exitCode !== null) throw new Error(`Cloud exited early: ${stderr}`);
           try {
-            response = await fetch(`${origin}/api/auth/.well-known/oauth-authorization-server`);
+            response = await request(`${origin}/api/auth/.well-known/oauth-authorization-server`);
             break;
           } catch {
             await new Promise<void>((resolve) => setTimeout(resolve, 100));
@@ -98,24 +106,24 @@ describe('Hosted Cloud executable startup (no external social providers)', () =>
           issuer: `${origin}/api/auth`,
           token_endpoint: `${origin}/api/auth/oauth2/token`,
         });
-        const resource = await fetch(`${origin}/.well-known/oauth-protected-resource`);
+        const resource = await request(`${origin}/.well-known/oauth-protected-resource`);
         expect(resource.status).toBe(200);
         await expect(resource.json()).resolves.toMatchObject({ resource: `${origin}/mcp` });
-        const jwks = await fetch(`${origin}/api/auth/jwks`);
+        const jwks = await request(`${origin}/api/auth/jwks`);
         expect(jwks.status).toBe(200);
         await expect(jwks.json()).resolves.toHaveProperty('keys');
         expect((await stat(join(dataDir, 'hosted-cloud.sqlite'))).size).toBeGreaterThan(0);
-        const landing = await fetch(origin + '/');
+        const landing = await request(origin + '/');
         expect(landing.status).toBe(200);
         expect(await landing.text()).toContain('Connect EasyEDA Pro to your MCP client.');
 
-        const signIn = await fetch(`${origin}/sign-in`);
+        const signIn = await request(`${origin}/sign-in`);
         expect(signIn.status).toBe(200);
         expect(await signIn.text()).toContain('Continue with GitHub');
-        const portal = await fetch(`${origin}/cloud`, { redirect: 'manual' });
+        const portal = await request(`${origin}/cloud`, { redirect: 'manual' });
         expect(portal.status).toBe(303);
         expect(portal.headers.get('location')).toBe('/sign-in');
-        const fakeClient = await fetch(`${origin}/api/auth/sign-in/social`, {
+        const fakeClient = await request(`${origin}/api/auth/sign-in/social`, {
           method: 'POST',
           headers: { origin, 'content-type': 'application/json' },
           body: JSON.stringify({ provider: 'github', callbackURL: '/cloud' }),
@@ -123,6 +131,20 @@ describe('Hosted Cloud executable startup (no external social providers)', () =>
         expect(fakeClient.status).toBe(200);
         const fakeProviderURL = (await fakeClient.json()) as { url?: string };
         expect(fakeProviderURL.url).toMatch(/^https:\/\/github\.com\/login\/oauth\/authorize/);
+        if (trustedIngress) {
+          const signInFrom = (ip: string) =>
+            request(`${origin}/api/auth/sign-in/social`, {
+              method: 'POST',
+              headers: { origin, 'content-type': 'application/json', 'x-forwarded-for': ip },
+              body: JSON.stringify({ provider: 'github', callbackURL: '/cloud' }),
+            });
+          expect((await signInFrom('192.0.2.10')).status).toBe(200);
+          expect((await signInFrom('::ffff:c000:20a')).status).toBe(200);
+          expect((await signInFrom('192.0.2.10')).status).toBe(429);
+          expect((await signInFrom('192.0.2.11')).status).toBe(200);
+          expect((await fetch(origin + '/healthz')).status).toBe(200);
+          expect((await fetch(origin + '/mcp')).status).toBe(400);
+        }
       } finally {
         try {
           await stopChild(child);

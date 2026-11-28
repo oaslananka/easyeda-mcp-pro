@@ -31,6 +31,8 @@ services:
       ALLOWED_ORIGINS: ${EASYEDA_PUBLIC_ORIGIN:?Set canonical HTTPS domain},https://pro.easyeda.com,http://127.0.0.1:6274,http://localhost:6274,https://app.mcpjam.com
       CLOUD_HOSTED_ENABLED: 'true'
       CLOUD_HOSTED_ORIGIN: ${EASYEDA_PUBLIC_ORIGIN}
+      # Enable only after the exact origin and immediate peer have been accepted.
+      CLOUD_TRUSTED_PROXY_IP: '${CLOUD_TRUSTED_PROXY_IP:-}'
       OAUTH_ISSUER: ${EASYEDA_PUBLIC_ORIGIN}/api/auth
       OAUTH_AUDIENCE: ${EASYEDA_PUBLIC_ORIGIN}/mcp
       OAUTH_JWKS_URI: ${EASYEDA_PUBLIC_ORIGIN}/api/auth/jwks
