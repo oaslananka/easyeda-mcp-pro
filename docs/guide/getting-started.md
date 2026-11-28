@@ -8,7 +8,7 @@ Connect your open EasyEDA Pro project to an MCP-compatible assistant. Start loca
 - Install **Node.js 24.x**, then verify it with `node --version`.
 - Have an MCP-capable client such as Claude Desktop, Cursor, VS Code, or another supported client.
 
-**You do not need pnpm, Git, or a source checkout** to use the published `npx` commands below. Contributors building from source should follow [CONTRIBUTING.md](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/CONTRIBUTING.md) instead; that workflow pins Node.js 24.22.3 and pnpm 11.28.11.
+**You do not need pnpm, Git, or a source checkout** to use the published `npx` commands below. Contributors building from source should follow [CONTRIBUTING.md](https://github.com/oaslananka/easyeda-mcp-pro/blob/main/CONTRIBUTING.md) instead; that workflow pins Node.js 24.22.3 and pnpm 11.29.0.
 
 ## Connect locally
 

@@ -52,7 +52,7 @@ Nested instruction boundaries:
 The supported development runtime is intentionally pinned.
 
 - Node.js: `24.22.3`
-- pnpm: `11.28.11`
+- pnpm: `11.29.0`
 
 Start with:
 
